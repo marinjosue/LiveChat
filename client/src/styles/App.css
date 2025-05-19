@@ -1,0 +1,131 @@
+.app-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #eef5ff, #f8f5ff, #eef5ff),
+              radial-gradient(circle at 20% 30%, rgba(59, 130, 246, 0.1) 0%, transparent 70%),
+              radial-gradient(circle at 80% 70%, rgba(139, 92, 246, 0.1) 0%, transparent 70%),
+              radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.3) 0%, transparent 60%);
+  background-blend-mode: overlay;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.app-header {
+  background: #1f2937;
+  color: #9ca3af;
+  padding: 1rem 0.5rem;
+  text-align: center;
+  border-bottom-left-radius: 1rem;
+  border-bottom-right-radius: 1rem;
+  box-shadow: none;
+}
+
+.app-header .title {
+  font-size: 1.25rem;
+  font-weight: bold;
+  color: white;
+  margin-bottom: 0.5rem;
+}
+
+.header-divider {
+  width: 50px;
+  height: 3px;
+  background: linear-gradient(to right, #3b82f6, #8b5cf6);
+  margin: 0 auto 0.5rem;
+  border-radius: 5px;
+}
+
+.app-header .subtitle {
+  font-size: 0.85rem;
+  color: #9ca3af;
+}
+
+.app-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2rem 1rem;
+}
+
+.cards-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  width: 100%;
+  max-width: 1000px;
+  margin-bottom: 3rem;
+  animation: fadeIn 1s ease-out;
+}
+
+@keyframes fadeIn {
+  0% { opacity: 0; transform: translateY(10px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@media (min-width: 768px) {
+  .cards-wrapper {
+    flex-direction: row;
+    justify-content: center;
+  }
+}
+
+.features-section {
+  display: grid;
+  gap: 1.5rem;
+  width: 100%;
+  max-width: 1000px;
+  margin-top: 2rem;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 768px) {
+  .features-section {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.feature-card {
+  background: white;
+  border-radius: 1rem;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  padding: 1rem;
+  text-align: center;
+  transition: transform 0.3s;
+}
+
+.feature-card:hover {
+  transform: translateY(-5px);
+}
+
+.feature-card h3 {
+  margin-top: 0.5rem;
+  font-size: 1rem;
+}
+
+.feature-card p {
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+}
+
+.app-footer {
+  background: #1f2937;
+  color: #9ca3af;
+  padding: 1rem;
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  border-top-left-radius: 1rem;
+  border-top-right-radius: 1rem;
+  font-size: 0.75rem;
+}
+
+.footer-column {
+  flex: 1 1 45%;
+  text-align: center;
+  margin: 0.5rem 0;
+}
+
+.footer-column strong {
+  color: #ffffff;
+}

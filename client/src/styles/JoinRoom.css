@@ -25,3 +25,19 @@
 .error {
   color: red;
 }
+/* Dentro de JoinRoom.css */
+.app-container.light-theme .join-room-card {
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid #ccc;
+}
+
+.app-container.light-theme .join-room-card input {
+  background: #ffffff;
+  color: #1e293b;
+}
+
+.app-container.light-theme .join-room-card button {
+  background: linear-gradient(to right, #94a3b8, #cbd5e1);
+  color: #1e293b;
+}
+

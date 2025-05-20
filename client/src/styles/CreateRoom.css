@@ -1,5 +1,5 @@
 .action-card {
-  background: linear-gradient(to bottom right, #ffffff, #f9f9f9);
+  background: linear-gradient(135deg, #0a0f1e, #1a1a2e, #121229);
   border-radius: 1.5rem;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
   padding: 2rem;
@@ -16,6 +16,28 @@
   color: #3b82f6;
   margin-bottom: 1rem;
 }
+/* Dentro de CreateRoom.css */
+.app-container.light-theme .action-card {
+  background: rgba(255, 255, 255, 0.8);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+}
+
+.app-container.light-theme .card-body label {
+  color: #334155;
+}
+
+.app-container.light-theme .card-body input {
+  background: #ffffff;
+  color: #1e293b;
+  border: 1px solid #ccc;
+}
+
+.app-container.light-theme .card-body button {
+  background: linear-gradient(to right, #94a3b8, #cbd5e1);
+  color: #1e293b;
+}
+
+
 
 .card-body {
   display: flex;
@@ -28,7 +50,7 @@
 .card-body label {
   text-align: left;
   font-size: 0.9rem;
-  color: #374151;
+  color: #dee3eb;
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -39,6 +61,31 @@
   border: 1px solid #ddd;
   border-radius: 0.5rem;
   transition: border-color 0.3s;
+}
+/* Modo oscuro por defecto */
+.card-body input[type="number"] {
+  background: rgba(255, 255, 255, 0.05);
+  color: #e2e8f0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+/* Mejora visual en ambos temas para todos los inputs */
+.card-body input {
+  background: rgba(255, 255, 255, 0.05);
+  color: #e2e8f0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.app-container.light-theme .card-body input {
+  background: #ffffff;
+  color: #1e293b;
+  border: 1px solid #ccc;
+}
+
+/* Modo claro */
+.app-container.light-theme .card-body input[type="number"] {
+  background: #ffffff;
+  color: #1e293b;
+  border: 1px solid #ccc;
 }
 
 .card-body input:focus {

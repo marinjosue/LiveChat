@@ -14,6 +14,14 @@ function RoomController(io) {
     // Crear sala
     socket.on('createRoom', async ({ limit, nickname, deviceId }, callback) => {
       try {
+        // Validar máximo de 15 salas activas
+        const MAX_ROOMS = 2;
+        const activeRoomsCount = Object.keys(rooms).length;
+
+        if (activeRoomsCount >= MAX_ROOMS) {
+          return callback({ success: false, message: 'Se ha alcanzado el límite máximo de salas activas (15).' });
+        }
+
         const existingPins = Object.keys(rooms);
         const pin = generatePIN(existingPins);
         const room = new Room(pin, limit);
@@ -31,6 +39,7 @@ function RoomController(io) {
         callback({ success: false, message: err.message });
       }
     });
+
 
     // Unirse a sala
     socket.on('joinRoom', async ({ pin, nickname, deviceId }, callback) => {
@@ -84,6 +93,12 @@ function RoomController(io) {
       io.to(pin).emit('chatMessage', { sender, text });
       await Message.create({ pin, sender, text });
     });
+    //cargar mensaje 
+    socket.on('requestPreviousMessages', async ({ pin }) => {
+      const previousMessages = await Message.find({ pin }).sort({ timestamp: 1 });
+      socket.emit('previousMessages', previousMessages);
+    });
+
 
     // Salir de sala
     socket.on('leaveRoom', async ({ pin, deviceId }) => {
@@ -139,4 +154,4 @@ function RoomController(io) {
   });
 }
 
-  module.exports = RoomController;
+module.exports = RoomController;

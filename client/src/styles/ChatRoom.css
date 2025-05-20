@@ -8,7 +8,14 @@
   border-radius: 1rem;
   overflow: hidden;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-  background: white;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(6px);
+}
+
+.app-container.light-theme .chat-wrapper {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
 }
 
 .chat-topbar {
@@ -18,6 +25,11 @@
   padding: 1rem;
   background: linear-gradient(to right, #3b82f6, #8b5cf6);
   color: white;
+}
+
+.app-container.light-theme .chat-topbar {
+  background: linear-gradient(to right, #94a3b8, #cbd5e1);
+  color: #1e293b;
 }
 
 .room-info {
@@ -59,10 +71,14 @@
   flex: 1;
   padding: 1rem;
   overflow-y: auto;
-  background: #f9fafb;
+  background: transparent;
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+}
+
+.app-container.light-theme .chat-messages {
+  background: #f8fafc;
 }
 
 .chat-message {
@@ -87,6 +103,12 @@
   border: 1px solid #ddd;
 }
 
+.app-container.light-theme .chat-message.other {
+  background: #ffffff;
+  color: #1e293b;
+  border: 1px solid #e2e8f0;
+}
+
 .sender {
   font-weight: bold;
   font-size: 0.75rem;
@@ -104,6 +126,10 @@
   background: #f3f4f6;
 }
 
+.app-container.light-theme .chat-input-bar {
+  background: #f1f5f9;
+}
+
 .chat-input-bar input {
   flex: 1;
   padding: 0.75rem;
@@ -114,6 +140,11 @@
   outline: none;
 }
 
+.app-container.light-theme .chat-input-bar input {
+  background: #ffffff;
+  color: #1e293b;
+}
+
 .chat-input-bar button {
   background: linear-gradient(to right, #3b82f6, #8b5cf6);
   color: white;
@@ -121,6 +152,11 @@
   padding: 0.75rem 1rem;
   border-radius: 0.5rem;
   cursor: pointer;
+}
+
+.app-container.light-theme .chat-input-bar button {
+  background: linear-gradient(to right, #94a3b8, #cbd5e1);
+  color: #1e293b;
 }
 
 @media (max-width: 768px) {
@@ -164,17 +200,4 @@
   margin-left: 0.5rem;
   font-weight: bold;
   font-size: 0.75rem;
-}
-
-.chat-message.self {
-  align-self: flex-end;
-  background: linear-gradient(to right, #3b82f6, #8b5cf6);
-  color: white;
-}
-
-.chat-message.other {
-  align-self: flex-start;
-  background: #f3f4f6;
-  color: #1f2937;
-  border: 1px solid #ddd;
 }

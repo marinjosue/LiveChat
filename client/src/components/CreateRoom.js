@@ -46,9 +46,19 @@ const CreateRoom = ({ onRoomCreated }) => {
         <h2>Crear Nueva Sala</h2>
         <div className="card-body">
           <label><User size={16} /> Nickname</label>
-          <input type="text" value={nickname} onChange={(e) => setNickname(e.target.value)} />
+          <input
+            type="text"
+            value={nickname}
+            onChange={(e) => setNickname(e.target.value)}
+          />
           <label><Users size={16} /> Límite de Participantes</label>
-          <input type="number" value={limit} onChange={(e) => setLimit(Number(e.target.value))} />
+          <input
+            type="number"
+            value={limit}
+            min={2}
+            max={20}
+            onChange={(e) => setLimit(Number(e.target.value))}
+          />
           <button onClick={handleCreateRoom}>Crear Sala</button>
         </div>
       </div>

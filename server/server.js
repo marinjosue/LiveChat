@@ -21,7 +21,13 @@ RoomController(io);
 
 // Endpoint para capturar la IP pública
 app.get('/get-ip', (req, res) => {
-    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    let ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+
+    // Si es una lista separada por comas, tomamos la primera y quitamos espacios
+    if (ip && ip.includes(',')) {
+        ip = ip.split(',')[0].trim();
+    }
+
     res.json({ ip });
 });
 

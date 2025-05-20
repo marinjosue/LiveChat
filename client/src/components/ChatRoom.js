@@ -10,7 +10,6 @@ import 'primeicons/primeicons.css';
 
 
 
-
 const ChatRoom = ({ pin, nickname, onLeave }) => {
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState([]);
@@ -83,15 +82,7 @@ const ChatRoom = ({ pin, nickname, onLeave }) => {
     };
   }, []);
   
-  useEffect(() => {
-    const handleBeforeUnload = (e) => {
-      e.preventDefault();
-      e.returnValue = ''; // Esto genera el diálogo del navegador
-    };
 
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, []);
 
 
   return (

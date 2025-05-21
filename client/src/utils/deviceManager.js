@@ -1,14 +1,20 @@
 // Correcta generación persistente del DeviceId
 const getDeviceId = () => {
-    let deviceId = localStorage.getItem('livechat-device-id');
+    // Primero intentar obtener de la sesión actual
+    let deviceId = sessionStorage.getItem('livechat-device-id');
     if (!deviceId) {
-        deviceId = 'device_' + Math.random().toString(36).substring(2, 15) +
-            Math.random().toString(36).substring(2, 15);
-        localStorage.setItem('livechat-device-id', deviceId);
+        // Si no existe en sesión, buscar en localStorage
+        deviceId = localStorage.getItem('livechat-device-id');
+        if (!deviceId) {
+            // Solo generar nuevo si no existe en ningún lado
+            deviceId = 'device_' + Math.random().toString(36).substring(2, 15);
+            localStorage.setItem('livechat-device-id', deviceId);
+        }
+        // Guardar en sesión para mantener consistencia durante recargas
+        sessionStorage.setItem('livechat-device-id', deviceId);
     }
     return deviceId;
 };
-
 
 // Guardar información de la sala actual
 const saveCurrentRoom = (roomData) => {

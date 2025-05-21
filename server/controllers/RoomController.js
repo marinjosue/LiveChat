@@ -108,40 +108,46 @@ function RoomController(io) {
           return callback({ success: false, message: 'Sala no encontrada' });
         }
 
-        // Verificar si el usuario ya está en la sala
+        // Validar si el usuario ya existe en la sala
         const existingUser = room.users.find(u => u.deviceId === deviceId);
         if (existingUser) {
-          // Actualizar el socket ID del usuario existente
-          existingUser.id = socket.id;
-        } else {
-          // Si no existe, agregar como nuevo usuario
-          room.addUser(socket.id, nickname, deviceId);
+            // Actualizar solo el socket ID manteniendo el resto de la información
+            existingUser.id = socket.id;
+            socket.join(pin);
+
+            // Cargar mensajes previos
+            const previousMessages = await Message.find({ pin })
+                .sort({ timestamp: 1 })
+                .select('sender text timestamp');
+
+            socket.emit('previousMessages', previousMessages);
+            
+            // Actualizar estado de la sala sin incrementar el contador
+            io.to(pin).emit('userJoined', {
+                userId: socket.id,
+                nickname: existingUser.nickname,
+                count: room.users.length,
+                limit: room.limit
+            });
+
+            return callback({ success: true, pin });
         }
 
-        // Unir el socket a la sala
+        // Si no existe y la sala está llena, rechazar
+        if (room.isFull()) {
+            return callback({ success: false, message: 'La sala está llena' });
+        }
+
+        // Si es un usuario nuevo, agregarlo normalmente
+        room.addUser(socket.id, nickname, deviceId);
         socket.join(pin);
-
-        // Enviar mensajes previos y estado actual
-        const previousMessages = await Message.find({ pin })
-          .sort({ timestamp: 1 })
-          .select('sender text timestamp');
-
-        socket.emit('previousMessages', previousMessages);
         
-        // Notificar a todos los usuarios
-        io.to(pin).emit('userJoined', {
-          userId: socket.id,
-          nickname,
-          count: room.users.length,
-          limit: room.limit
-        });
-
-        callback({ success: true, pin });
-      } catch (err) {
+        // ...resto del código de reconexión...
+    } catch (err) {
         console.error('Error en reconnectToRoom:', err);
         callback({ success: false, message: err.message });
-      }
-    });
+    }
+});
 
     // Enviar mensaje
     socket.on('chatMessage', async ({ pin, text }) => {

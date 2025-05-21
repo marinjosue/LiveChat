@@ -8,6 +8,9 @@ const socket = io(process.env.REACT_APP_SOCKET_URL || 'https://livechat-9oej.onr
     reconnectionDelay: 1000,
     reconnectionDelayMax: 5000,
     timeout: 20000,
+    auth: {
+        deviceId: getDeviceId() // Incluir deviceId en la conexión
+    }
 });
 
 let reconnectTimer = null;
@@ -16,6 +19,13 @@ let reconnectTimer = null;
 socket.on('connect', () => {
     console.log('Conectado al servidor de socket');
     setRefreshing(false); // Limpiar el estado de recarga cuando conectamos
+    const currentRoom = JSON.parse(localStorage.getItem('livechat-current-room'));
+    if (currentRoom) {
+        socket.auth = { 
+            deviceId: getDeviceId(),
+            roomPin: currentRoom.pin 
+        };
+    }
 });
 
 // Manejar eventos de desconexión

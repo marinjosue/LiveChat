@@ -4,7 +4,7 @@ import JoinRoom from './components/JoinRoom';
 import ChatRoom from './components/ChatRoom';
 import { Rocket, ShieldCheck, Palette, Server, GitBranch, Users, Code, Github, Sun, Moon } from 'lucide-react';
 import './styles/App.css';
-import { getCurrentRoom, clearCurrentRoom, getDeviceId } from './utils/deviceManager';
+import { getCurrentRoom, clearCurrentRoom, getDeviceId, saveCurrentRoom } from './utils/deviceManager';
 import socket from './services/socketService';
 
 const App = () => {
@@ -12,16 +12,16 @@ const App = () => {
   const [isReconnecting, setIsReconnecting] = useState(!!savedRoom);
   const [currentPin, setCurrentPin] = useState(savedRoom?.pin || null);
   const [nickname, setNickname] = useState(savedRoom?.nickname || '');
-  const [activeTab, setActiveTab] = useState('join'); // 'join' or 'create'
+  const [activeTab, setActiveTab] = useState('join'); // 'join' o 'create'
   const [theme, setTheme] = useState('dark'); // 'dark' o 'light'
+  const [reconnectionAttempted, setReconnectionAttempted] = useState(false);
 
   useEffect(() => {
-    if (savedRoom) {
+    if (savedRoom && !reconnectionAttempted) {
+      setReconnectionAttempted(true);
       socket.emit('reconnectToRoom', { ...savedRoom, deviceId: getDeviceId() }, (response) => {
+        // En lugar de limpiar la sala si falla la reconexión, se mantiene el estado local
         if (!response.success) {
-          clearCurrentRoom();
-          setCurrentPin(null);
-          setNickname('');
         }
         setIsReconnecting(false);
       });
@@ -37,7 +37,34 @@ const App = () => {
     if (savedTheme) {
       setTheme(savedTheme);
     }
-  }, []);
+
+    // Escuchar eventos de conexión y desconexión
+    const handleBeforeUnload = () => {
+      // No limpiamos la sala, solo registramos que estamos recargando
+      if (currentPin) {
+        socket.emit('pageRefreshing', { pin: currentPin, deviceId: getDeviceId() });
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    // Cuando la ventana vuelve a tener foco, podemos reactivar la conexión si es necesario
+    const handleFocus = () => {
+      const currentRoom = getCurrentRoom();
+      if (currentRoom && currentPin) {
+        socket.emit('reconnectToRoom', { ...currentRoom, deviceId: getDeviceId() }, () => {
+          // No necesitamos hacer nada especial aquí
+        });
+      }
+    };
+    
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [currentPin, reconnectionAttempted]);
   
   // Efecto para aplicar el tema actual
   useEffect(() => {
@@ -125,11 +152,15 @@ const App = () => {
   const handleRoomCreated = (pin, nick) => {
     setNickname(nick);
     setCurrentPin(pin);
+    // Guardar información de la sala actual
+    saveCurrentRoom({ pin, nickname: nick });
   };
 
   const handleRoomJoined = (pin, nick) => {
     setNickname(nick);
     setCurrentPin(pin);
+    // Guardar información de la sala actual
+    saveCurrentRoom({ pin, nickname: nick });
   };
 
   const handleLeaveRoom = () => {

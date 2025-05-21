@@ -2,23 +2,28 @@ import React, { useState, useEffect, useRef } from 'react';
 import socket from '../services/socketService';
 import { Send, LogOut, Users, MessageCircle } from 'lucide-react';
 import '../styles/ChatRoom.css';
-import { getDeviceId, clearCurrentRoom } from '../utils/deviceManager';
+import { getDeviceId, clearCurrentRoom, updateRoomActivity } from '../utils/deviceManager';
 import { confirmDialog, ConfirmDialog } from 'primereact/confirmdialog';
 import 'primereact/resources/themes/lara-light-indigo/theme.css';
 import 'primereact/resources/primereact.min.css';
 import 'primeicons/primeicons.css';
-
-
+import { getClientIp } from '../utils/networkUtils'; 
 
 const ChatRoom = ({ pin, nickname, onLeave }) => {
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState([]);
   const [participants, setParticipants] = useState(1);
   const [limit, setLimit] = useState(null);
+  const [isLastUser, setIsLastUser] = useState(false);
 
   const messagesEndRef = useRef(null);
-
+  
   useEffect(() => {
+    // Configurar intervalos para actualizar la actividad del usuario
+    const activityInterval = setInterval(() => {
+      updateRoomActivity();
+    }, 30000); // Cada 30 segundos
+
     socket.on('chatMessage', ({ sender, text }) => {
       const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       setMessages(prev => [...prev, { sender, text, timestamp }]);
@@ -27,17 +32,43 @@ const ChatRoom = ({ pin, nickname, onLeave }) => {
     socket.on('userJoined', ({ count, limit: roomLimit }) => {
       setParticipants(count);
       setLimit(roomLimit);
+      setIsLastUser(count === 1);
     });
 
     socket.on('userLeft', ({ count, limit: roomLimit }) => {
       setParticipants(count);
       setLimit(roomLimit);
+      setIsLastUser(count === 1);
     });
+
+    socket.on('isLastUser', (isLast) => {
+      setIsLastUser(isLast);
+    });
+
+    // Solicitar mensajes previos cuando se conecta a la sala
+    socket.emit('requestPreviousMessages', { pin });
 
     return () => {
       socket.off('chatMessage');
       socket.off('userJoined');
       socket.off('userLeft');
+      socket.off('isLastUser');
+      clearInterval(activityInterval);
+    };
+  }, [pin]);
+
+  useEffect(() => {
+    socket.on('previousMessages', (messages) => {
+      const formattedMessages = messages.map(msg => ({
+        sender: msg.sender,
+        text: msg.text,
+        timestamp: new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      }));
+      setMessages(formattedMessages);
+    });
+
+    return () => {
+      socket.off('previousMessages');
     };
   }, []);
 
@@ -53,37 +84,25 @@ const ChatRoom = ({ pin, nickname, onLeave }) => {
   };
 
   // Función para mostrar confirmación
-  const confirmExit = () => {
-    confirmDialog({
-      message: '¿Estás seguro de que deseas salir? Al salir se eliminará tu conversación de esta sala.',
-      header: 'Confirmar salida',
-      icon: 'pi pi-exclamation-triangle',
-      acceptLabel: 'Sí, salir',
-      rejectLabel: 'Cancelar',
-      accept: () => {
-        socket.emit('leaveRoom', { pin, deviceId: getDeviceId() });
-        clearCurrentRoom();
-        onLeave();
-      }
-    });
-  };
-  useEffect(() => {
-    socket.on('previousMessages', (messages) => {
-      const formattedMessages = messages.map(msg => ({
-        sender: msg.sender,
-        text: msg.text,
-        timestamp: new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      }));
-      setMessages(formattedMessages);
-    });
+const confirmExit = async () => {
+  const ip = await getClientIp(); // Obtener IP actual
+  const deviceId = getDeviceId();
 
-    return () => {
-      socket.off('previousMessages');
-    };
-  }, []);
+  confirmDialog({
+    message: '¿Estás seguro de que deseas salir? Al salir se eliminará tu conversación de esta sala.',
+    header: 'Confirmar salida',
+    icon: 'pi pi-exclamation-triangle',
+    acceptLabel: 'Sí, salir',
+    rejectLabel: 'Cancelar',
+    accept: () => {
+      socket.emit('leaveRoom', { pin, deviceId, ip });
+      clearCurrentRoom();
+      localStorage.removeItem('livechat-device-id');
+      onLeave();
+    }
+  });
+};
   
-
-
 
   return (
     <div className="chat-wrapper">
@@ -94,11 +113,11 @@ const ChatRoom = ({ pin, nickname, onLeave }) => {
         <div className="topbar-actions">
           <div className="user-count">
             <Users size={18} /> {participants} {limit ? `/ ${limit}` : ''}
+            {isLastUser && <span className="last-user-badge"> (Último usuario)</span>}
           </div>
           <button className="exit-btn" onClick={confirmExit}>
             <LogOut size={16} /> Salir
           </button>
-
         </div>
       </header>
 
@@ -125,7 +144,6 @@ const ChatRoom = ({ pin, nickname, onLeave }) => {
         </button>
       </footer>
       <ConfirmDialog />
-
     </div>
   );
 };

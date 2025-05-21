@@ -190,7 +190,7 @@ function RoomController(io) {
     };
 
     // Salir de sala
-    socket.on('leaveRoom', async ({ pin, deviceId, ip }) => {
+    socket.on('leaveRoom', async ({ pin, deviceId, ip }, callback) => {
       const room = rooms[pin];
       if (!room) return;
 
@@ -200,18 +200,18 @@ function RoomController(io) {
       socket.leave(pin);
 
       try {
-        // Validar con ambos valores
-        const deleted = await DeviceSession.deleteOne({
+        // Elimina todas las sesiones asociadas a ese deviceId o IP
+        const deleted = await DeviceSession.deleteMany({
           $or: [
             { deviceId },
-            { deviceId: ip } // En caso de que se haya guardado la IP como deviceId
+            { deviceId: ip }
           ]
         });
 
         if (deleted.deletedCount === 0) {
           console.warn(`No se encontró ninguna sesión para eliminar con deviceId: ${deviceId} ni IP: ${ip}`);
         } else {
-          console.log(`Sesión eliminada correctamente para ${deviceId} o IP: ${ip}`);
+          console.log(`Sesiones eliminadas correctamente para ${deviceId} o IP: ${ip}`);
         }
       } catch (err) {
         console.error(`Error eliminando sesión:`, err);
@@ -222,6 +222,8 @@ function RoomController(io) {
       } else {
         io.to(pin).emit('userLeft', { userId: socket.id, nickname, count: room.users.length, limit: room.limit });
       }
+
+      if (callback) callback();
     });
 
     // Desconexión

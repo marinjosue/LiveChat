@@ -94,11 +94,15 @@ const confirmExit = async () => {
     icon: 'pi pi-exclamation-triangle',
     acceptLabel: 'Sí, salir',
     rejectLabel: 'Cancelar',
-    accept: () => {
-      socket.emit('leaveRoom', { pin, deviceId, ip });
-      clearCurrentRoom();
-      localStorage.removeItem('livechat-device-id');
-      onLeave();
+    accept: async () => {
+      // Elimina la sesión anterior en el backend
+      socket.emit('leaveRoom', { pin, deviceId, ip }, () => {
+        // Al salir, elimina el deviceId para que se genere uno nuevo en la próxima unión
+        localStorage.removeItem('livechat-device-id');
+        sessionStorage.removeItem('livechat-device-id');
+        clearCurrentRoom();
+        onLeave();
+      });
     }
   });
 };

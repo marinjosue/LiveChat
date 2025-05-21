@@ -19,52 +19,35 @@ const App = () => {
   useEffect(() => {
     if (savedRoom && !reconnectionAttempted) {
       setReconnectionAttempted(true);
-      socket.emit('reconnectToRoom', { ...savedRoom, deviceId: getDeviceId() }, (response) => {
-        // En lugar de limpiar la sala si falla la reconexión, se mantiene el estado local
-        if (!response.success) {
-        }
-        setIsReconnecting(false);
-      });
+      
+      const handleReconnection = () => {
+        socket.emit('reconnectToRoom', { 
+          pin: savedRoom.pin, 
+          nickname: savedRoom.nickname, 
+          deviceId: getDeviceId() 
+        }, (response) => {
+          if (!response.success) {
+            console.warn('Reconexión fallida:', response.message);
+          }
+          setIsReconnecting(false);
+        });
+      };
+
+      // Intentar reconexión cuando el socket esté listo
+      if (socket.connected) {
+        handleReconnection();
+      } else {
+        socket.once('connect', handleReconnection);
+      }
+
+      // Limpiar listener
+      return () => {
+        socket.off('connect', handleReconnection);
+      };
     } else {
       setIsReconnecting(false);
     }
-    
-    // Iniciar animación del fondo
-    initBackgroundAnimation();
-    
-    // Cargar tema guardado si existe
-    const savedTheme = localStorage.getItem('livechat-theme');
-    if (savedTheme) {
-      setTheme(savedTheme);
-    }
-
-    // Escuchar eventos de conexión y desconexión
-    const handleBeforeUnload = () => {
-      // No limpiamos la sala, solo registramos que estamos recargando
-      if (currentPin) {
-        socket.emit('pageRefreshing', { pin: currentPin, deviceId: getDeviceId() });
-      }
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-
-    // Cuando la ventana vuelve a tener foco, podemos reactivar la conexión si es necesario
-    const handleFocus = () => {
-      const currentRoom = getCurrentRoom();
-      if (currentRoom && currentPin) {
-        socket.emit('reconnectToRoom', { ...currentRoom, deviceId: getDeviceId() }, () => {
-          // No necesitamos hacer nada especial aquí
-        });
-      }
-    };
-    
-    window.addEventListener('focus', handleFocus);
-
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      window.removeEventListener('focus', handleFocus);
-    };
-  }, [currentPin, reconnectionAttempted]);
+  }, [savedRoom, reconnectionAttempted]);
   
   // Efecto para aplicar el tema actual
   useEffect(() => {
@@ -292,7 +275,7 @@ const App = () => {
             © {new Date().getFullYear()} LiveChat - Todos los derechos reservados
           </div>
           <div className="footer-column developer">
-            Desarrollado por <strong>Autepim</strong>
+            Desarrollado por <strong>Autepim</strong> 
           </div>
           <div className="footer-column github-link">
             <a href="https://github.com/marinjosue/LiveChat" target="_blank" rel="noopener noreferrer">

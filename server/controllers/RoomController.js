@@ -108,44 +108,33 @@ function RoomController(io) {
           return callback({ success: false, message: 'Sala no encontrada' });
         }
 
-        // Validar si la sesión existe
-        const isValidSession = await validateSession(deviceId, pin);
-        if (!isValidSession) {
-          return callback({ success: false, message: 'Sesión no válida' });
+        // Verificar si el usuario ya está en la sala
+        const existingUser = room.users.find(u => u.deviceId === deviceId);
+        if (existingUser) {
+          // Actualizar el socket ID del usuario existente
+          existingUser.id = socket.id;
+        } else {
+          // Si no existe, agregar como nuevo usuario
+          room.addUser(socket.id, nickname, deviceId);
         }
 
-        // Limpiar el estado de "recargando" si existía
-        const refreshKey = `${pin}:${deviceId}`;
-        refreshingUsers.delete(refreshKey);
-
-        // Eliminar usuario anterior si existe (puede ser un socket diferente)
-        room.removeUserByDeviceId(deviceId);
-
-        // Reconectar usuario
-        room.addUser(socket.id, nickname, deviceId);
+        // Unir el socket a la sala
         socket.join(pin);
 
-        // Cancelar cualquier temporizador de eliminación
-        if (deletionTimers[pin]) {
-          clearTimeout(deletionTimers[pin]);
-          delete deletionTimers[pin];
-        }
-
-        // Cargar mensajes previos
+        // Enviar mensajes previos y estado actual
         const previousMessages = await Message.find({ pin })
           .sort({ timestamp: 1 })
           .select('sender text timestamp');
 
         socket.emit('previousMessages', previousMessages);
+        
+        // Notificar a todos los usuarios
         io.to(pin).emit('userJoined', {
           userId: socket.id,
           nickname,
           count: room.users.length,
           limit: room.limit
         });
-
-        // Notificar al cliente si es el único usuario en la sala
-        socket.emit('isLastUser', room.users.length === 1);
 
         callback({ success: true, pin });
       } catch (err) {

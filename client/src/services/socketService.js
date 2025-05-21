@@ -10,6 +10,8 @@ const socket = io(process.env.REACT_APP_SOCKET_URL || 'https://livechat-9oej.onr
     timeout: 20000,
 });
 
+let reconnectTimer = null;
+
 // Manejar eventos de conexión
 socket.on('connect', () => {
     console.log('Conectado al servidor de socket');
@@ -24,6 +26,10 @@ socket.on('disconnect', (reason) => {
     } else {
         // Intentar reconectar
         console.log('Intentando reconectar...');
+    }
+    if (reason === 'io server disconnect') {
+        // Desconexión desde el servidor
+        socket.connect();
     }
 });
 
@@ -42,6 +48,16 @@ socket.on('reconnect_failed', () => {
     console.error('Reconexión fallida después de múltiples intentos');
 });
 
+socket.on('connect_error', (error) => {
+    console.log('Error de conexión:', error);
+    if (!reconnectTimer) {
+        reconnectTimer = setTimeout(() => {
+            socket.connect();
+            reconnectTimer = null;
+        }, 1000);
+    }
+});
+
 // Interceptar el evento de beforeunload para notificar al servidor
 if (typeof window !== 'undefined') {
     window.addEventListener('beforeunload', () => {
@@ -52,6 +68,9 @@ if (typeof window !== 'undefined') {
                 pin: currentRoom.pin,
                 deviceId: getDeviceId()
             });
+        }
+        if (reconnectTimer) {
+            clearTimeout(reconnectTimer);
         }
     });
 }

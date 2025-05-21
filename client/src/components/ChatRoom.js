@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import socket from '../services/socketService';
 import { Send, LogOut, Users, MessageCircle } from 'lucide-react';
 import '../styles/ChatRoom.css';
-import { getDeviceId, clearCurrentRoom, updateRoomActivity } from '../utils/deviceManager';
+import { getDeviceId, clearCurrentRoom, updateRoomActivity,isReconnecting,finishReconnection,markPageRefreshing } from '../utils/deviceManager';
 import { confirmDialog, ConfirmDialog } from 'primereact/confirmdialog';
 import 'primereact/resources/themes/lara-light-indigo/theme.css';
 import 'primereact/resources/primereact.min.css';
@@ -23,7 +23,7 @@ const ChatRoom = ({ pin, nickname, onLeave }) => {
     const activityInterval = setInterval(() => {
       updateRoomActivity();
     }, 30000); // Cada 30 segundos
-
+    
     socket.on('chatMessage', ({ sender, text }) => {
       const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       setMessages(prev => [...prev, { sender, text, timestamp }]);
@@ -73,6 +73,43 @@ const ChatRoom = ({ pin, nickname, onLeave }) => {
   }, []);
 
   useEffect(() => {
+    // Verificar si estamos reconectando desde un refresh
+    const handleReconnection = () => {
+      if (isReconnecting()) {
+        console.log("Reconectando después de recargar la página...");
+        socket.emit('reconnectToRoom', { 
+          pin, 
+          nickname, 
+          deviceId: getDeviceId() 
+        }, (response) => {
+          if (response.success) {
+            console.log('Reconexión exitosa');
+          } else {
+            console.error('Error en reconexión:', response.message);
+          }
+          // Marcar reconexión como finalizada
+          finishReconnection();
+        });
+      }
+    };
+
+    // Ejecutar al montar el componente
+    handleReconnection();
+    
+    // Manejar evento de cierre de ventana o recarga
+    const handleBeforeUnload = () => {
+      markPageRefreshing(pin);
+      socket.emit('pageRefreshing', { pin, deviceId: getDeviceId() });
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, []);
+
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
@@ -85,7 +122,7 @@ const ChatRoom = ({ pin, nickname, onLeave }) => {
 
   // Función para mostrar confirmación
 const confirmExit = async () => {
-  const ip = await getClientIp(); // Obtener IP actual
+  const ip = await getClientIp(); 
   const deviceId = getDeviceId();
 
   confirmDialog({
@@ -150,6 +187,7 @@ const confirmExit = async () => {
       <ConfirmDialog />
     </div>
   );
+  
 };
 
 export default ChatRoom;

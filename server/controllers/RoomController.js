@@ -101,52 +101,87 @@ function RoomController(io) {
     });
 
     // Reconectar a sala
-    socket.on('reconnectToRoom', async ({ pin, nickname, deviceId }, callback) => {
-      try {
-        const room = rooms[pin];
-        if (!room) {
-          return callback({ success: false, message: 'Sala no encontrada' });
-        }
-
-        // Validar si el usuario ya existe en la sala
-        const existingUser = room.users.find(u => u.deviceId === deviceId);
-        if (existingUser) {
-            // Actualizar solo el socket ID manteniendo el resto de la información
-            existingUser.id = socket.id;
-            socket.join(pin);
-
-            // Cargar mensajes previos
-            const previousMessages = await Message.find({ pin })
-                .sort({ timestamp: 1 })
-                .select('sender text timestamp');
-
-            socket.emit('previousMessages', previousMessages);
-            
-            // Actualizar estado de la sala sin incrementar el contador
-            io.to(pin).emit('userJoined', {
-                userId: socket.id,
-                nickname: existingUser.nickname,
-                count: room.users.length,
-                limit: room.limit
-            });
-
-            return callback({ success: true, pin });
-        }
-
-        // Si no existe y la sala está llena, rechazar
-        if (room.isFull()) {
-            return callback({ success: false, message: 'La sala está llena' });
-        }
-
-        // Si es un usuario nuevo, agregarlo normalmente
-        room.addUser(socket.id, nickname, deviceId);
-        socket.join(pin);
-        
-        // ...resto del código de reconexión...
-    } catch (err) {
-        console.error('Error en reconnectToRoom:', err);
-        callback({ success: false, message: err.message });
+ socket.on('reconnectToRoom', async ({ pin, nickname, deviceId }, callback) => {
+  try {
+    const room = rooms[pin];
+    if (!room) {
+      return callback({ success: false, message: 'Sala no encontrada' });
     }
+
+    // Primero buscar si existe una sesión válida para este dispositivo
+    const isValidSession = await validateSession(deviceId, pin);
+    if (!isValidSession) {
+      return callback({ success: false, message: 'Sesión no válida o expirada' });
+    }
+
+    // Buscar si el usuario ya existe en la sala con el mismo deviceId
+    const existingUserIndex = room.users.findIndex(u => u.deviceId === deviceId);
+    
+    if (existingUserIndex !== -1) {
+      // Actualizar el socket ID manteniendo el resto de la información
+      const existingUser = room.users[existingUserIndex];
+      
+      // Si hay un socket antiguo, limpiarlo para evitar duplicados
+      if (existingUser.id !== socket.id) {
+        const oldSocket = io.sockets.sockets.get(existingUser.id);
+        if (oldSocket) {
+          oldSocket.leave(pin);
+          console.log(`Socket antiguo ${existingUser.id} reemplazado por ${socket.id}`);
+        }
+      }
+      
+      // Actualizar con el nuevo socket
+      existingUser.id = socket.id;
+      socket.join(pin);
+
+      // Cargar mensajes previos
+      const previousMessages = await Message.find({ pin })
+          .sort({ timestamp: 1 })
+          .select('sender text timestamp');
+
+      socket.emit('previousMessages', previousMessages);
+      
+      // Notificar manteniendo el conteo actual
+      io.to(pin).emit('userJoined', {
+          userId: socket.id,
+          nickname: existingUser.nickname,
+          count: room.users.length,
+          limit: room.limit
+      });
+
+      console.log(`Usuario ${nickname} reconectado correctamente con dispositivo ${deviceId}`);
+      return callback({ success: true, pin });
+    }
+
+    // Si no existe el usuario pero la sesión es válida y hay espacio, agregarlo
+    if (room.isFull()) {
+      return callback({ success: false, message: 'La sala está llena' });
+    }
+
+    // Agregar como nuevo usuario
+    room.addUser(socket.id, nickname, deviceId);
+    socket.join(pin);
+    
+    // Cargar mensajes previos
+    const previousMessages = await Message.find({ pin })
+      .sort({ timestamp: 1 })
+      .select('sender text timestamp');
+
+    socket.emit('previousMessages', previousMessages);
+      
+    // Notificar a todos los usuarios de la sala
+    io.to(pin).emit('userJoined', {
+      userId: socket.id,
+      nickname,
+      count: room.users.length,
+      limit: room.limit
+    });
+
+    callback({ success: true, pin });
+  } catch (err) {
+    console.error('Error en reconnectToRoom:', err);
+    callback({ success: false, message: err.message });
+  }
 });
 
     // Enviar mensaje
@@ -227,69 +262,82 @@ function RoomController(io) {
     });
 
     // Desconexión
-    socket.on('disconnect', async () => {
-      console.log(`Cliente desconectado: ${socket.id}`);
+   socket.on('disconnect', async () => {
+  console.log(`Cliente desconectado: ${socket.id}`);
 
-      // Si el socket se ha marcado por refresh, no se realiza el proceso de salida
-      if (socket.refreshing) {
-        console.log(`Socket ${socket.id} se desconectó por refresh; se omite la salida.`);
-        return;
-      }
+  // Buscar en todas las salas si el usuario está conectado
+  for (const pin in rooms) {
+    const room = rooms[pin];
+    const userIndex = room.users.findIndex(u => u.id === socket.id);
 
-      // Buscar en todas las salas si el usuario está conectado
-      for (const pin in rooms) {
-        const room = rooms[pin];
-        const user = room.users.find(u => u.id === socket.id);
+    if (userIndex !== -1) {
+      const user = room.users[userIndex];
+      const nickname = user.nickname || 'Desconocido';
+      const deviceId = user.deviceId;
 
-        if (user) {
-          const nickname = user.nickname || 'Desconocido';
-          const deviceId = user.deviceId;
-
-          // Verificar si el usuario está recargando la página
-          const refreshKey = `${pin}:${deviceId}`;
-          if (refreshingUsers.has(refreshKey)) {
-            console.log(`El usuario ${nickname} (${deviceId}) está recargando la página, no se elimina de la sala ${pin}`);
-            refreshingUsers.delete(refreshKey);
-            continue; // No hacer nada más con este usuario, está recargando
-          }
-
-          // Si no está recargando, se considera una desconexión genuina
-          room.removeUser(socket.id);
-
-          // Verificar si la sala quedó vacía
-          if (room.isEmpty()) {
-            console.log(`Sala ${pin} quedó vacía tras desconexión de ${nickname}`);
-
-            // No eliminamos la sala inmediatamente, permitimos la reconexión
-            deletionTimers[pin] = setTimeout(async () => {
-              // Verificar si la sala sigue existiendo y vacía después del tiempo de espera
-              if (rooms[pin] && rooms[pin].isEmpty()) {
-                const activeUsers = await DeviceSession.countDocuments({ roomPin: pin });
-                if (activeUsers === 0) {
-                  delete rooms[pin];
-                  console.log(`Sala ${pin} eliminada por inactividad tras desconexión.`);
-                }
-              }
-              delete deletionTimers[pin];
-            }, 300000); // 5 minutos de espera para reconexión
-          } else {
-            // Notificar a los demás usuarios
-            io.to(pin).emit('userLeft', {
-              userId: socket.id,
-              nickname,
-              count: room.users.length,
-              limit: room.limit
-            });
-
-            // Notificar si queda un solo usuario
-            if (room.users.length === 1) {
-              const lastUser = room.users[0];
-              io.to(lastUser.id).emit('isLastUser', true);
-            }
-          }
+      // Verificar si hay una sesión válida para este dispositivo antes de removerlo
+      try {
+        const isValidSession = await validateSession(deviceId, pin);
+        const isRefreshing = refreshingUsers.has(`${pin}:${deviceId}`);
+        
+        // No eliminar usuario si está en proceso de recarga o tiene sesión válida reciente
+        if (isRefreshing || socket.refreshing) {
+          console.log(`Usuario ${nickname} con dispositivo ${deviceId} está recargando, no se elimina`);
+          continue;
         }
+        
+        // Si la sesión es válida pero no está marcado como refresh, esperar brevemente
+        if (isValidSession) {
+          console.log(`Sesión válida para ${deviceId}, esperando para confirmar desconexión real`);
+          
+          // Esperar un poco para confirmar que es desconexión real y no recarga
+          setTimeout(async () => {
+            // Verificar nuevamente si el usuario se ha reconectado
+            const stillExists = rooms[pin]?.users.some(u => u.deviceId === deviceId);
+            
+            if (stillExists) {
+              console.log(`Usuario ${deviceId} se ha reconectado, no se elimina`);
+              return;
+            }
+            
+            // Si no se reconectó, proceder con la eliminación
+            console.log(`Confirmada desconexión real de ${nickname}, eliminando...`);
+            const userStillExists = room.removeUser(socket.id);
+            
+            if (!userStillExists && room.isEmpty()) {
+              handleEmptyRoom(pin);
+            } else {
+              io.to(pin).emit('userLeft', {
+                userId: socket.id,
+                nickname,
+                count: room.users.length,
+                limit: room.limit
+              });
+            }
+          }, 5000); // Esperar 5 segundos para confirmar
+          
+          continue;
+        }
+      } catch (err) {
+        console.error('Error verificando sesión en desconexión:', err);
       }
-    });
+
+      // Eliminación normal si no hay condiciones especiales
+      room.removeUser(socket.id);
+
+      if (room.isEmpty()) {
+        handleEmptyRoom(pin);
+      } else {
+        io.to(pin).emit('userLeft', {
+          userId: socket.id,
+          nickname,
+          count: room.users.length,
+          limit: room.limit
+        });
+      }
+    }
+  }
+});
   });
 }
 

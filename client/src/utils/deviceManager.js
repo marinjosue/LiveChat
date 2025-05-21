@@ -49,6 +49,17 @@ const updateRoomActivity = () => {
         localStorage.setItem('livechat-current-room', JSON.stringify(currentRoom));
     }
 };
+const markPageRefreshing = (pin) => {
+    const currentRoom = getCurrentRoom();
+    if (currentRoom && currentRoom.pin === pin) {
+        localStorage.setItem('livechat-refreshing', 'true');
+        localStorage.setItem('livechat-refresh-timestamp', Date.now().toString());
+        // Establecer expiración de 30 segundos para el estado de recarga
+        setTimeout(() => {
+            localStorage.removeItem('livechat-refreshing');
+        }, 30000);
+    }
+};
 
 // Limpiar información de la sala actual
 const clearCurrentRoom = () => {
@@ -68,7 +79,32 @@ const setRefreshing = (isRefreshing) => {
         localStorage.removeItem('livechat-refreshing');
     }
 };
+// Comprobar si estamos en proceso de recarga
+const isReconnecting = () => {
+    const refreshing = localStorage.getItem('livechat-refreshing') === 'true';
+    const timestamp = localStorage.getItem('livechat-refresh-timestamp');
+    
+    // Si ha pasado más de 30 segundos, ya no estamos en recarga
+    if (refreshing && timestamp) {
+        const now = Date.now();
+        const refreshTime = parseInt(timestamp, 10);
+        if (now - refreshTime > 30000) {
+            localStorage.removeItem('livechat-refreshing');
+            localStorage.removeItem('livechat-refresh-timestamp');
+            return false;
+        }
+        return true;
+    }
+    return false;
+};
 
+// Finalizar el proceso de reconexión
+const finishReconnection = () => {
+    localStorage.removeItem('livechat-refreshing');
+    localStorage.removeItem('livechat-refresh-timestamp');
+};
+
+// Exportar los nuevos métodos
 module.exports = {
     getDeviceId,
     saveCurrentRoom,
@@ -76,5 +112,8 @@ module.exports = {
     clearCurrentRoom,
     updateRoomActivity,
     isRefreshing,
-    setRefreshing
+    setRefreshing,
+    markPageRefreshing,
+    isReconnecting,
+    finishReconnection
 };

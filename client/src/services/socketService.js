@@ -2,7 +2,7 @@ import io from 'socket.io-client';
 import { getDeviceId, setRefreshing } from '../utils/deviceManager';
 
 // Configuración para reconexión automática
-const socket = io(process.env.REACT_APP_SOCKET_URL || 'https://livechat-9oej.onrender.com', {
+const socket = io(process.env.REACT_APP_SOCKET_URL || 'http://localhost:3001', {
     reconnection: true,
     reconnectionAttempts: 5,
     reconnectionDelay: 1000,

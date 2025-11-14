@@ -62,7 +62,14 @@ const JoinRoom = ({ onRoomJoined }) => {
         <h2>Unirse a una Sala</h2>
         <div className="card-body">
           <label><User size={16} /> Nickname</label>
-          <input type="text" value={nickname} onChange={(e) => setNickname(e.target.value)} placeholder="Tu nickname" />
+                <input
+        type="text"
+        placeholder="Tu nombre (máx. 12 caracteres)"
+        value={nickname}
+        onChange={(e) => setNickname(e.target.value.slice(0, 12))}
+        maxLength={12}
+        required
+      />
           <label><Key size={16} /> PIN</label>
           <input type="text" value={pin} onChange={(e) => setPin(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))} placeholder="PIN de 6 dígitos" maxLength={6} />
           <button onClick={handleJoinRoom}>Unirse a la Sala</button>

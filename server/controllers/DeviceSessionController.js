@@ -1,21 +1,27 @@
 const DeviceSession = require('../models/DeviceSession');
 
-exports.registerSession = async (deviceId, roomPin) => {
+exports.registerSession = async (deviceId, ip, roomPin, nickname) => {
     try {
-        let session = await DeviceSession.findOne({ deviceId });
+        // verificar por ip para evitar multiples usuarios desde el mismo dispositivo
+        const existingSession = await DeviceSession.findOne({ ip, roomPin });
 
-        if (session) {
-            if (session.roomPin === roomPin) {
-                // La sesión ya existe para esta sala - OK
-                return session;
-            } else {
-                // El dispositivo está en otra sala
-                throw new Error('Dispositivo ya está en otra sala');
-            }
+        if (existingSession) {
+            // actualizar la sesion existente
+            existingSession.nickname = nickname;
+            existingSession.deviceId = deviceId;
+            existingSession.lastActive = Date.now();
+            await existingSession.save();
+            return existingSession;
         }
 
-        // Nueva sesión
-        session = await DeviceSession.create({ deviceId, roomPin });
+        // crear nueva sesion
+        const session = await DeviceSession.create({ 
+            deviceId, 
+            ip, 
+            roomPin, 
+            nickname,
+            lastActive: Date.now()
+        });
         return session;
 
     } catch (error) {
@@ -24,22 +30,40 @@ exports.registerSession = async (deviceId, roomPin) => {
     }
 };
 
-exports.registerSession = async (deviceId, roomPin) => {
-    const existingSession = await DeviceSession.findOne({ deviceId });
-
-    if (existingSession) {
-        if (existingSession.roomPin !== roomPin) {
-            throw new Error('Dispositivo ya está en otra sala');
-        } else {
-            throw new Error('Este dispositivo ya está en esta sala');
-        }
+exports.validateSession = async (deviceId, ip, roomPin) => {
+    // buscar por ip
+    const session = await DeviceSession.findOne({ ip, roomPin });
+    if (session) {
+        // actualizar ultima actividad
+        session.lastActive = Date.now();
+        session.deviceId = deviceId;
+        await session.save();
+        return true;
     }
-
-    await DeviceSession.create({ deviceId, roomPin });
+    return false;
 };
 
+exports.removeSession = async (deviceId, ip, roomPin) => {
+    try {
+        // eliminar por ip
+        const result = await DeviceSession.deleteOne({ ip, roomPin });
+        console.log('removeSession resultado:', { 
+            deviceId,
+            ip, 
+            roomPin, 
+            deletedCount: result.deletedCount 
+        });
+        return result;
+    } catch (error) {
+        console.error('Error en removeSession:', error);
+        throw error;
+    }
+};
 
-exports.validateSession = async (deviceId, roomPin) => {
-    const session = await DeviceSession.findOne({ deviceId, roomPin });
-    return !!session;
+exports.getSessionByIp = async (ip, roomPin) => {
+    return await DeviceSession.findOne({ ip, roomPin });
+};
+
+exports.getSessionByDeviceId = async (deviceId, roomPin) => {
+    return await DeviceSession.findOne({ deviceId, roomPin });
 };

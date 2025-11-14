@@ -1,220 +1,235 @@
 # 💬 LiveChat
 
-Plataforma para crear salas de chat en tiempo real mediante WebSockets, con control de acceso por PIN y límite de participantes.
+Aplicación web de chat en tiempo real que permite crear y unirse a salas de conversación privadas mediante un sistema de PIN único. Ideal para reuniones rápidas, clases virtuales, soporte técnico o cualquier escenario que requiera comunicación instantánea grupal.
+
+---
+
+## 📋 ¿Qué es LiveChat?
+
+LiveChat es una plataforma de mensajería instantánea que permite:
+
+- **Crear salas de chat** con un PIN único de 6 dígitos
+- **Unirse a salas existentes** usando el PIN
+- **Limitar participantes** por sala (configurable al crear)
+- **Chat en tiempo real** mediante WebSockets (Socket.IO)
+- **Control de dispositivos** - un dispositivo solo puede estar en una sala a la vez
+- **Interfaz moderna y responsive** optimizada para cualquier dispositivo
+
+---
+
+## 🏗️ Arquitectura
+
+```
+┌─────────────────────────────────────────────┐
+│              LIVECHAT APP                   │
+├─────────────────────────────────────────────┤
+│                                             │
+│  ┌──────────────┐      ┌──────────────┐   │
+│  │   CLIENT     │◄────►│   SERVER     │   │
+│  │              │      │              │   │
+│  │ React + Nginx│      │ Node.js +    │   │
+│  │   (Port 80)  │      │  Socket.IO   │   │
+│  │              │      │  (Port 3001) │   │
+│  └──────────────┘      └───────┬──────┘   │
+│                                │           │
+│                                ▼           │
+│                        ┌──────────────┐   │
+│                        │   MongoDB    │   │
+│                        │ (Port 27017) │   │
+│                        └──────────────┘   │
+└─────────────────────────────────────────────┘
+```
+
+---
 
 ## 🚀 Características
 
-### Funcionalidades del Chat:
-- ✅ Creación de salas con PIN único de 6 dígitos
-- ✅ Límite de participantes configurable por sala  
-- ✅ Comunicación en tiempo real con Socket.IO
-- ✅ Restricción por dispositivo usando almacenamiento local
-- ✅ Interfaz profesional y responsive con React
-- ✅ Mensajes de estado con PrimeReact Toast
-- ✅ Iconografía moderna con Lucide Icons
+### Funcionalidades del Chat
+- ✅ Sistema de salas con PIN único de 6 dígitos
+- ✅ Límite de participantes configurable (2-10 personas)
+- ✅ Mensajería instantánea con Socket.IO
+- ✅ Control de dispositivo único por sala
+- ✅ Lista de participantes en tiempo real
+- ✅ Notificaciones de entrada/salida
+- ✅ Interfaz intuitiva y responsive
 
-### Características de Producción:
-- 🐳 **Containerizado con Docker** para fácil despliegue
-- 🔒 **Configuración de seguridad** con headers HTTP seguros
-- 🚀 **Multi-stage builds** para optimización de imágenes
-- 💾 **Persistencia de datos** con MongoDB
-- 🏥 **Health checks** integrados para monitoreo
-- 🌐 **Nginx optimizado** con compresión gzip y cache
-- 📊 **Logs estructurados** para debugging y monitoring
-
----
-
-## 📦 Requisitos Previos
-
-### Para ejecución con Docker:
-- [Docker](https://www.docker.com/get-started) 
-- [Docker Compose](https://docs.docker.com/compose/install/)
-
-### Para ejecución local:
-- [Node.js](https://nodejs.org) v18 o superior
-- [MongoDB](https://www.mongodb.com/try/download/community) (local)
-- [Git](https://git-scm.com)
+### Características Técnicas
+- 🐳 **100% Dockerizado** - un comando para ejecutar todo
+- 🔒 **Seguridad** - Headers HTTP seguros, CORS configurado
+- 🚀 **Optimizado** - Multi-stage builds, imágenes Alpine
+- 💾 **Persistencia** - Datos guardados en MongoDB
+- 🏥 **Health Checks** - Monitoreo automático de servicios
+- 🌐 **Nginx** - Servidor web optimizado con gzip y caché
+- 📊 **Logs** - Sistema de logging estructurado
 
 ---
 
-## ⚙️ Instalación
+## 🛠️ Stack Tecnológico
 
-1. Clona el repositorio:
+### Frontend
+- **React 19** - Framework de UI
+- **Socket.IO Client** - WebSockets
+- **PrimeReact** - Componentes UI
+- **Lucide Icons** - Iconografía moderna
+- **Nginx** - Servidor web de producción
 
-2. Instala las dependencias del servidor:
-   ```bash
-   npm install
-   ```
+### Backend
+- **Node.js 18** - Runtime
+- **Express** - Framework web
+- **Socket.IO** - Comunicación en tiempo real
+- **MongoDB** - Base de datos NoSQL
+- **Mongoose** - ODM para MongoDB
 
-3. Instala las dependencias del cliente:
-   ```bash
-   cd client
-   npm install
-   ```
-
-4. Vuelve a la raíz del proyecto:
-   ```bash
-   cd ..
-   ```
+### DevOps
+- **Docker** - Contenedorización
+- **Docker Compose** - Orquestación
+- **Multi-stage builds** - Optimización
 
 ---
 
-## ▶️ Ejecución del Proyecto
+## 📦 Requisitos
 
-### Opción 1: Ejecución con Docker (Recomendado)
+- **Docker** y **Docker Compose** (recomendado)
+- O alternativamente: **Node.js 18+** y **MongoDB** para ejecución local
 
-#### 🐳 Con Docker Compose (Aplicación Completa)
+---
+
+## 🚀 Inicio Rápido
+
+### 🔧 Modo Desarrollo (con Hot-Reload)
+
+**Ideal para desarrollo** - Los cambios en el código se reflejan automáticamente sin reconstruir contenedores.
+
 ```bash
-# Desde el directorio server/
-cd server
-docker-compose up -d
+# 1. Clonar el repositorio
+git clone <tu-repo>
+cd LiveChat
+
+# 2. Iniciar en modo desarrollo
+docker-compose -f docker-compose.dev.yml up --build
+
+# 3. Acceder a la aplicación
+# Frontend: http://localhost:3000 (hot-reload automático)
+# Backend: http://localhost:3001 (nodemon)
+# MongoDB: localhost:27017
 ```
 
-#### 🔧 Construcción Individual de Contenedores
+**✨ Los cambios se aplican automáticamente:**
+- Edita archivos en `client/src/` → El navegador se recarga solo
+- Edita archivos en `server/` → Nodemon reinicia el servidor automáticamente
 
-**Cliente (Frontend):**
-```bash
-cd client
-docker build -t livechat-client .
-docker run -d --name livechat-client-container -p 3000:80 livechat-client
-```
-
-**Servidor (Backend):**
-```bash
-cd server
-docker build -t livechat-server .
-docker run -d --name livechat-server-container -p 3001:3001 livechat-server
-```
-
-### Opción 2: Ejecución Local (Desarrollo)
-
-#### 1. Ejecutar el servidor (Backend)
-```bash
-npm start
-```
-
-#### 2. En otra terminal, ejecutar el cliente (Frontend)
-```bash
-cd client
-npm start
+**Scripts helper (Windows):**
+```powershell
+.\start-dev.ps1
 ```
 
 ---
 
-## 🌐 Acceso
+### 🚀 Modo Producción
 
-### Con Docker:
-- **Frontend:** [http://localhost:3000](http://localhost:3000)
-- **Backend:** [http://localhost:3001](http://localhost:3001)
-- **MongoDB:** `localhost:27017`
-
-### Con ejecución local:
-- **Frontend:** [http://localhost:3000](http://localhost:3000)
-- **Backend:** [http://localhost:3001](http://localhost:3001)
-
----
-
-## 🛠️ Tecnologías Utilizadas
-
-### Backend:
-- **Node.js 18-alpine** (Servidor)
-- **Socket.IO** (WebSockets en tiempo real)
-- **MongoDB** (Base de datos)
-- **Docker** (Contenedorización)
-
-### Frontend:
-- **React 19** (Framework frontend)
-- **PrimeReact + PrimeIcons** (Componentes UI)
-- **Lucide React** (Iconografía)
-- **Nginx Alpine** (Servidor web de producción)
-- **CSS Grid + Flexbox + Animaciones** (Estilo)
-
-### DevOps:
-- **Docker & Docker Compose** (Contenedorización y orquestación)
-- **Multi-stage builds** (Optimización de imágenes)
-- **Health checks** (Monitoreo de contenedores)
-
----
-
-### 📦 Instalación de Librerías Adicionales
-
-#### Frontend (React)
-
-Ejecuta estos comandos dentro del directorio `client`:
+**Para despliegue en servidores** - Build optimizado con Nginx.
 
 ```bash
-npm install primereact primeicons
-npm install lucide-react
-```
-
-Estas librerías son necesarias para:
-- **PrimeReact y PrimeIcons:** Componentes UI como botones, inputs y notificaciones.
-- **Lucide React:** Iconografía profesional.
-
-#### Backend (Node.js)
-
-Ejecuta estos comandos en la raíz del proyecto:
-
-```bash
-npm install socket.io
-npm install dotenv
-```
-
-Estas librerías son necesarias para:
-- **Socket.IO:** Comunicación en tiempo real entre cliente y servidor.
-- **Dotenv:** Manejo de variables de entorno en el servidor.
-
----
-
-## 🐳 Comandos Docker Útiles
-
-### Gestión de Contenedores
-```bash
-# Ver contenedores en ejecución
-docker ps
-
-# Ver logs del cliente
-docker logs livechat-client-container
-
-# Ver logs del servidor
-docker logs livechat-server-container
-
-# Parar contenedores
-docker stop livechat-client-container livechat-server-container
-
-# Eliminar contenedores
-docker rm livechat-client-container livechat-server-container
-
-# Eliminar imágenes
-docker rmi livechat-client livechat-server
-```
-
-### Docker Compose
-```bash
-# Ejecutar en background
-docker-compose up -d
-
-# Ver logs en tiempo real
-docker-compose logs -f
-
-# Parar servicios
-docker-compose down
-
-# Reconstruir imágenes
+# 1. Iniciar en modo producción
 docker-compose up --build
 
-# Limpiar volúmenes
-docker-compose down -v
+# 2. Acceder a la aplicación
+# Frontend: http://localhost (puerto 80)
+# Backend: http://localhost:3001
+# MongoDB: localhost:27017
 ```
 
-### Health Checks
+**Scripts helper (Windows):**
+```powershell
+.\start-prod.ps1
+```
+
+---
+
+### 💻 Desarrollo Local (sin Docker)
+
+**Si prefieres no usar Docker:**
+
 ```bash
-# Verificar salud del cliente
-curl http://localhost:3000/health
+# Terminal 1 - MongoDB
+mongod
 
-# Verificar salud del servidor
-curl http://localhost:3001/health
+# Terminal 2 - Backend
+cd server
+npm install
+npm run dev
+
+# Terminal 3 - Frontend
+cd client
+npm install
+npm start
+
+# Acceder a http://localhost:3000
 ```
+
+---
+
+## 🔧 Comandos Útiles
+
+### Desarrollo
+
+```bash
+# Iniciar desarrollo
+docker-compose -f docker-compose.dev.yml up
+
+# Ver logs en tiempo real
+docker-compose -f docker-compose.dev.yml logs -f
+
+# Ver logs solo del servidor
+docker-compose -f docker-compose.dev.yml logs -f server
+
+# Ver logs solo del cliente
+docker-compose -f docker-compose.dev.yml logs -f client
+
+# Reiniciar un servicio
+docker-compose -f docker-compose.dev.yml restart server
+
+# Detener todo
+docker-compose -f docker-compose.dev.yml down
+
+# Resetear base de datos
+docker-compose -f docker-compose.dev.yml down -v
+```
+
+### Producción
+
+```bash
+# Iniciar producción
+docker-compose up -d
+
+# Ver logs
+docker-compose logs -f
+
+# Detener
+docker-compose down
+
+# Actualizar servicios
+docker-compose up -d --build
+```
+
+---
+
+## 🎮 Cómo Usar la Aplicación
+
+### 1. Crear una Sala
+- Ingresa un nombre de sala
+- Define el límite de participantes (2-10)
+- Se generará un PIN de 6 dígitos automáticamente
+- Comparte el PIN con otros usuarios
+
+### 2. Unirse a una Sala
+- Ingresa el PIN de 6 dígitos de la sala
+- Serás conectado automáticamente si hay espacio
+
+### 3. Chatear
+- Escribe mensajes en tiempo real
+- Ve la lista de participantes activos
+- Recibe notificaciones de entradas/salidas
 
 ---
 
@@ -222,31 +237,295 @@ curl http://localhost:3001/health
 
 ### Variables de Entorno
 
-**Cliente (`client/.env`):**
-```env
-REACT_APP_SOCKET_URL=http://localhost:3001
-GENERATE_SOURCEMAP=false
+#### Desarrollo (`docker-compose.dev.yml`)
+```yaml
+server:
+  environment:
+    - MONGODB_URI=mongodb://mongodb:27017/livechat
+    - PORT=3001
+    - FRONTEND_URL=http://localhost:3000
+    - NODE_ENV=development
+
+client:
+  environment:
+    - REACT_APP_SOCKET_URL=http://localhost:3001
 ```
 
-**Servidor (`server/.env`):**
-```env
-PORT=3001
-MONGODB_URI=mongodb://localhost:27017/livechat
-FRONTEND_URL=http://localhost:3000
+#### Producción (`docker-compose.yml`)
+```yaml
+server:
+  environment:
+    - MONGODB_URI=mongodb://mongodb:27017/livechat
+    - PORT=3001
+    - FRONTEND_URL=http://tu-dominio.com
+    - NODE_ENV=production
+
+client:
+  build:
+    args:
+      - REACT_APP_SOCKET_URL=http://tu-dominio.com:3001
 ```
 
-### Personalización del Build
+---
+
+## 🚀 Despliegue en Producción
+
+### Opción 1: VPS (AWS EC2, DigitalOcean, etc.)
+
 ```bash
-# Cliente con URL personalizada del socket
-docker build --build-arg REACT_APP_SOCKET_URL=http://mi-servidor:3001 -t livechat-client .
+# 1. Conectar al servidor
+ssh usuario@tu-servidor-ip
 
-# Servidor con puerto personalizado
-docker run -d -p 4001:4001 -e PORT=4001 livechat-server
+# 2. Instalar Docker
+sudo apt update
+sudo apt install -y docker.io docker-compose
+
+# 3. Clonar repositorio
+git clone <tu-repo>
+cd LiveChat
+
+# 4. Configurar variables de entorno
+# Edita docker-compose.yml con tus URLs
+
+# 5. Iniciar servicios
+docker-compose up -d
+
+# 6. Ver logs
+docker-compose logs -f
 ```
+
+### Opción 2: Docker Hub
+
+```bash
+# 1. Build de imágenes
+docker build -t tu-usuario/livechat-client:latest ./client
+docker build -t tu-usuario/livechat-server:latest ./server
+
+# 2. Push a Docker Hub
+docker push tu-usuario/livechat-client:latest
+docker push tu-usuario/livechat-server:latest
+
+# 3. En el servidor, pull y ejecutar
+docker pull tu-usuario/livechat-client:latest
+docker pull tu-usuario/livechat-server:latest
+docker-compose up -d
+```
+
+### Opción 3: Cloud Platforms
+
+#### AWS (ECS/Fargate)
+- Sube las imágenes a ECR
+- Crea un Task Definition
+- Despliega en ECS/Fargate
+
+#### Azure (Container Instances)
+```bash
+az container create \
+  --resource-group mi-grupo \
+  --name livechat \
+  --image tu-usuario/livechat-client:latest
+```
+
+#### Google Cloud (Cloud Run)
+```bash
+gcloud run deploy livechat \
+  --image gcr.io/tu-proyecto/livechat-client \
+  --platform managed
+```
+
+---
+
+## 🔒 Recomendaciones de Seguridad (Producción)
+
+### 1. SSL/TLS (HTTPS)
+
+```bash
+# Instalar Certbot
+sudo apt install certbot python3-certbot-nginx
+sudo certbot --nginx -d tudominio.com
+```
+
+### 2. Firewall
+
+```bash
+# Configurar UFW
+sudo ufw allow 22/tcp
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw enable
+```
+
+### 3. Variables Sensibles
+
+```bash
+# Usar secrets de Docker
+echo "mongodb://user:pass@host:27017/db" | docker secret create mongo_uri -
+```
+
+### 4. Actualizar Regularmente
+
+```bash
+# Actualizar imágenes
+docker-compose pull
+docker-compose up -d
+```
+
+---
+
+## 🐛 Troubleshooting
+
+### Los cambios no se reflejan (Desarrollo)
+
+```bash
+# Verifica que uses docker-compose.dev.yml
+docker-compose -f docker-compose.dev.yml restart
+```
+
+### Puerto ya en uso
+
+```bash
+# Ver qué usa el puerto
+netstat -ano | findstr :3000
+
+# Matar proceso (Windows)
+taskkill /PID <PID> /F
+```
+
+### Error de build
+
+```bash
+# Limpiar todo
+docker-compose -f docker-compose.dev.yml down -v
+docker system prune -f
+docker-compose -f docker-compose.dev.yml up --build
+```
+
+### Base de datos con datos incorrectos
+
+```bash
+# Resetear MongoDB
+docker-compose -f docker-compose.dev.yml down -v
+docker-compose -f docker-compose.dev.yml up
+```
+
+### Frontend no se conecta al backend
+
+1. Verifica `REACT_APP_SOCKET_URL` en el build
+2. Verifica CORS en el backend
+3. Reconstruye el cliente:
+```bash
+docker-compose build client
+docker-compose up -d client
+```
+
+---
+
+
+## 📂 Estructura del Proyecto
+
+```
+LiveChat/
+├── client/                    # Frontend React
+│   ├── src/
+│   │   ├── components/        # Componentes React
+│   │   │   ├── ChatRoom.js
+│   │   │   ├── CreateRoom.js
+│   │   │   └── JoinRoom.js
+│   │   ├── services/          # Socket.IO client
+│   │   ├── styles/            # Estilos CSS
+│   │   └── utils/             # Utilidades
+│   ├── Dockerfile             # Producción (Nginx)
+│   ├── Dockerfile.dev         # Desarrollo (hot-reload)
+│   ├── nginx.conf             # Config Nginx
+│   └── package.json
+├── server/                    # Backend Node.js
+│   ├── controllers/           # Lógica de negocio
+│   │   ├── DeviceSessionController.js
+│   │   └── RoomController.js
+│   ├── models/                # Modelos MongoDB
+│   │   ├── DeviceSession.js
+│   │   ├── Message.js
+│   │   └── Room.js
+│   ├── utils/                 # Utilidades
+│   ├── Dockerfile             # Producción
+│   ├── Dockerfile.dev         # Desarrollo (nodemon)
+│   ├── server.js              # Punto de entrada
+│   └── package.json
+├── docker-compose.yml         # Configuración producción
+├── docker-compose.dev.yml     # Configuración desarrollo
+├── start-dev.ps1             # Script helper desarrollo
+├── start-prod.ps1            # Script helper producción
+├── .gitignore
+└── README.md                 # Este archivo
+```
+
+---
+
+## 🔄 Flujo de Trabajo Típico
+
+### Desarrollo Diario
+
+```bash
+# Lunes - Primera vez
+docker-compose -f docker-compose.dev.yml up --build
+
+# Martes a Viernes
+docker-compose -f docker-compose.dev.yml up
+
+# Editas código → Hot-reload automático ✨
+
+# Al terminar el día
+docker-compose -f docker-compose.dev.yml down
+```
+
+### Agregar Nueva Característica
+
+```bash
+# 1. Crear rama
+git checkout -b feature/nueva-caracteristica
+
+# 2. Iniciar desarrollo
+docker-compose -f docker-compose.dev.yml up
+
+# 3. Desarrollar (cambios automáticos)
+
+# 4. Probar
+
+# 5. Commit
+git add .
+git commit -m "feat: nueva característica"
+git push origin feature/nueva-caracteristica
+```
+
+### Preparar para Producción
+
+```bash
+# 1. Probar build de producción localmente
+docker-compose up --build
+
+# 2. Verificar en http://localhost
+
+# 3. Si todo funciona, hacer deploy
+```
+
+---
+
+## 💡 Tips Importantes
+
+1. **Desarrollo**: Siempre usa `docker-compose.dev.yml`
+2. **Producción**: Usa `docker-compose.yml`
+3. **Hot-reload**: Los cambios se aplican solos, ¡no rebuilds!
+4. **Dependencias**: Solo rebuild si cambias `package.json`
+5. **Logs**: Usa `logs -f` para ver errores en tiempo real
+6. **Git**: No commitees `node_modules/` ni `.env`
 
 ---
 
 ## 📄 Licencia
 
-Desarrollado por **Autepim**.
+Este proyecto está desarrollado por **Autepim**.
+
+---
+
+**Desarrollado con ❤️ por Autepim**
 

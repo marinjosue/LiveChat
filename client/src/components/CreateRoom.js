@@ -45,19 +45,24 @@ const CreateRoom = ({ onRoomCreated }) => {
         <PlusCircle size={48} className="card-icon" />
         <h2>Crear Nueva Sala</h2>
         <div className="card-body">
-          <label><User size={16} /> Nickname</label>
+          <label><User size={16} /> Nickname (máx. 12 caracteres)</label>
           <input
             type="text"
             value={nickname}
-            onChange={(e) => setNickname(e.target.value)}
+            onChange={(e) => setNickname(e.target.value.slice(0, 12))}
+            maxLength={12}
+            placeholder="Tu nombre"
           />
-          <label><Users size={16} /> Límite de Participantes</label>
+          <label><Users size={16} /> Límite de Participantes (máx. 10)</label>
           <input
             type="number"
             value={limit}
             min={2}
-            max={20}
-            onChange={(e) => setLimit(Number(e.target.value))}
+            max={10}
+            onChange={(e) => {
+              const value = Math.min(10, Math.max(2, Number(e.target.value)));
+              setLimit(value);
+            }}
           />
           <button onClick={handleCreateRoom}>Crear Sala</button>
         </div>

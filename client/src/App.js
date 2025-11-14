@@ -150,6 +150,12 @@ const App = () => {
     clearCurrentRoom();
     setNickname('');
     setCurrentPin(null);
+    
+    // Reconectar el socket si fue desconectado
+    if (!socket.connected) {
+      console.log('🔄 Reconectando socket después de salir...');
+      socket.connect();
+    }
   };
 
   if (isReconnecting) {

@@ -11,15 +11,16 @@
   --create-room-transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   --create-room-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
   --create-room-shadow-hover: 0 15px 50px rgba(0, 0, 0, 0.3);
+  --create-room-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
 }
 
 /* ==================== CREATE ROOM - DISEÑO MEJORADO ==================== */
 
 .create-room-card {
-  max-width: 650px;
+  max-width: 580px;
   margin: 0 auto;
   background: var(--create-room-bg-dark);
-  border-radius: 16px;
+  border-radius: 12px;
   border: 1px solid var(--create-room-border);
   box-shadow: var(--create-room-shadow);
   overflow: hidden;
@@ -31,8 +32,8 @@
 }
 
 .card-header {
-  background: var(--create-room-primary);
-  padding: 40px 32px;
+  background: linear-gradient(135deg, var(--create-room-primary) 0%, var(--create-room-primary-hover) 100%);
+  padding: 28px 24px;
   text-align: center;
   color: white;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
@@ -40,13 +41,20 @@
 
 .card-header .card-icon {
   color: white;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
   opacity: 0.95;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+  animation: icon-float 3s ease-in-out infinite;
+}
+
+@keyframes icon-float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-5px); }
 }
 
 .card-header h2 {
-  margin: 0 0 12px 0;
-  font-size: 26px;
+  margin: 0 0 8px 0;
+  font-size: 22px;
   font-weight: 700;
   letter-spacing: -0.02em;
 }
@@ -54,15 +62,15 @@
 .card-subtitle {
   margin: 0;
   opacity: 0.9;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 400;
 }
 
 .card-body {
-  padding: 40px 32px;
+  padding: 28px 24px;
   display: flex;
   flex-direction: column;
-  gap: 28px;
+  gap: 22px;
   background: var(--create-room-bg-dark);
 }
 
@@ -90,12 +98,12 @@
 }
 
 .form-input {
-  padding: 14px 18px;
+  padding: 12px 16px;
   border: 1.5px solid var(--create-room-border);
-  border-radius: 10px;
+  border-radius: 8px;
   background: var(--create-room-bg-darker);
   color: var(--create-room-text);
-  font-size: 15px;
+  font-size: 14px;
   transition: var(--create-room-transition);
   font-family: inherit;
   width: 100%;
@@ -106,7 +114,7 @@
   outline: none;
   border-color: var(--create-room-primary);
   background: rgba(15, 23, 42, 0.8);
-  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
 }
 
 .form-input:disabled {
@@ -130,10 +138,10 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 14px;
-  padding: 24px 20px;
+  gap: 10px;
+  padding: 18px 16px;
   border: 2px solid var(--create-room-border);
-  border-radius: 12px;
+  border-radius: 10px;
   background: var(--create-room-bg-darker);
   cursor: pointer;
   transition: all 0.15s ease;
@@ -155,20 +163,20 @@
 }
 
 .type-option.active {
-  background: rgba(59, 130, 246, 0.2);
+  background: rgba(59, 130, 246, 0.15);
   border-color: var(--create-room-primary);
-  border-width: 3px;
-  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15), 0 4px 16px rgba(59, 130, 246, 0.3);
+  border-width: 2px;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12), 0 4px 16px rgba(59, 130, 246, 0.25);
   transform: scale(1.02);
 }
 
 .type-option.active::before {
   content: '✓';
   position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 24px;
-  height: 24px;
+  top: 6px;
+  right: 6px;
+  width: 20px;
+  height: 20px;
   background: var(--create-room-primary);
   color: white;
   border-radius: 50%;
@@ -176,7 +184,7 @@
   align-items: center;
   justify-content: center;
   font-weight: bold;
-  font-size: 14px;
+  font-size: 12px;
   animation: checkmark-pop 0.3s ease;
 }
 
@@ -197,8 +205,8 @@
 }
 
 .type-info h4 {
-  margin: 0 0 4px 0;
-  font-size: 15px;
+  margin: 0 0 3px 0;
+  font-size: 14px;
   font-weight: 600;
   color: var(--create-room-text);
   transition: all 0.15s ease;
@@ -211,7 +219,7 @@
 
 .type-info p {
   margin: 0;
-  font-size: 13px;
+  font-size: 12px;
   color: var(--create-room-text-secondary);
   line-height: 1.4;
   transition: all 0.15s ease;
@@ -289,10 +297,10 @@
 
 .slider-value {
   text-align: center;
-  font-size: 17px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--create-room-primary);
-  padding: 10px;
+  padding: 8px;
   background: rgba(59, 130, 246, 0.1);
   border-radius: 8px;
   border: 1px solid rgba(59, 130, 246, 0.2);
@@ -369,17 +377,17 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
-  padding: 16px 24px;
+  gap: 10px;
+  padding: 14px 20px;
   border: none;
-  border-radius: 10px;
-  background: var(--create-room-primary);
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--create-room-primary) 0%, var(--create-room-primary-hover) 100%);
   color: white;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
   cursor: pointer;
   transition: var(--create-room-transition);
-  margin-top: 8px;
+  margin-top: 4px;
   box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
   letter-spacing: 0.02em;
 }
@@ -387,7 +395,7 @@
 .btn-create:hover:not(:disabled) {
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
-  background: var(--create-room-primary-hover);
+  background: linear-gradient(135deg, var(--create-room-primary-hover) 0%, #1d4ed8 100%);
 }
 
 .btn-create:active:not(:disabled) {
@@ -498,40 +506,67 @@
 @media (max-width: 768px) {
   .create-room-card {
     max-width: 95%;
-    margin: 20px auto;
+    margin: 16px auto;
   }
   
   .card-header {
-    padding: 24px 20px;
+    padding: 20px 18px;
+  }
+
+  .card-header h2 {
+    font-size: 20px;
+  }
+
+  .card-subtitle {
+    font-size: 13px;
   }
   
   .card-body {
-    padding: 24px 20px;
+    padding: 20px 18px;
+    gap: 18px;
   }
   
   .room-type-selector {
     grid-template-columns: 1fr;
-    gap: 16px;
+    gap: 12px;
   }
   
   .type-option {
-    padding: 16px;
+    padding: 14px;
+  }
+
+  .btn-create {
+    padding: 12px 18px;
+    font-size: 14px;
   }
 }
 
 @media (max-width: 480px) {
   .card-header h2 {
-    font-size: 24px;
+    font-size: 18px;
+  }
+
+  .card-header .card-icon {
+    width: 40px;
+    height: 40px;
   }
   
   .form-input {
-    padding: 12px 14px;
-    font-size: 14px;
+    padding: 10px 14px;
+    font-size: 13px;
   }
   
   .btn-create {
-    padding: 14px;
-    font-size: 14px;
+    padding: 11px 16px;
+    font-size: 13px;
+  }
+
+  .type-info h4 {
+    font-size: 13px;
+  }
+
+  .type-info p {
+    font-size: 11px;
   }
 }
 

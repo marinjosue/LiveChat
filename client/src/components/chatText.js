@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import socket from '../services/socketService';
-import { Send, LogOut, Users, MessageCircle, FileX } from 'lucide-react';
+import { Send, Users, MessageCircle, FileX } from 'lucide-react';
 import { getDeviceId, clearCurrentRoom, updateRoomActivity, isReconnecting, finishReconnection, markPageRefreshing } from '../utils/deviceManager';
 import { confirmDialog, ConfirmDialog } from 'primereact/confirmdialog';
 import 'primereact/resources/themes/lara-light-indigo/theme.css';
@@ -145,22 +145,13 @@ const ChatText = ({ pin, nickname, onLeave }) => {
     const deviceId = getDeviceId();
 
     confirmDialog({
-      message: '¿Estás seguro de que deseas SALIR PERMANENTEMENTE? Perderás tu pertenencia a esta sala.',
-      header: 'Salir definitivamente',
+      message: '¿Estás seguro de que deseas SALIR PERMANENTEMENTE? Esto liberará tu dispositivo para poder unirse a otra sala.',
+      header: 'Salir de la sala',
       icon: 'pi pi-exclamation-triangle',
-      acceptLabel: 'Sí, salir definitivamente',
+      acceptLabel: 'Sí, salir',
       rejectLabel: 'Cancelar',
       accept: async () => {
-        console.log('🚪 Saliendo definitivamente de la sala...');
-        
-        // Salir permanentemente (eliminar pertenencia)
-        try {
-          await fetch(`http://localhost:3001/api/my-rooms/leave-permanently/${pin}/${deviceId}`, {
-            method: 'DELETE'
-          });
-        } catch (error) {
-          console.error('Error saliendo permanentemente:', error);
-        }
+        console.log('🚪 Saliendo de la sala...');
         
         // Marcar que estamos saliendo intencionalmente
         socket.emit('intentionalLeave', { pin });
@@ -169,9 +160,7 @@ const ChatText = ({ pin, nickname, onLeave }) => {
         socket.emit('leaveRoom', { pin, deviceId }, (response) => {
           console.log('✅ Respuesta del servidor:', response);
           
-          // Generar nuevo deviceId para próxima sesión
-          localStorage.removeItem('livechat-device-id');
-          sessionStorage.removeItem('livechat-device-id');
+          // Limpiar datos guardados del dispositivo
           clearCurrentRoom();
           
           // Pequeño delay para asegurar que el servidor procesó todo
@@ -184,103 +173,71 @@ const ChatText = ({ pin, nickname, onLeave }) => {
           }, 100);
         });
       }
-    });
-  };
-
-  const minimizeRoom = async () => {
-    const deviceId = getDeviceId();
-    console.log('📱 Minimizando sala (manteniendo pertenencia)...');
-    
-    // Marcar que estamos saliendo intencionalmente (no recarga)
-    socket.emit('intentionalLeave', { pin });
-    
-    // Esperar a que el servidor confirme la eliminación de la sesión
-    socket.emit('leaveRoom', { pin, deviceId }, (response) => {
-      console.log('✅ Respuesta del servidor:', response);
-      clearCurrentRoom();
-      
-      // Pequeño delay para asegurar que el servidor procesó todo
-      setTimeout(() => {
-        onLeave();
-      }, 100);
-    });
-  };
+  });
+};
 
   const handleExit = async () => {
     confirmExit();
   };
-  
-
   return (
     <div className="chat-wrapper text-only">
       <Toast ref={toast} position="top-right" />
       <ConfirmDialog />
       
       {/* Header con información de sala */}
-      <header className="chat-header">
-        <div className="chat-info">
-          <div className="room-details">
-            <h3 className="room-name">
-              <MessageCircle size={20} /> Sala <strong>{pin}</strong> - {nickname}
-            </h3>
-            <span className="text-only-badge">
-              <FileX size={14} />
-              Solo Texto
-            </span>
-          </div>
-          <div className="user-stats">
-            <div className="user-count">
-              <Users size={18} /> {participants} {limit ? `/ ${limit}` : ''}
-              {isLastUser && <span className="last-user-badge"> (Último usuario)</span>}
-            </div>
-          </div>
+      <header className="chat-topbar">
+        <div className="room-info">
+          <MessageCircle size={20} />
+          <span>Sala <strong>{pin}</strong> - {nickname}</span>
+          <span className="text-only-badge-small">
+            <FileX size={12} />
+            Solo Texto
+          </span>
         </div>
-        <div className="chat-actions">
-          <button className="minimize-btn modern-btn" onClick={minimizeRoom} title="Minimizar sala (mantener pertenencia)">
-            <LogOut size={16} /> Minimizar
-          </button>
-          <button className="exit-btn danger-btn" onClick={handleExit} title="Salir permanentemente">
-            ❌ Salir
-          </button>
+        <div className="topbar-actions">
+          <div className="user-count">
+            <Users size={18} /> {participants} {limit ? `/ ${limit}` : ''}
+            {isLastUser && <span className="last-user-badge"> (Último usuario)</span>}
+          </div>
+          <div className="room-buttons">
+            <button className="exit-btn" onClick={handleExit} title="Salir de la sala">
+              ❌ Salir
+            </button>
+          </div>
         </div>
       </header>
       
       {/* Indicador de sala solo texto */}
-      <div className="chat-type-badge">
+      <div className="text-only-info">
         <FileX size={16} />
         <span>Sala Solo Texto - Sin capacidades multimedia (imágenes, videos, archivos)</span>
       </div>
       
-      <div className="messages-container">
+      <div className="chat-messages">
         {messages.map((msg, idx) => (
-          <div key={idx} className={`message ${msg.sender === nickname ? 'message-self' : 'message-other'}`}>
-            <div className="message-header">
-              <span className="sender-name">{msg.sender}</span>
-              <small className="message-time">{msg.timestamp}</small>
+          <div key={idx} className={`chat-message ${msg.sender === nickname ? 'self' : 'other'}`}>
+            <div className="sender">
+              <strong>{msg.sender}</strong>
+              <small>{msg.timestamp}</small>
             </div>
-            <div className="message-content">
-              <p>{msg.text}</p>
-            </div>
+            <p>{msg.text}</p>
           </div>
         ))}
         <div ref={messagesEndRef} />
       </div>
 
-      <footer className="chat-input">
-        <div className="input-container">
-          <input
-            type="text"
-            className="message-input"
-            placeholder="Escribe un mensaje de texto..."
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
-            maxLength={500}
-          />
-          <button className="send-btn" onClick={sendMessage} disabled={!message.trim()}>
-            <Send size={20} />
-          </button>
-        </div>
+      <footer className="chat-input-bar">
+        <input
+          type="text"
+          placeholder="Escribe un mensaje de texto..."
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
+          maxLength={500}
+        />
+        <button onClick={sendMessage} disabled={!message.trim()}>
+          <Send size={20} /> Enviar
+        </button>
       </footer>
     </div>
   );

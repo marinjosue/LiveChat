@@ -3,6 +3,7 @@ const router = express.Router();
 const RoomMembership = require('../models/RoomMembership');
 const RoomModel = require('../models/RoomModel');
 const Message = require('../models/Message');
+const DeviceSession = require('../models/DeviceSession');
 
 /**
  * GET /api/my-rooms/:deviceId
@@ -176,6 +177,14 @@ router.delete('/leave-permanently/:pin/:deviceId', async (req, res) => {
     membership.removedAt = new Date();
     membership.isConnected = false;
     await membership.save();
+
+    // 🧹 Limpiar también DeviceSession asociada
+    try {
+      await DeviceSession.deleteOne({ deviceId, roomPin: pin });
+      console.log(`🧹 DeviceSession limpiada para ${deviceId} en sala ${pin}`);
+    } catch (sessionError) {
+      console.error('Error limpiando DeviceSession:', sessionError);
+    }
 
     res.json({
       success: true,

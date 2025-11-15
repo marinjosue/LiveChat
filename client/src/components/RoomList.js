@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import socket from '../services/socketService';
-import { Users, Lock, Image, MessageSquare, RefreshCw, AlertCircle, Home } from 'lucide-react';
+import { Users, Lock, Image, MessageSquare, RefreshCw } from 'lucide-react';
 import '../styles/RoomList.css';
 
 const BACKEND_URL = process.env.REACT_APP_SOCKET_URL || 'http://localhost:3001';
@@ -98,7 +98,7 @@ function RoomList({ onRoomSelected }) {
         <div className="room-list-header">
           <div className="header-left">
             <h2>
-              <Home size={24} />
+              <MessageSquare size={24} />
               Salas Disponibles
             </h2>
           </div>
@@ -116,7 +116,7 @@ function RoomList({ onRoomSelected }) {
       <div className="room-list-header">
         <div className="header-left">
           <h2>
-            <Home size={24} />
+            <MessageSquare size={24} />
             Salas Disponibles
           </h2>
           <p className="room-count">{rooms.length} salas activas</p>
@@ -133,7 +133,6 @@ function RoomList({ onRoomSelected }) {
 
       {error && (
         <div className="error-banner">
-          <AlertCircle size={20} />
           <span>{error}</span>
         </div>
       )}
@@ -141,7 +140,7 @@ function RoomList({ onRoomSelected }) {
       {rooms.length === 0 ? (
         <div className="empty-state">
           <div className="empty-icon">
-            <Home size={64} style={{ opacity: 0.3 }} />
+            <MessageSquare size={64} style={{ opacity: 0.3 }} />
           </div>
           <h3>No hay salas disponibles</h3>
           <p>Las salas creadas por los administradores aparecerán aquí</p>
@@ -184,7 +183,6 @@ function RoomList({ onRoomSelected }) {
 
                 {room.isFull && (
                   <div className="room-full-badge">
-                    <AlertCircle size={14} />
                     Sala llena
                   </div>
                 )}

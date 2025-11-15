@@ -1,68 +1,64 @@
 import React, { useState, useEffect } from 'react';
 import JoinRoom from './components/JoinRoom';
 import RoomList from './components/RoomList';
-import MyRooms from './components/MyRooms';
 import ChatMultimedia from './components/ChatMultimedia';
 import ChatText from './components/chatText';
-import { MessageSquare, Lock, Zap, Users, LogIn, Shield, Github, Sun, Moon, History } from 'lucide-react';
+import { MessageSquare, Lock, Zap, Users, LogIn, Shield, Github, Sun, Moon } from 'lucide-react';
 import './styles/App.css';
-import { getCurrentRoom, clearCurrentRoom, getDeviceId, saveCurrentRoom } from './utils/deviceManager';
+import { clearCurrentRoom, getCurrentRoom, saveCurrentRoom, getDeviceId, finishReconnection, markPageRefreshing } from './utils/deviceManager';
 import socket from './services/socketService';
 
 const App = () => {
-  const savedRoom = getCurrentRoom(); 
-  const [isReconnecting, setIsReconnecting] = useState(!!savedRoom);
-  const [currentPin, setCurrentPin] = useState(savedRoom?.pin || null);
-  const [nickname, setNickname] = useState(savedRoom?.nickname || '');
-  const [roomType, setRoomType] = useState(savedRoom?.roomType || 'multimedia');
-  const [activeTab, setActiveTab] = useState('rooms'); 
+  const [currentPin, setCurrentPin] = useState(null);
+  const [nickname, setNickname] = useState('');
+  const [roomType, setRoomType] = useState('multimedia');
+  const [activeTab, setActiveTab] = useState('rooms');
   const [selectedRoomPin, setSelectedRoomPin] = useState(null);
-  const [reconnectionAttempted, setReconnectionAttempted] = useState(false);
   const [theme, setTheme] = useState(localStorage.getItem('livechat-theme') || 'dark');
+  const [reconnecting, setReconnecting] = useState(false);
 
+  // Efecto para verificar si hay una sala guardada al cargar la aplicación
   useEffect(() => {
-    if (savedRoom && !reconnectionAttempted) {
-      setReconnectionAttempted(true);
+    const checkAndReconnect = async () => {
+      const savedRoom = getCurrentRoom();
       
-      const handleReconnection = () => {
-        socket.emit('reconnectToRoom', { 
-          pin: savedRoom.pin, 
-          nickname: savedRoom.nickname, 
-          deviceId: getDeviceId() 
+      if (savedRoom && savedRoom.pin && savedRoom.nickname) {
+        console.log('🔄 Sala guardada detectada, intentando reconectar...', savedRoom);
+        setReconnecting(true);
+        
+        // Intentar reconectar a la sala
+        socket.emit('reconnectToRoom', {
+          pin: savedRoom.pin,
+          nickname: savedRoom.nickname,
+          deviceId: getDeviceId()
         }, (response) => {
-          if (response && response.success) {
-            console.log('🎯 Reconexión exitosa - Tipo de sala:', response.roomType);
-            // Actualizar el tipo de sala si viene en la respuesta
-            if (response.roomType) {
-              setRoomType(response.roomType);
-              saveCurrentRoom({ 
-                pin: savedRoom.pin, 
-                nickname: savedRoom.nickname, 
-                roomType: response.roomType 
-              });
-            }
+          setReconnecting(false);
+          
+          if (response.success) {
+            console.log('✅ Reconexión exitosa a la sala', savedRoom.pin);
+            setCurrentPin(savedRoom.pin);
+            setNickname(savedRoom.nickname);
+            setRoomType(response.roomType || savedRoom.roomType || 'multimedia');
+            
+            // Actualizar datos guardados con el tipo correcto
+            saveCurrentRoom({
+              pin: savedRoom.pin,
+              nickname: savedRoom.nickname,
+              roomType: response.roomType || savedRoom.roomType || 'multimedia'
+            });
+            
+            finishReconnection();
           } else {
-            console.warn('Reconexión fallida:', response?.message || 'Sin respuesta');
+            console.error('❌ Error en reconexión:', response.message);
+            // Si falla la reconexión, limpiar la sala guardada
+            clearCurrentRoom();
           }
-          setIsReconnecting(false);
         });
-      };
-
-      // Intentar reconexión cuando el socket esté listo
-      if (socket.connected) {
-        handleReconnection();
-      } else {
-        socket.once('connect', handleReconnection);
       }
-
-      // Limpiar listener
-      return () => {
-        socket.off('connect', handleReconnection);
-      };
-    } else {
-      setIsReconnecting(false);
-    }
-  }, [savedRoom, reconnectionAttempted]);
+    };
+    
+    checkAndReconnect();
+  }, []);
 
   // Efecto para aplicar el tema actual
   useEffect(() => {
@@ -86,7 +82,8 @@ const App = () => {
     setNickname(nick);
     setCurrentPin(pin);
     setRoomType(type);
-    // Guardar información de la sala actual
+    
+    // Guardar la sala actual
     saveCurrentRoom({ pin, nickname: nick, roomType: type });
   };
 
@@ -95,25 +92,13 @@ const App = () => {
     setActiveTab('join');
   };
 
-  const handleMyRoomSelected = ({ pin, nickname, isReconnecting }) => {
-    if (isReconnecting) {
-      // Reconexión directa
-      handleRoomJoined(pin, nickname);
-    } else {
-      // Unirse normalmente
-      setSelectedRoomPin(pin);
-      setActiveTab('join');
-    }
-  };
-
   const handleLeaveRoom = () => {
+    // LIMPIAR TODO al salir
     clearCurrentRoom();
     setNickname('');
     setCurrentPin(null);
     setRoomType('multimedia');
-    
-    // Cambiar automáticamente a "Mis Salas" después de minimizar
-    setActiveTab('myRooms');
+    setActiveTab('rooms');
     
     // Reconectar el socket si fue desconectado
     if (!socket.connected) {
@@ -122,20 +107,16 @@ const App = () => {
     }
   };
 
-  if (isReconnecting) {
-    return (
-      <div className="app-container">
-        <div className="loading-container">
-          <div className="loading-spinner"></div>
-          <p>Reconectando a la sala...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="app-container">
-      {!currentPin ? (
+      {reconnecting ? (
+        <div className="reconnecting-overlay">
+          <div className="reconnecting-spinner">
+            <div className="spinner"></div>
+            <p>Reconectando a la sala...</p>
+          </div>
+        </div>
+      ) : !currentPin ? (
         <div className="main-layout">
           {/* Header compacto */}
           <header className="compact-header">
@@ -169,13 +150,6 @@ const App = () => {
                 <span>Salas Disponibles</span>
               </button>
               <button 
-                className={`main-tab ${activeTab === 'myRooms' ? 'active' : ''}`}
-                onClick={() => setActiveTab('myRooms')}
-              >
-                <History size={20} />
-                <span>Mis Salas</span>
-              </button>
-              <button 
                 className={`main-tab ${activeTab === 'join' ? 'active' : ''}`}
                 onClick={() => setActiveTab('join')}
               >
@@ -188,8 +162,6 @@ const App = () => {
             <div className="tab-content-fullscreen">
               {activeTab === 'rooms' ? (
                 <RoomList onRoomSelected={handleRoomSelected} />
-              ) : activeTab === 'myRooms' ? (
-                <MyRooms onRoomSelect={handleMyRoomSelected} />
               ) : (
                 <div className="join-section">
                   <JoinRoom onRoomJoined={handleRoomJoined} initialPin={selectedRoomPin} />
@@ -231,11 +203,13 @@ const App = () => {
           </footer>
         </div>
       ) : (
-        roomType === 'text' ? (
-          <ChatText pin={currentPin} nickname={nickname} onLeave={handleLeaveRoom} />
-        ) : (
-          <ChatMultimedia pin={currentPin} nickname={nickname} onLeave={handleLeaveRoom} />
-        )
+        <div className={theme === 'light' ? 'app-container light-theme' : 'app-container'}>
+          {roomType === 'text' ? (
+            <ChatText pin={currentPin} nickname={nickname} onLeave={handleLeaveRoom} />
+          ) : (
+            <ChatMultimedia pin={currentPin} nickname={nickname} onLeave={handleLeaveRoom} />
+          )}
+        </div>
       )}
     </div>
   );

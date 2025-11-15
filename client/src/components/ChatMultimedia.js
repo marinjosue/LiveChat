@@ -821,24 +821,15 @@ const confirmExit = async () => {
   const deviceId = getDeviceId();
 
   confirmDialog({
-    message: '¿Estás seguro de que deseas SALIR PERMANENTEMENTE? Perderás tu pertenencia a esta sala.',
-    header: 'Salir definitivamente',
+    message: '¿Estás seguro de que deseas SALIR? Esto liberará tu dispositivo para poder unirse a otra sala.',
+    header: 'Salir de la sala',
     icon: 'pi pi-exclamation-triangle',
-    acceptLabel: 'Sí, salir definitivamente',
+    acceptLabel: 'Sí, salir',
     rejectLabel: 'Cancelar',
     accept: async () => {
       console.log('🚪 Saliendo definitivamente de la sala...');
       
-      // Salir permanentemente (eliminar pertenencia)
-      try {
-        await fetch(`http://localhost:3001/api/my-rooms/leave-permanently/${pin}/${deviceId}`, {
-          method: 'DELETE'
-        });
-      } catch (error) {
-        console.error('Error saliendo permanentemente:', error);
-      }
-      
-      // Marcar que estamos saliendo intencionalmente
+        // Ya no necesitamos la API de "my-rooms" - se maneja por socket      // Marcar que estamos saliendo intencionalmente
       socket.emit('intentionalLeave', { pin });
       
       // Salir de la sala
@@ -862,26 +853,6 @@ const confirmExit = async () => {
     }
   });
 };
-
-  // Función para minimizar sala (sin confirmación)
-  const minimizeRoom = async () => {
-    const deviceId = getDeviceId();
-    console.log('📱 Minimizando sala (manteniendo pertenencia)...');
-    
-    // Marcar que estamos saliendo intencionalmente (no recarga)
-    socket.emit('intentionalLeave', { pin });
-    
-    // Esperar a que el servidor confirme la eliminación de la sesión
-    socket.emit('leaveRoom', { pin, deviceId }, (response) => {
-      console.log('✅ Respuesta del servidor:', response);
-      clearCurrentRoom();
-      
-      // Pequeño delay para asegurar que el servidor procesó todo
-      setTimeout(() => {
-        onLeave();
-      }, 100);
-    });
-  };
 
   return (
     <div className="chat-wrapper">
@@ -908,11 +879,7 @@ const confirmExit = async () => {
           </div>
         </div>
         <div className="chat-actions">
-          <button className="minimize-btn" onClick={minimizeRoom} title="Minimizar sala (mantener pertenencia)">
-            <LogOut size={16} />
-            <span>Minimizar</span>
-          </button>
-          <button className="exit-btn" onClick={confirmExit} title="Salir permanentemente">
+          <button className="exit-btn" onClick={confirmExit} title="Salir de la sala">
             <X size={16} />
             <span>Salir</span>
           </button>

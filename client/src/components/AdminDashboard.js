@@ -94,16 +94,28 @@ function AdminDashboard({ admin, onLogout, theme, toggleTheme }) {
 
     const token = localStorage.getItem('adminToken');
     
+    if (!token) {
+      setError('No hay sesión activa. Por favor inicia sesión nuevamente.');
+      handleLogout();
+      return;
+    }
+    
     try {
       console.log('Verificando código 2FA...', {
         url: `${BACKEND_URL}/api/auth/confirm-2fa`,
-        code: verificationCode
+        hasToken: !!token,
+        tokenPreview: token.substring(0, 20) + '...'
       });
 
       const response = await axios.post(
         `${BACKEND_URL}/api/auth/confirm-2fa`,
         { code: verificationCode },
-        { headers: { 'Authorization': `Bearer ${token}` } }
+        { 
+          headers: { 
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          } 
+        }
       );
       
       console.log('Respuesta 2FA:', response.data);
@@ -114,15 +126,25 @@ function AdminDashboard({ admin, onLogout, theme, toggleTheme }) {
         setSecret2FA(null);
         setVerificationCode('');
         setError('');
-        loadDashboardData();
+        
+        // Recargar perfil del admin para actualizar estado de 2FA
+        await loadDashboardData();
       }
     } catch (err) {
       console.error('Error al verificar 2FA:', err);
       console.error('Error response:', err.response);
+      console.error('Request config:', err.config);
       
       if (err.response) {
         // El servidor respondió con un código de error
-        setError(err.response.data?.message || 'Código inválido');
+        const errorMsg = err.response.data?.message || 'Código inválido';
+        setError(errorMsg);
+        
+        // Si es 401, puede que el token haya expirado
+        if (err.response.status === 401) {
+          setError('Sesión expirada. Por favor inicia sesión nuevamente.');
+          setTimeout(() => handleLogout(), 2000);
+        }
       } else if (err.request) {
         // La petición fue hecha pero no hubo respuesta
         setError('No se pudo conectar con el servidor. Verifica que esté corriendo en ' + BACKEND_URL);

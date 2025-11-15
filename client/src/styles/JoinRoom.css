@@ -1,5 +1,51 @@
 /* JoinRoom - Diseño Moderno y Elegante */
 
+/* Alerta de sala activa */
+.active-room-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-md);
+  padding: var(--spacing-lg);
+  margin-bottom: var(--spacing-xl);
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.15) 0%, rgba(245, 158, 11, 0.1) 100%);
+  border: 2px solid rgba(251, 191, 36, 0.3);
+  border-radius: var(--radius-lg);
+  backdrop-filter: blur(10px);
+}
+
+.active-room-warning svg {
+  color: #fbbf24;
+  min-width: 20px;
+  margin-top: 2px;
+  filter: drop-shadow(0 2px 4px rgba(251, 191, 36, 0.3));
+}
+
+.active-room-warning strong {
+  display: block;
+  color: #fbbf24;
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.active-room-warning p {
+  margin: 0;
+  color: var(--text-secondary-dark, #cbd5e1);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.app-container.light-theme .active-room-warning {
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.08) 0%, rgba(245, 158, 11, 0.05) 100%);
+  border-color: rgba(251, 191, 36, 0.4);
+}
+
+.app-container.light-theme .active-room-warning p {
+  color: var(--text-secondary-light, #64748b);
+}
+
 .action-card {
   max-width: 480px;
   width: 100%;

@@ -17,9 +17,21 @@ const refreshingUsers = new Set();
 
 // funcion auxiliar para obtener ip del cliente
 const getClientIp = (socket) => {
-  return socket.handshake.headers['x-forwarded-for']?.split(',')[0] || 
-         socket.handshake.address || 
-         socket.conn.remoteAddress;
+  const ip = socket.handshake.headers['x-forwarded-for']?.split(',')[0] || 
+             socket.handshake.address || 
+             socket.conn.remoteAddress;
+  
+  // Limpiar la IP si viene con ::ffff:
+  const cleanIp = ip.replace('::ffff:', '');
+  console.log(`📍 IP detectada - Original: ${ip}, Limpia: ${cleanIp}`);
+  return cleanIp;
+};
+
+// funcion para detectar info del navegador basado en el deviceId y user-agent
+const getBrowserInfo = (deviceId) => {
+  // El deviceId es único por navegador/sesión, pero podemos inferir algunos patrones
+  const timestamp = new Date().toLocaleTimeString();
+  return `otro navegador/ventana (ID: ${deviceId.slice(-8)})`;
 };
 
 function RoomController(io) {
@@ -75,47 +87,53 @@ function RoomController(io) {
       try {
         const clientIp = getClientIp(socket);
         
-        // 🔒 CONTROL: UN DISPOSITIVO = UNA SALA ACTIVA
-        const existingSession = await DeviceSession.findOne({ deviceId });
-        if (existingSession && existingSession.roomPin !== pin) {
-          // Forzar salida de la sala anterior
-          const oldRoom = rooms[existingSession.roomPin];
-          if (oldRoom) {
-            // Eliminar de sala anterior
-            const oldUser = oldRoom.users.find(u => u.deviceId === deviceId);
-            if (oldUser) {
-              oldRoom.removeUser(oldUser.id);
-              io.to(existingSession.roomPin).emit('userLeft', { 
-                userId: oldUser.id, 
-                nickname: oldUser.nickname, 
-                count: oldRoom.users.length, 
-                limit: oldRoom.limit 
-              });
-            }
-            
-            // Actualizar MongoDB - decrementar participantes
-            try {
-              const oldRoomDoc = await RoomModel.findOne({ pin: existingSession.roomPin });
-              if (oldRoomDoc) {
-                await oldRoomDoc.decrementParticipants();
-              }
-            } catch (dbError) {
-              console.error('Error decrementando participantes sala anterior:', dbError);
-            }
-          }
-          
-          // Eliminar sesión anterior
-          await DeviceSession.deleteOne({ deviceId });
-          console.log(`🔄 Usuario ${deviceId} cambiado de sala ${existingSession.roomPin} → ${pin}`);
+        console.log(`🔍 Cliente intentando unirse: IP=${clientIp}, PIN=${pin}, deviceId=${deviceId}`);
+        
+        // 🔒 VALIDACIÓN CRÍTICA POR IP: Una IP = Una sala (sin importar navegador/incógnito)
+        // Buscar si esta IP ya está en CUALQUIER sala activa
+        const existingSessions = await DeviceSession.find({ ip: clientIp });
+        console.log(`📋 Sesiones encontradas para IP ${clientIp}:`, existingSessions.length);
+        
+        for (const session of existingSessions) {
+          console.log(`  - Sesión: PIN=${session.roomPin}, deviceId=${session.deviceId}, nickname=${session.nickname}`);
         }
         
-        // Verificar si ya está en esta sala específica por IP
-        const existingIpSession = await DeviceSession.findOne({ ip: clientIp, roomPin: pin });
-        if (existingIpSession && existingIpSession.deviceId !== deviceId) {
-          return callback({ 
-            success: false, 
-            message: 'Ya hay otro usuario de este dispositivo en esta sala.' 
-          });
+        const ipInAnyRoom = existingSessions[0]; // Tomar la primera sesión encontrada
+        
+        if (ipInAnyRoom) {
+          console.log(`🔍 IP ${clientIp} encontrada en sala: ${ipInAnyRoom.roomPin}, intentando acceder a: ${pin}`);
+          
+          // 🔒 BLOQUEAR CUALQUIER ACCESO DESDE OTRO NAVEGADOR
+          // Comparar deviceId para detectar si es el mismo navegador o uno diferente
+          if (ipInAnyRoom.deviceId !== deviceId) {
+            // Es un navegador/sesión diferente - BLOQUEAR COMPLETAMENTE
+            console.log(`❌ BLOQUEADO: IP ${clientIp} ya tiene sesión activa desde otro navegador (deviceId: ${ipInAnyRoom.deviceId})`);
+            
+            // Detectar tipo de navegador basado en deviceId anterior
+            const browserInfo = getBrowserInfo(ipInAnyRoom.deviceId);
+            
+            return callback({ 
+              success: false, 
+              message: `⚠️ ACCESO BLOQUEADO\n\nEste dispositivo ya tiene una sesión activa en la sala ${ipInAnyRoom.roomPin} desde ${browserInfo}.\n\n🔹 Usuario: ${ipInAnyRoom.nickname}\n🔹 Activo desde: ${new Date(ipInAnyRoom.lastActive).toLocaleString()}\n\n📋 Para acceder:\n1. Cierre TODAS las ventanas del navegador actual\n2. Vaya al otro navegador y haga clic en "Salir"\n3. O borre el caché/cookies del navegador actual\n\n⚡ Solo puede estar en UNA sala por dispositivo.` 
+            });
+          }
+          
+          // Es el mismo navegador - permitir reconexión
+          if (ipInAnyRoom.roomPin === pin) {
+            console.log(`✅ IP ${clientIp} reconectando desde el mismo navegador a sala ${pin}`);
+            ipInAnyRoom.nickname = nickname;
+            ipInAnyRoom.lastActive = Date.now();
+            await ipInAnyRoom.save();
+          } else {
+            // Mismo navegador pero diferente sala - bloquear
+            console.log(`❌ BLOQUEADO: Mismo navegador intenta cambiar de sala ${ipInAnyRoom.roomPin} a ${pin}`);
+            return callback({ 
+              success: false, 
+              message: `Ya estás en la sala ${ipInAnyRoom.roomPin}. Debes salir de esa sala antes de unirte a otra.` 
+            });
+          }
+        } else {
+          console.log(`✅ IP ${clientIp} no tiene sesiones activas, permitiendo acceso a sala ${pin}`);
         }
 
         await registerSession(deviceId, clientIp, pin, nickname);
@@ -124,6 +142,14 @@ function RoomController(io) {
         socket.clientIp = clientIp;
         socket.userPin = pin;
         socket.userNickname = nickname;
+
+        // ✅ CREAR O ACTUALIZAR ROOM MEMBERSHIP
+        try {
+          await RoomMembership.createOrUpdate(deviceId, nickname, pin, clientIp);
+          console.log(`✅ RoomMembership creado/actualizado para ${nickname} en sala ${pin}`);
+        } catch (membershipError) {
+          console.error('⚠️ Error creando RoomMembership:', membershipError);
+        }
 
         // ✅ ACTUALIZAR CONTADOR EN MONGODB
         try {
@@ -207,14 +233,17 @@ function RoomController(io) {
         const key = `${pin}:${deviceId}`;
         refreshingUsers.delete(key);
 
-        // buscar sesion por ip
+        // 🔒 BUSCAR SESIÓN POR IP (no por deviceId, ya que puede cambiar entre navegadores)
         const session = await getSessionByIp(clientIp, pin);
         if (!session) {
-          return callback({ success: false, message: 'Sesion no valida o expirada' });
+          console.log(`❌ No hay sesión válida para IP ${clientIp} en sala ${pin}`);
+          return callback({ success: false, message: 'Sesion no valida o expirada para este dispositivo' });
         }
 
-        // buscar si el usuario ya existe en la sala con la misma ip
-        const existingUserIndex = room.users.findIndex(u => u.id === socket.id);
+        console.log(`✅ Sesión encontrada para IP ${clientIp}: ${session.nickname} en sala ${pin}`);
+
+        // buscar si el usuario ya existe en la sala
+        const existingUserIndex = room.users.findIndex(u => u.deviceId === deviceId);
         
         if (existingUserIndex !== -1) {
           // actualizar el socket id manteniendo el resto de la informacion
@@ -257,6 +286,23 @@ function RoomController(io) {
         socket.clientIp = clientIp;
         socket.userPin = pin;
         socket.userNickname = session.nickname;
+        
+        // ✅ RECONECTAR ROOM MEMBERSHIP
+        try {
+          // Buscar por IP ya que el deviceId puede haber cambiado
+          const membership = await RoomMembership.findOne({ ip: clientIp, roomPin: pin });
+          if (membership) {
+            membership.deviceId = deviceId; // Actualizar deviceId
+            await membership.reconnect();
+            console.log(`✅ RoomMembership reconectado para ${session.nickname} en sala ${pin}`);
+          } else {
+            // Si no existe, crearlo
+            await RoomMembership.createOrUpdate(deviceId, session.nickname, pin, clientIp);
+            console.log(`✅ RoomMembership creado para ${session.nickname} en sala ${pin}`);
+          }
+        } catch (membershipError) {
+          console.error('⚠️ Error reconectando RoomMembership:', membershipError);
+        }
         
         // cargar todos los mensajes previos con sus archivos
         const previousMessages = await Message.find({ pin }).sort({ timestamp: 1 });
@@ -496,25 +542,34 @@ function RoomController(io) {
       }
 
       try {
-        // verificar sesion antes de eliminar
-        const sessionBefore = await DeviceSession.findOne({ ip: clientIp, roomPin: pin });
-        console.log(`Sesion encontrada antes de eliminar:`, sessionBefore ? 'SI' : 'NO');
+        // 🔒 VERIFICAR Y ELIMINAR SESIÓN POR IP COMPLETAMENTE
+        console.log(`🔍 Buscando sesión para eliminar: IP=${clientIp}, PIN=${pin}`);
         
-        // eliminar sesion por ip
-        const result = await removeSession(deviceId, clientIp, pin);
+        const sessionBefore = await DeviceSession.findOne({ ip: clientIp });
+        console.log(`📋 Sesión antes de eliminar:`, sessionBefore ? `Existe (sala: ${sessionBefore.roomPin})` : 'No existe');
         
-        // ✅ DESCONECTAR DE LA SALA (pero mantener pertenencia)
-        const membership = await RoomMembership.findOne({ deviceId, roomPin: pin });
+        // 🔒 ELIMINAR TODAS las sesiones de esta IP (pueden ser múltiples por diferentes navegadores)
+        const result = await DeviceSession.deleteMany({ ip: clientIp });
+        console.log(`🗑️ Sesiones eliminadas para IP ${clientIp} - Documentos eliminados: ${result.deletedCount}`);
+        
+        // Verificar que se eliminaron todas
+        const remainingSessions = await DeviceSession.find({ ip: clientIp });
+        console.log(`📋 Sesiones restantes después de eliminar:`, remainingSessions.length);
+        
+        if (remainingSessions.length > 0) {
+          console.error(`⚠️ ERROR: Todavía quedan ${remainingSessions.length} sesiones para IP ${clientIp}`);
+          remainingSessions.forEach(s => console.log(`  - ${s.roomPin}: ${s.deviceId}`));
+        } else {
+          console.log(`✅ TODAS las sesiones eliminadas correctamente para IP ${clientIp}`);
+        }
+        
+        // ✅ DESCONECTAR DE LA SALA (pero mantener pertenencia por si vuelve)
+        const membership = await RoomMembership.findOne({ ip: clientIp, roomPin: pin });
         if (membership) {
           await membership.disconnect();
           console.log(`${nickname} DESCONECTADO de sala ${pin} (pertenencia mantenida)`);
         }
         
-        console.log(`Sesion eliminada completamente para ${nickname} (IP: ${clientIp}) de sala ${pin}`);
-        
-        // verificar que se elimino
-        const sessionAfter = await DeviceSession.findOne({ ip: clientIp, roomPin: pin });
-        console.log(`Sesion despues de eliminar:`, sessionAfter ? 'TODAVIA EXISTE' : 'ELIMINADA');
       } catch (err) {
         console.error(`Error eliminando sesion:`, err);
       }

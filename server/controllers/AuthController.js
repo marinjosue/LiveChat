@@ -393,9 +393,13 @@ class AuthController {
    */
   static async verifyToken(req, res, next) {
     try {
-      const token = req.headers.authorization?.replace('Bearer ', '');
+      const authHeader = req.headers.authorization;
+      console.log('[AUTH] verifyToken - Authorization header:', authHeader ? authHeader.substring(0, 20) + '...' : 'MISSING');
+      
+      const token = authHeader?.replace('Bearer ', '');
 
       if (!token) {
+        console.error('[AUTH] verifyToken - No token provided');
         return res.status(401).json({ 
           success: false, 
           message: 'Token no proporcionado' 
@@ -403,9 +407,15 @@ class AuthController {
       }
 
       const decoded = jwt.verify(token, JWT_SECRET);
+      console.log('[AUTH] verifyToken - Token decoded:', { 
+        adminId: decoded.adminId, 
+        username: decoded.username,
+        temp: decoded.temp 
+      });
       
       // Verificar que no sea un token temporal
       if (decoded.temp) {
+        console.error('[AUTH] verifyToken - Temporary token used');
         return res.status(401).json({ 
           success: false, 
           message: 'Token temporal, completa 2FA' 
@@ -415,16 +425,19 @@ class AuthController {
       // Verificar que el admin existe y está activo
       const admin = await Admin.findById(decoded.adminId);
       if (!admin || !admin.isActive) {
+        console.error('[AUTH] verifyToken - Admin not valid:', decoded.adminId);
         return res.status(401).json({ 
           success: false, 
           message: 'Administrador no válido' 
         });
       }
 
+      console.log('[AUTH] verifyToken - Success for:', admin.username);
       req.admin = decoded;
       next();
 
     } catch (error) {
+      console.error('[AUTH] verifyToken - Error:', error.message);
       if (error.name === 'JsonWebTokenError') {
         return res.status(401).json({ 
           success: false, 
@@ -455,6 +468,13 @@ class AuthController {
       const ipAddress = getClientIp(req);
       const userAgent = req.headers['user-agent'];
 
+      console.log('[AUTH] confirm2FA - Request received:', {
+        hasCode: !!code,
+        codeLength: code?.length,
+        adminId,
+        hasAdmin: !!req.admin
+      });
+
       if (!code) {
         return res.status(400).json({ 
           success: false, 
@@ -464,15 +484,19 @@ class AuthController {
 
       const admin = await Admin.findById(adminId);
       if (!admin) {
+        console.error('[AUTH] confirm2FA - Admin not found:', adminId);
         return res.status(404).json({ success: false, message: 'Admin no encontrado' });
       }
 
       if (!admin.secret2FA) {
+        console.error('[AUTH] confirm2FA - No secret2FA found for admin:', admin.username);
         return res.status(400).json({ 
           success: false, 
           message: 'Primero debes habilitar 2FA' 
         });
       }
+
+      console.log('[AUTH] confirm2FA - Verifying code for:', admin.username);
 
       // Verificar código 2FA
       const verified = speakeasy.totp.verify({
@@ -483,6 +507,7 @@ class AuthController {
       });
 
       if (!verified) {
+        console.error('[AUTH] confirm2FA - Invalid code for:', admin.username);
         await AuditService.log({
           adminId: admin._id,
           adminUsername: admin.username,
@@ -501,6 +526,8 @@ class AuthController {
       // Activar 2FA
       admin.isEnabled2FA = true;
       await admin.save();
+
+      console.log('[AUTH] confirm2FA - 2FA activated successfully for:', admin.username);
 
       await AuditService.log({
         adminId: admin._id,

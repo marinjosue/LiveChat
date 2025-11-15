@@ -125,8 +125,8 @@
 
 .rooms-section {
   background: var(--dark-surface);
-  padding: 24px;
-  border-radius: var(--radius-xl);
+  padding: 16px;
+  border-radius: var(--radius-lg);
   border: 1px solid var(--dark-border);
   box-shadow: var(--shadow-md);
   transition: var(--transition);
@@ -170,16 +170,16 @@
 
 .rooms-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 16px;
-  margin-top: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
 }
 
 .room-card {
   background: var(--dark-surface-elevated);
   border: 1px solid var(--dark-border);
-  border-radius: var(--radius-lg);
-  padding: 16px;
+  border-radius: var(--radius-md);
+  padding: 12px;
   transition: var(--transition);
   position: relative;
 }
@@ -490,19 +490,19 @@
 
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 16px;
-  margin-bottom: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
 }
 
 .stat-card {
   background: var(--dark-surface);
   border: 1px solid var(--dark-border);
-  padding: 18px;
-  border-radius: var(--radius-lg);
+  padding: 14px;
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow-md);
   display: flex;
-  gap: 14px;
+  gap: 12px;
   transition: var(--transition);
 }
 
@@ -518,7 +518,7 @@
 }
 
 .stat-icon {
-  font-size: 32px;
+  font-size: 28px;
   display: flex;
   align-items: center;
 }
@@ -528,12 +528,12 @@
 }
 
 .stat-content h3 {
-  margin: 0 0 6px 0;
+  margin: 0 0 4px 0;
   color: var(--text-secondary-dark);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.4px;
 }
 
 .admin-app.light-theme .stat-content h3 {
@@ -541,9 +541,9 @@
 }
 
 .stat-value {
-  margin: 0 0 3px 0;
+  margin: 0 0 2px 0;
   color: var(--text-primary-dark);
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 700;
 }
 
@@ -563,8 +563,8 @@
 .performance-section {
   background: var(--dark-surface);
   border: 1px solid var(--dark-border);
-  padding: 20px;
-  border-radius: var(--radius-lg);
+  padding: 16px;
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow-md);
   transition: var(--transition);
 }
@@ -625,8 +625,8 @@
 .logs-section {
   background: var(--dark-surface);
   border: 1px solid var(--dark-border);
-  padding: 20px;
-  border-radius: var(--radius-lg);
+  padding: 16px;
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow-md);
   transition: var(--transition);
 }
@@ -750,8 +750,8 @@
 .security-section {
   background: var(--dark-surface);
   border: 1px solid var(--dark-border);
-  padding: 20px;
-  border-radius: var(--radius-lg);
+  padding: 16px;
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow-md);
   transition: var(--transition);
 }
@@ -870,10 +870,10 @@
 .settings-card {
   background: var(--dark-surface);
   border: 1px solid var(--dark-border);
-  padding: 24px;
-  border-radius: var(--radius-lg);
+  padding: 16px;
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow-md);
-  margin-bottom: 20px;
+  margin-bottom: 16px;
   transition: var(--transition);
 }
 
@@ -1176,8 +1176,8 @@
 .settings-info {
   background: var(--dark-surface);
   border: 1px solid var(--dark-border);
-  padding: 20px;
-  border-radius: var(--radius-lg);
+  padding: 16px;
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow-md);
   transition: var(--transition);
 }
@@ -1347,8 +1347,8 @@
 .create-room-section {
   background: var(--dark-surface);
   border: 1px solid var(--dark-border);
-  padding: 20px;
-  border-radius: var(--radius-lg);
+  padding: 16px;
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow-md);
   transition: var(--transition);
 }
@@ -1387,8 +1387,8 @@
 .management-section {
   background: var(--dark-surface);
   border: 1px solid var(--dark-border);
-  padding: 20px;
-  border-radius: var(--radius-lg);
+  padding: 16px;
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow-md);
   transition: var(--transition);
 }

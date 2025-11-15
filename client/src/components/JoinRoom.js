@@ -8,7 +8,7 @@ import 'primeicons/primeicons.css';
 import '../styles/JoinRoom.css';
 import '../styles/CustomToast.css';
 import { getClientIp } from '../utils/networkUtils';
-import { saveCurrentRoom } from '../utils/deviceManager';
+import { saveCurrentRoom, getDeviceId } from '../utils/deviceManager';
 
 const JoinRoom = ({ onRoomJoined, initialPin }) => {
   const [, setMessages] = useState([]);
@@ -29,13 +29,11 @@ const JoinRoom = ({ onRoomJoined, initialPin }) => {
       return;
     }
 
-    const ip = await getClientIp();
-    if (!ip) {
-      toast.current.show({ severity: 'error', summary: 'Error', detail: 'No se pudo obtener la IP', life: 3000 });
-      return;
-    }
+    // Usar el deviceId real del dispositivo (no la IP)
+    const deviceId = getDeviceId();
+    console.log('🔍 DeviceId generado:', deviceId);
 
-    socket.emit('joinRoom', { pin, nickname, deviceId: ip }, (response) => {
+    socket.emit('joinRoom', { pin, nickname, deviceId }, (response) => {
       console.log('🔍 Respuesta completa de joinRoom:', response);
       if (response.success) {
         const roomType = response.roomType || 'multimedia';
@@ -46,7 +44,20 @@ const JoinRoom = ({ onRoomJoined, initialPin }) => {
         toast.current.show({ severity: 'success', summary: 'Unido', detail: `Te has unido a la sala ${pin}`, life: 2000 });
         setTimeout(() => onRoomJoined(pin, nickname, roomType), 2000);
       } else {
-        toast.current.show({ severity: 'error', summary: 'Error', detail: response.message, life: 3000 });
+        // Si es un error de bloqueo por múltiples navegadores, mostrar modal especial
+        if (response.message && response.message.includes('ACCESO BLOQUEADO')) {
+          // Mostrar modal con información detallada
+          toast.current.show({ 
+            severity: 'warn', 
+            summary: '⚠️ Dispositivo ya en uso', 
+            detail: response.message.replace(/\n/g, ' | '), 
+            life: 8000,
+            sticky: true
+          });
+        } else {
+          // Error normal
+          toast.current.show({ severity: 'error', summary: 'Error', detail: response.message, life: 5000 });
+        }
       }
     });
   };
@@ -73,6 +84,7 @@ const JoinRoom = ({ onRoomJoined, initialPin }) => {
       <div className="action-card">
         <LogIn size={48} className="card-icon" />
         <h2>Unirse a una Sala</h2>
+        
         <div className="card-body">
           <div className="input-group">
             <label><User size={16} /> Nickname</label>
@@ -92,7 +104,7 @@ const JoinRoom = ({ onRoomJoined, initialPin }) => {
               value={pin} 
               onChange={(e) => setPin(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))} 
               placeholder="Ingresa el PIN de 6 dígitos" 
-              maxLength={6} 
+              maxLength={6}
             />
           </div>
           <button onClick={handleJoinRoom}>

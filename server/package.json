@@ -8,7 +8,8 @@
     "dev": "nodemon server.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "clean:old-rooms": "node scripts/cleanOldRooms.js",
-    "clean:all-rooms": "node scripts/deleteAllRooms.js"
+    "clean:all-rooms": "node scripts/deleteAllRooms.js",
+    "test:logs": "node scripts/generateTestLogs.js"
   },
   "keywords": [],
   "author": "",

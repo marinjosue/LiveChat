@@ -5,8 +5,9 @@ const auditLogSchema = new mongoose.Schema({
   adminId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Admin',
-    required: true,
-    index: true
+    required: false,
+    index: true,
+    default: null
   },
   adminUsername: {
     type: String,
@@ -55,7 +56,11 @@ const auditLogSchema = new mongoose.Schema({
       'SECURITY_BREACH_ATTEMPT',
       'RATE_LIMIT_EXCEEDED',
       'INVALID_TOKEN',
-      'SUSPICIOUS_ACTIVITY'
+      'SUSPICIOUS_ACTIVITY',
+      
+      // Logs
+      'LOGS_FILES_LISTED',
+      'LOG_FILE_VIEWED'
     ]
   },
   // Detalles de la acción

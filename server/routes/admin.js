@@ -1,6 +1,7 @@
 const express = require('express');
 const { AuthController } = require('../controllers/AuthController');
 const { AuditService } = require('../services/auditService');
+const { LoggerService } = require('../services/loggerService');
 const Room = require('../models/Room');
 const Message = require('../models/Message');
 const Admin = require('../models/Admin');
@@ -63,6 +64,73 @@ router.post('/logs/verify-integrity', async (req, res) => {
       success: true,
       ...result
     });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+/**
+ * @route   GET /api/admin/logs/files
+ * @desc    Listar archivos de logs disponibles
+ * @access  Private (Admin)
+ */
+router.get('/logs/files', async (req, res) => {
+  try {
+    const result = await LoggerService.listLogFiles();
+    
+    await AuditService.log({
+      adminId: req.admin.adminId,
+      adminUsername: req.admin.username,
+      action: 'LOGS_FILES_LISTED',
+      details: { filesCount: result.files?.length || 0 },
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      status: 'SUCCESS'
+    });
+    
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+/**
+ * @route   GET /api/admin/logs/file/:filename
+ * @desc    Obtener contenido de un archivo de log específico
+ * @access  Private (Admin)
+ */
+router.get('/logs/file/:filename', async (req, res) => {
+  try {
+    const { filename } = req.params;
+    const { lines = 100 } = req.query;
+    
+    // Validar filename para prevenir path traversal
+    if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid filename'
+      });
+    }
+    
+    const result = await LoggerService.getLogFile(filename, parseInt(lines));
+    
+    await AuditService.log({
+      adminId: req.admin.adminId,
+      adminUsername: req.admin.username,
+      action: 'LOG_FILE_VIEWED',
+      details: { filename, lines: parseInt(lines) },
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      status: result.success ? 'SUCCESS' : 'FAILURE'
+    });
+    
+    res.json(result);
   } catch (error) {
     res.status(500).json({
       success: false,

@@ -31,7 +31,8 @@ const {
 } = require('./middleware/security');
 
 // Servicios de seguridad y concurrencia
-const { logger, AuditService } = require('./services/auditService');
+const { AuditService } = require('./services/auditService');
+const { LoggerService } = require('./services/loggerService');
 const { FileSecurityService } = require('./services/fileSecurityService');
 const { encryptionService } = require('./services/encryptionService');
 const { ThreadPoolManager } = require('./services/threadPoolManager');
@@ -266,6 +267,16 @@ app.post('/api/upload',
         const reasons = securityValidation.checks.steganography?.reasons || securityValidation.warnings;
         const confidence = securityValidation.checks.steganography?.confidence || 0;
         
+        // Log de seguridad
+        LoggerService.steganography(file.originalname, Math.round(confidence * 100), reasons, {
+          sender,
+          room: pin,
+          fileSize: file.size,
+          fileType: file.mimetype,
+          ipAddress: req.ip,
+          action: 'REJECTED'
+        });
+        
         await AuditService.logSteganographyDetected(
           null,
           {
@@ -311,11 +322,26 @@ app.post('/api/upload',
       const uploadResult = await uploadToCloudinary(fileBase64, file.originalname, 'livechat', 3);
       
       if (!uploadResult.success) {
+        LoggerService.error('File upload failed', {
+          fileName: file.originalname,
+          error: uploadResult.error,
+          sender,
+          room: pin
+        });
         return res.status(500).json({ 
           success: false, 
           message: uploadResult.error 
         });
       }
+
+      // Log de subida exitosa
+      LoggerService.upload('FILE_UPLOADED', file.originalname, {
+        sender,
+        room: pin,
+        fileSize: file.size,
+        fileType: file.mimetype,
+        cloudinaryUrl: uploadResult.url
+      });
 
       // Determinar tipo de archivo
       let messageType = 'document';
@@ -546,14 +572,14 @@ process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 // Capturar excepciones no manejadas
 process.on('uncaughtException', (error) => {
-  console.error('Uncaught Exception:', error);
-  logger.error('Uncaught exception', { error: error.message, stack: error.stack });
+  console.error('💥 Uncaught Exception:', error);
+  LoggerService.error('Uncaught exception', { error: error.message, stack: error.stack });
   gracefulShutdown('uncaughtException');
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-  logger.error('Unhandled rejection', { reason });
+  console.error('💥 Unhandled Rejection at:', promise, 'reason:', reason);
+  LoggerService.error('Unhandled rejection', { reason });
   gracefulShutdown('unhandledRejection');
 });
 

@@ -241,7 +241,20 @@ function AdminDashboard({ admin, onLogout, theme, toggleTheme }) {
   };
 
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleString('es-ES');
+    if (!dateString) return 'N/A';
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return 'Fecha inválida';
+      return date.toLocaleString('es-ES', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch (e) {
+      return 'Fecha inválida';
+    }
   };
 
   if (loading) {
@@ -466,14 +479,32 @@ function AdminDashboard({ admin, onLogout, theme, toggleTheme }) {
         <div className="tab-content">
           <div className="logs-section">
             <div className="logs-header">
-              <h2><ScrollText size={24} /> Últimos 10 Logs de Auditoría</h2>
-              <button className="btn-refresh" onClick={loadDashboardData}>
-                🔄 Actualizar
-              </button>
+              <h2><ScrollText size={24} /> Logs de Auditoría</h2>
+              <div className="logs-controls">
+                <select 
+                  className="logs-limit-select"
+                  value={logs.length}
+                  onChange={(e) => {
+                    const token = localStorage.getItem('adminToken');
+                    axios.get(`${BACKEND_URL}/api/admin/logs?limit=${e.target.value}`, {
+                      headers: { 'Authorization': `Bearer ${token}` }
+                    }).then(res => setLogs(res.data.logs || []));
+                  }}
+                >
+                  <option value="10">10 logs</option>
+                  <option value="25">25 logs</option>
+                  <option value="50">50 logs</option>
+                  <option value="100">100 logs</option>
+                  <option value="200">200 logs</option>
+                </select>
+                <button className="btn-refresh" onClick={loadDashboardData}>
+                  🔄 Actualizar
+                </button>
+              </div>
             </div>
 
             {logs.length === 0 ? (
-              <p className="no-logs">No hay logs disponibles</p>
+              <p className="no-logs">No hay logs de auditoría disponibles</p>
             ) : (
               <div className="logs-table">
                 <table>
@@ -489,9 +520,9 @@ function AdminDashboard({ admin, onLogout, theme, toggleTheme }) {
                   <tbody>
                     {logs.map((log) => (
                       <tr key={log._id}>
-                        <td>{formatDate(log.createdAt)}</td>
+                        <td>{formatDate(log.timestamp || log.createdAt)}</td>
                         <td><code>{log.action}</code></td>
-                        <td>{log.adminId?.username || 'N/A'}</td>
+                        <td>{log.adminUsername || log.adminId?.username || 'N/A'}</td>
                         <td>{getLogStatusBadge(log.status)}</td>
                         <td><code>{log.ipAddress}</code></td>
                       </tr>

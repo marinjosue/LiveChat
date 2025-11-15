@@ -201,7 +201,7 @@ const ChatText = ({ pin, nickname, onLeave }) => {
           </div>
           <div className="room-buttons">
             <button className="exit-btn" onClick={handleExit} title="Salir de la sala">
-              ❌ Salir
+              ❌ <span>Salir</span>
             </button>
           </div>
         </div>
@@ -235,8 +235,9 @@ const ChatText = ({ pin, nickname, onLeave }) => {
           onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
           maxLength={500}
         />
-        <button onClick={sendMessage} disabled={!message.trim()}>
-          <Send size={20} /> Enviar
+        <button onClick={sendMessage} className="send-btn" disabled={!message.trim()}>
+          <Send size={20} />
+          <span>Enviar</span>
         </button>
       </footer>
     </div>

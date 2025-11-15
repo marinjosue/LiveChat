@@ -5,7 +5,7 @@ import ChatMultimedia from './components/ChatMultimedia';
 import ChatText from './components/chatText';
 import { MessageSquare, Lock, Zap, Users, LogIn, Shield, Github, Sun, Moon } from 'lucide-react';
 import './styles/App.css';
-import { clearCurrentRoom, getCurrentRoom, saveCurrentRoom, getDeviceId, finishReconnection, markPageRefreshing } from './utils/deviceManager';
+import { clearCurrentRoom, getCurrentRoom, saveCurrentRoom, getDeviceId, finishReconnection } from './utils/deviceManager';
 import socket from './services/socketService';
 
 const App = () => {
@@ -203,13 +203,13 @@ const App = () => {
           </footer>
         </div>
       ) : (
-        <div className={theme === 'light' ? 'app-container light-theme' : 'app-container'}>
+        <>
           {roomType === 'text' ? (
             <ChatText pin={currentPin} nickname={nickname} onLeave={handleLeaveRoom} />
           ) : (
             <ChatMultimedia pin={currentPin} nickname={nickname} onLeave={handleLeaveRoom} />
           )}
-        </div>
+        </>
       )}
     </div>
   );

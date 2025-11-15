@@ -263,3 +263,90 @@
 .admin-app.light-theme .admin-login-footer p {
   color: #64748b;
 }
+
+/* ==================== RESPONSIVE DESIGN ==================== */
+
+/* Tablet and below (< 769px) */
+@media (max-width: 769px) {
+  .admin-login-container {
+    padding: var(--spacing-md);
+  }
+
+  .admin-login-card {
+    max-width: 100%;
+    padding: 32px;
+  }
+
+  .admin-login-header h2 {
+    font-size: 22px;
+  }
+
+  .theme-toggle-admin {
+    position: static;
+    margin-bottom: 16px;
+  }
+
+  .admin-login-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+}
+
+/* Mobile (< 480px) */
+@media (max-width: 480px) {
+  .admin-login-container {
+    padding: 1rem;
+  }
+
+  .admin-login-card {
+    padding: 24px;
+    border-radius: 12px;
+  }
+
+  .admin-login-header h2 {
+    font-size: 20px;
+  }
+
+  .admin-login-header p {
+    font-size: 13px;
+  }
+
+  .header-icon {
+    width: 28px;
+    height: 28px;
+  }
+
+  .form-group label {
+    font-size: 13px;
+  }
+
+  .form-group input {
+    padding: 10px 14px;
+    font-size: 13px;
+  }
+
+  .form-group small {
+    font-size: 11px;
+  }
+
+  .btn-login,
+  .btn-back {
+    padding: 12px 20px;
+    font-size: 14px;
+  }
+
+  .admin-error {
+    padding: 10px;
+    font-size: 13px;
+  }
+
+  .admin-login-footer {
+    margin-top: 24px;
+    padding-top: 16px;
+  }
+
+  .admin-login-footer p {
+    font-size: 11px;
+  }
+}

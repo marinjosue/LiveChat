@@ -1497,3 +1497,313 @@
 .mt-2 {
   margin-top: 10px;
 }
+
+/* ==================== RESPONSIVE DESIGN ==================== */
+
+/* Tablet and below (< 1024px) */
+@media (max-width: 1024px) {
+  .admin-dashboard {
+    padding: var(--spacing-md);
+  }
+
+  .dashboard-header {
+    padding: var(--spacing-lg);
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  }
+
+  .rooms-grid {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 10px;
+  }
+
+  .info-grid {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  }
+}
+
+/* Tablet portrait (< 769px) */
+@media (max-width: 769px) {
+  .admin-dashboard {
+    padding: var(--spacing-sm);
+  }
+
+  .dashboard-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md);
+  }
+
+  .header-left h1 {
+    font-size: 1.5rem;
+  }
+
+  .header-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .btn-logout {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .dashboard-tabs {
+    flex-wrap: wrap;
+    gap: var(--spacing-xs);
+  }
+
+  .tab {
+    flex: 1;
+    min-width: calc(50% - var(--spacing-xs));
+    justify-content: center;
+    padding: 10px 16px;
+    font-size: 13px;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .stat-card {
+    padding: 12px;
+  }
+
+  .stat-icon {
+    font-size: 24px;
+  }
+
+  .stat-value {
+    font-size: 18px;
+  }
+
+  .rooms-section,
+  .performance-section,
+  .logs-section,
+  .security-section,
+  .settings-card,
+  .create-room-section,
+  .management-section {
+    padding: 12px;
+  }
+
+  .rooms-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .room-card {
+    padding: 12px;
+  }
+
+  .logs-table {
+    font-size: 12px;
+  }
+
+  .logs-table th,
+  .logs-table td {
+    padding: 8px 6px;
+    font-size: 12px;
+  }
+
+  .info-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .setting-header {
+    flex-direction: column;
+    gap: var(--spacing-sm);
+  }
+
+  .setting-description {
+    max-width: 100%;
+  }
+
+  .qr-section {
+    gap: 16px;
+  }
+
+  .qr-image {
+    width: 180px;
+    height: 180px;
+  }
+
+  .verification-input-group {
+    flex-direction: column;
+  }
+
+  .btn-verify {
+    width: 100%;
+  }
+}
+
+/* Mobile (< 480px) */
+@media (max-width: 480px) {
+  .admin-dashboard {
+    padding: 0.75rem;
+  }
+
+  .dashboard-header {
+    padding: 1rem;
+    margin-bottom: var(--spacing-md);
+  }
+
+  .header-left h1 {
+    font-size: 1.25rem;
+  }
+
+  .header-left p {
+    font-size: 0.8125rem;
+    flex-wrap: wrap;
+  }
+
+  .role-badge {
+    padding: 5px 12px;
+    font-size: 12px;
+  }
+
+  .dashboard-tabs {
+    padding: var(--spacing-xs);
+  }
+
+  .tab {
+    min-width: 100%;
+    padding: 10px 12px;
+    font-size: 12px;
+  }
+
+  .tab svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .stat-card {
+    padding: 10px;
+  }
+
+  .stat-icon {
+    font-size: 20px;
+  }
+
+  .stat-content h3 {
+    font-size: 10px;
+  }
+
+  .stat-value {
+    font-size: 16px;
+  }
+
+  .rooms-section h2,
+  .performance-section h2,
+  .logs-section h2,
+  .security-section h2,
+  .settings-section h2,
+  .create-room-section h2,
+  .management-section h2 {
+    font-size: 18px;
+  }
+
+  .section-subtitle {
+    font-size: 12px;
+  }
+
+  .room-card {
+    padding: 10px;
+  }
+
+  .room-header h3 {
+    font-size: 14px;
+  }
+
+  .room-pin {
+    padding: 4px 8px;
+    font-size: 12px;
+  }
+
+  .room-actions {
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .btn-delete-room {
+    width: 100%;
+    padding: 10px;
+    font-size: 12px;
+  }
+
+  .btn-logout {
+    padding: 8px 16px;
+    font-size: 14px;
+  }
+
+  .btn-refresh {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+
+  .logs-table {
+    overflow-x: auto;
+    display: block;
+  }
+
+  .logs-table table {
+    min-width: 600px;
+  }
+
+  .logs-table th,
+  .logs-table td {
+    padding: 6px 4px;
+    font-size: 11px;
+  }
+
+  .qr-image {
+    width: 160px;
+    height: 160px;
+  }
+
+  .code-input {
+    padding: 10px 12px;
+    font-size: 16px;
+    letter-spacing: 4px;
+  }
+
+  .btn-enable-2fa,
+  .btn-disable-2fa,
+  .btn-verify {
+    width: 100%;
+    padding: 10px 20px;
+    font-size: 13px;
+  }
+
+  .setting-actions {
+    width: 100%;
+  }
+
+  .info-card {
+    padding: 12px;
+  }
+
+  .info-card h3 {
+    font-size: 14px;
+  }
+
+  .info-card li,
+  .info-card p {
+    font-size: 12px;
+  }
+
+  .command-box {
+    padding: 8px 10px;
+    font-size: 11px;
+    overflow-x: auto;
+  }
+}

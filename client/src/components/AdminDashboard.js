@@ -1,13 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
+import { Toast } from 'primereact/toast';
 import CreateRoom from './CreateRoom';
 import RoomManagement from './RoomManagement';
 import { BarChart3, Home, ScrollText, Shield, Settings, LogOut, Sun, Moon, Server, Database, Activity, Lock, Folder, Check, Info } from 'lucide-react';
+import socket from '../services/socketService';
 import '../styles/AdminDashboard.css';
 
 const BACKEND_URL = process.env.REACT_APP_SOCKET_URL || 'http://localhost:3001';
 
 function AdminDashboard({ admin, onLogout, theme, toggleTheme }) {
+  const toast = useRef(null);
   const [stats, setStats] = useState(null);
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -23,6 +26,54 @@ function AdminDashboard({ admin, onLogout, theme, toggleTheme }) {
     const interval = setInterval(loadDashboardData, 10000); // Actualizar cada 10s
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // WebSocket: Escuchar alertas de archivos sospechosos rechazados
+  useEffect(() => {
+    console.log('🔌 AdminDashboard: Conectando WebSocket para alertas de seguridad');
+
+    socket.on('adminAlert:suspiciousFileRejected', (data) => {
+      console.warn('🚨 ALERTA DE ADMINISTRADOR: Archivo sospechoso rechazado', data);
+      
+      const reasonsText = data.reasons.join(', ');
+      const timeStr = new Date(data.timestamp).toLocaleTimeString('es-ES', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
+
+      toast.current.show({
+        severity: 'error',
+        summary: '🚫 Archivo Sospechoso Rechazado',
+        detail: `${timeStr} - Sala ${data.room}\n\n` +
+                `Usuario: ${data.sender}\n` +
+                `Archivo: ${data.fileName} (${(data.fileSize / 1024).toFixed(2)} KB)\n\n` +
+                `Razones: ${reasonsText}\n` +
+                `Confianza: ${data.confidence}%\n` +
+                `IP: ${data.ipAddress}`,
+        sticky: true,
+        life: 30000,
+        style: {
+          maxWidth: '600px',
+          backgroundColor: '#fee2e2',
+          borderLeft: '5px solid #dc2626',
+          color: '#7f1d1d'
+        }
+      });
+
+      // Reproducir sonido de alerta
+      try {
+        const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBTGH0fPTgjMGHm7A7+OZSA0PXYTP8bVrHggueM/w2YI0BhljuO7rl08NCkCc4fG2Zhwf');
+        audio.volume = 0.3;
+        audio.play().catch(e => console.log('No se pudo reproducir sonido de alerta'));
+      } catch (e) {
+        console.log('Audio no disponible');
+      }
+    });
+
+    return () => {
+      socket.off('adminAlert:suspiciousFileRejected');
+    };
   }, []);
 
   const loadDashboardData = async () => {
@@ -203,6 +254,8 @@ function AdminDashboard({ admin, onLogout, theme, toggleTheme }) {
 
   return (
     <div className="admin-dashboard">
+      <Toast ref={toast} position="top-right" />
+      
       <header className="dashboard-header">
         <div className="header-left">
           <div className="header-title">

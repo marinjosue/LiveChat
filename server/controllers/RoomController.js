@@ -6,6 +6,8 @@ const Message = require('../models/Message');
 const DeviceSession = require('../models/DeviceSession');
 const RoomMembership = require('../models/RoomMembership');
 const { uploadToCloudinary } = require('../utils/fileUploader');
+const { FileSecurityService } = require('../services/fileSecurityService');
+const { AuditService } = require('../services/auditService');
 
 const rooms = {};
 
@@ -353,9 +355,10 @@ function RoomController(io) {
     });
 
     // enviar archivo
+    // enviar archivo CON ANÁLISIS DE ESTEGANOGRAFÍA
     socket.on('sendFile', async ({ pin, fileData, fileName, fileType, fileSize, tempId }, callback) => {
       try {
-        // validar datos de entrada
+        // ===== 1. VALIDAR DATOS DE ENTRADA =====
         if (!pin || !fileData || !fileName || !fileType || !fileSize) {
           console.log('Datos de archivo incompletos');
           socket.emit('fileError', { message: 'Datos de archivo incompletos', tempId });
@@ -371,7 +374,7 @@ function RoomController(io) {
           return;
         }
         
-        console.log(`Recibiendo archivo: ${fileName} (${fileType}, ${fileSize} bytes) en sala ${pin}`);
+        console.log(`📤 [SOCKET] Recibiendo archivo: ${fileName} (${fileType}, ${fileSize} bytes) en sala ${pin}`);
         
         const room = rooms[pin];
         if (!room) {
@@ -381,11 +384,27 @@ function RoomController(io) {
           return;
         }
 
+        // Validar tipo de sala (multimedia vs text)
+        const roomDocument = await RoomModel.findOne({ pin, isActive: true });
+        if (!roomDocument) {
+          console.log(`🚫 Sala no encontrada en BD para PIN: ${pin}`);
+          socket.emit('fileError', { message: 'Sala no encontrada en base de datos', tempId });
+          if (callback) callback({ success: false, message: 'Sala no encontrada en base de datos' });
+          return;
+        }
+
+        if (roomDocument.roomType === 'text') {
+          console.log(`🚫 Intento de subir archivo a sala de solo texto (PIN: ${pin})`);
+          socket.emit('fileError', { message: 'Esta sala es solo para mensajes de texto. No se permiten archivos multimedia.', tempId });
+          if (callback) callback({ success: false, message: 'Esta sala es solo para mensajes de texto' });
+          return;
+        }
+
         // usar socket.userNickname directamente
         const sender = socket.userNickname || 'Anonimo';
         console.log(`Enviado por: ${sender}`);
 
-        // validar tamano (15MB)
+        // ===== 2. VALIDAR TAMAÑO =====
         const MAX_SIZE = 15 * 1024 * 1024;
         if (fileSize > MAX_SIZE) {
           console.log('Archivo demasiado grande');
@@ -394,14 +413,104 @@ function RoomController(io) {
           return;
         }
 
-        // determinar tipo de mensaje
+        // ===== 3. CONVERTIR BASE64 A BUFFER PARA ANÁLISIS =====
+        let fileBuffer;
+        try {
+          const base64String = fileData.split(',')[1];
+          fileBuffer = Buffer.from(base64String, 'base64');
+          console.log(`✓ Buffer creado: ${fileBuffer.length} bytes`);
+        } catch (error) {
+          console.error('Error al convertir base64 a buffer:', error);
+          socket.emit('fileError', { message: 'Error al procesar el archivo', tempId });
+          if (callback) callback({ success: false, message: 'Error al procesar el archivo' });
+          return;
+        }
+
+        // ===== 4. ANÁLISIS DE SEGURIDAD (ESTEGANOGRAFÍA) =====
+        console.log(`[SECURITY] Analizando archivo para esteganografía: ${fileName}`);
+        
+        const securityValidation = await FileSecurityService.validateFile(
+          fileBuffer,
+          fileType,
+          fileName,
+          {
+            checkSteganography: true,
+            checkIntegrity: true,
+            checkFileType: true,
+            maxSize: 15 * 1024 * 1024
+          }
+        );
+
+        // ===== 5. EVALUAR RESULTADO DEL ANÁLISIS =====
+        if (!securityValidation.isValid) {
+          console.error(`[SECURITY] Archivo rechazado: ${securityValidation.errors.join(', ')}`);
+          
+          // Registrar rechazo en auditoría
+          await AuditService.logFileRejected(
+            null,
+            {
+              fileName,
+              fileSize,
+              fileType,
+              method: 'socket.io'
+            },
+            securityValidation.errors.join(', '),
+            socket.handshake.address
+          );
+
+          socket.emit('fileError', {
+            message: 'Archivo rechazado por razones de seguridad',
+            errors: securityValidation.errors,
+            warnings: securityValidation.warnings,
+            tempId
+          });
+          
+          if (callback) {
+            callback({
+              success: false,
+              message: 'Archivo rechazado por razones de seguridad',
+              errors: securityValidation.errors
+            });
+          }
+          
+          return;
+        }
+
+        // ===== 6. REGISTRAR ADVERTENCIAS (Si hay esteganografía sospechosa) =====
+        if (securityValidation.warnings.length > 0) {
+          console.warn(`[SECURITY] Advertencias detectadas: ${securityValidation.warnings.join(', ')}`);
+          
+          await AuditService.logSteganographyDetected(
+            null,
+            {
+              fileName,
+              fileSize,
+              fileType,
+              method: 'socket.io',
+              reason: securityValidation.warnings.join(', ')
+            },
+            socket.handshake.address
+          );
+
+          // Notificar a admins en tiempo real
+          io.emit('steganography-warning', {
+            fileName,
+            sender,
+            pin,
+            warnings: securityValidation.warnings,
+            confidence: securityValidation.checks.steganography?.confidence || 0,
+            timestamp: new Date()
+          });
+        }
+
+        // ===== 7. DETERMINAR TIPO DE MENSAJE =====
         let messageType = 'document';
         if (fileType.startsWith('image/')) messageType = 'image';
         else if (fileType.startsWith('video/')) messageType = 'video';
         else if (fileType.startsWith('audio/')) messageType = 'audio';
         console.log(`Tipo de mensaje: ${messageType}`);
 
-        // subir a cloudinary con reintentos automaticos
+        // ===== 8. SUBIR A CLOUDINARY =====
         console.log('Subiendo a Cloudinary...');
         const uploadResult = await uploadToCloudinary(fileData, fileName, 'livechat');
 
@@ -412,9 +521,9 @@ function RoomController(io) {
           return;
         }
         
-        console.log('Subido a Cloudinary:', uploadResult.url);
+        console.log('✅ Subido a Cloudinary:', uploadResult.url);
 
-        // crear mensaje en la base de datos
+        // ===== 9. GUARDAR MENSAJE EN BD CON INFO DE SEGURIDAD =====
         console.log('Guardando en base de datos...');
         const message = await Message.create({
           pin,
@@ -429,33 +538,54 @@ function RoomController(io) {
             thumbnail: uploadResult.thumbnail,
             width: uploadResult.width,
             height: uploadResult.height
+          },
+          securityCheck: {
+            steganographyAnalyzed: true,
+            isSuspicious: securityValidation.checks.steganography?.isSuspicious || false,
+            suspiciousReasons: securityValidation.checks.steganography?.reasons || [],
+            analysisTimestamp: new Date()
           }
         });
-        console.log('Mensaje guardado en BD');
+        console.log('✓ Mensaje guardado en BD con info de seguridad');
 
-        // emitir a todos en la sala
+        // ===== 10. EMITIR A TODOS EN LA SALA =====
         console.log(`Emitiendo fileMessage a sala ${pin}`);
         io.to(pin).emit('fileMessage', {
           sender,
           messageType,
           fileData: message.fileData,
           timestamp: message.timestamp,
+          securityCheck: message.securityCheck,
           tempId
         });
         
         // confirmar al emisor que se proceso correctamente
-        socket.emit('fileSuccess', { tempId, success: true });
+        socket.emit('fileSuccess', {
+          tempId,
+          success: true,
+          securityCheck: {
+            analyzed: true,
+            isSafe: !securityValidation.checks.steganography?.isSuspicious
+          }
+        });
         
         // confirmar recepcion al cliente via callback
         if (callback) {
-          callback({ success: true, message: 'Archivo procesado correctamente' });
+          callback({
+            success: true,
+            message: 'Archivo procesado correctamente',
+            securityCheck: {
+              analyzed: true,
+              isSafe: !securityValidation.checks.steganography?.isSuspicious
+            }
+          });
         }
         
-        console.log('Archivo procesado y enviado correctamente');
+        console.log('✅ Archivo procesado y enviado correctamente');
 
       } catch (error) {
-        console.error('Error al procesar archivo:', error);
-        socket.emit('fileError', { message: 'Error al procesar el archivo', tempId });
+        console.error('❌ Error al procesar archivo:', error);
+        socket.emit('fileError', { message: 'Error al procesar el archivo', tempId, error: error.message });
         if (callback) callback({ success: false, message: 'Error al procesar el archivo' });
       }
     });

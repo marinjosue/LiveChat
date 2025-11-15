@@ -17,6 +17,7 @@ const RoomController = require('./controllers/RoomController');
 const { uploadToCloudinary } = require('./utils/fileUploader');
 const Message = require('./models/Message');
 const Room = require('./models/Room');
+const RoomModel = require('./models/RoomModel');
 
 // Seguridad
 const {
@@ -255,9 +256,15 @@ app.post('/api/upload',
         });
       }
 
-      // Si hay advertencias (esteganografía sospechosa), registrar
-      if (securityValidation.warnings.length > 0) {
-        console.warn(`[SECURITY] File warnings: ${securityValidation.warnings.join(', ')}`);
+      // Si hay advertencias (esteganografía sospechosa), RECHAZAR el archivo
+      if (securityValidation.warnings.length > 0 || 
+          securityValidation.checks.steganography?.isSuspicious) {
+        
+        console.warn(`[SECURITY] 🚨 Archivo sospechoso RECHAZADO: ${file.originalname}`);
+        console.warn(`[SECURITY] Razones: ${securityValidation.warnings.join(', ')}`);
+        
+        const reasons = securityValidation.checks.steganography?.reasons || securityValidation.warnings;
+        const confidence = securityValidation.checks.steganography?.confidence || 0;
         
         await AuditService.logSteganographyDetected(
           null,
@@ -265,10 +272,36 @@ app.post('/api/upload',
             fileName: file.originalname,
             fileSize: file.size,
             fileType: file.mimetype,
-            reason: securityValidation.warnings.join(', ')
+            reason: reasons.join(', '),
+            confidence: confidence,
+            action: 'REJECTED'
           },
           req.ip
         );
+
+        // Emitir notificación WebSocket a todos los administradores conectados
+        console.warn(`[ADMIN-ALERT] 🚨 Notificando a administradores sobre archivo sospechoso rechazado`);
+        io.emit('adminAlert:suspiciousFileRejected', {
+          timestamp: new Date(),
+          fileName: file.originalname,
+          fileSize: file.size,
+          fileType: file.mimetype,
+          sender: sender,
+          room: pin,
+          reasons: reasons,
+          confidence: Math.round(confidence * 100),
+          ipAddress: req.ip,
+          action: 'REJECTED'
+        });
+        
+        return res.status(403).json({
+          success: false,
+          message: 'Archivo sospechoso detectado y rechazado',
+          isSuspicious: true,
+          reasons: reasons,
+          confidence: Math.round(confidence * 100),
+          fileName: file.originalname
+        });
       }
 
       // Convertir buffer a base64

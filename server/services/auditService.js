@@ -203,13 +203,14 @@ class AuditService {
    */
   static async logSteganographyDetected(admin, fileData, ipAddress) {
     await this.log({
-      adminId: admin._id,
-      adminUsername: admin.username,
+      adminId: admin ? admin._id : null,
+      adminUsername: admin ? admin.username : 'SYSTEM',
       action: 'STEGANOGRAPHY_DETECTED',
       details: {
         fileName: fileData.fileName,
         fileSize: fileData.fileSize,
         fileType: fileData.fileType,
+        method: fileData.method || 'unknown',
         reason: fileData.reason
       },
       ipAddress,

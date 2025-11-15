@@ -33,6 +33,41 @@ function calculateEntropy(buffer) {
 }
 
 /**
+ * ✨ NUEVO: Análisis de entropía por bloques
+ * Detecta datos ocultos localizados (más preciso que entropía global)
+ */
+function analyzeEntropyByBlocks(buffer) {
+  const blockSize = 1024; // 1KB por bloque
+  const entropies = [];
+  let highEntropyBlocks = 0;
+  
+  for (let i = 0; i < buffer.length; i += blockSize) {
+    const end = Math.min(i + blockSize, buffer.length);
+    const block = buffer.slice(i, end);
+    const entropy = calculateEntropy(block);
+    entropies.push(entropy);
+    
+    if (entropy > 7.8) {
+      highEntropyBlocks++;
+    }
+  }
+  
+  const avgEntropy = entropies.reduce((a, b) => a + b, 0) / entropies.length;
+  const maxEntropy = Math.max(...entropies);
+  const anomalyScore = highEntropyBlocks / entropies.length;
+  
+  return {
+    blockEntropies: entropies,
+    avgEntropy,
+    maxEntropy,
+    highEntropyBlocks,
+    totalBlocks: entropies.length,
+    anomalyScore,
+    suspicious: anomalyScore > 0.3 // > 30% bloques con alta entropía
+  };
+}
+
+/**
  * Analiza los bits menos significativos (LSB)
  * Técnica común de esteganografía
  */
@@ -124,7 +159,67 @@ function analyzeByteDistribution(buffer) {
 }
 
 /**
- * Análisis específico para imágenes
+ * ✨ NUEVO: Análisis de correlación de píxeles (detecta LSB embedding)
+ */
+async function analyzePixelCorrelation(rawData, channels, pixelCount) {
+  let correlationSum = 0;
+  let samples = 0;
+  const sampleSize = Math.min(1000, pixelCount - 1);
+  
+  // Analizar correlación horizontal entre píxeles adyacentes
+  for (let i = 0; i < sampleSize; i++) {
+    const pixel1 = rawData[i * channels];
+    const pixel2 = rawData[(i + 1) * channels];
+    
+    // Píxeles naturales: alta correlación (similares)
+    // Píxeles con datos ocultos: baja correlación (aleatorios)
+    correlationSum += Math.abs(pixel1 - pixel2);
+    samples++;
+  }
+  
+  const avgDifference = correlationSum / samples;
+  
+  return {
+    avgPixelDifference: avgDifference,
+    suspicious: avgDifference > 35, // Umbral ajustado
+    interpretation: avgDifference < 15 ? 'Natural' : avgDifference < 35 ? 'Comprimido' : 'Anómalo'
+  };
+}
+
+/**
+ * ✨ NUEVO: Análisis de metadatos EXIF
+ */
+async function analyzeExifData(metadata) {
+  const suspiciousSignals = [];
+  
+  // Señal 1: Software sospechoso
+  const software = metadata.exif?.Software || '';
+  const suspiciousSoftware = ['steghide', 'openstego', 'f5', 'stego', 'hide'];
+  if (suspiciousSoftware.some(s => software.toLowerCase().includes(s))) {
+    suspiciousSignals.push(`Software sospechoso: ${software}`);
+  }
+  
+  // Señal 2: Metadatos mínimos (posible limpieza)
+  const exifSize = JSON.stringify(metadata.exif || {}).length;
+  if (exifSize < 30 && metadata.format !== 'gif') {
+    suspiciousSignals.push('Metadatos eliminados o mínimos');
+  }
+  
+  // Señal 3: Metadatos excesivamente grandes
+  if (exifSize > 10000) {
+    suspiciousSignals.push('Metadatos inusualmente grandes');
+  }
+  
+  return {
+    exifSize,
+    software,
+    suspiciousSignals,
+    suspicious: suspiciousSignals.length > 0
+  };
+}
+
+/**
+ * Análisis específico para imágenes (MEJORADO)
  */
 async function analyzeImage(buffer) {
   try {
@@ -150,9 +245,24 @@ async function analyzeImage(buffer) {
     const channelEntropies = channelData.map(calculateEntropy);
     const avgEntropy = channelEntropies.reduce((a, b) => a + b, 0) / channelEntropies.length;
     
-    // Detectar anomalías en metadatos
+    // ✨ NUEVO: Análisis de correlación de píxeles
+    const pixelCorrelation = await analyzePixelCorrelation(rawData, channels, pixelCount);
+    
+    // ✨ NUEVO: Análisis de metadatos EXIF
+    const exifAnalysis = await analyzeExifData(metadata);
+    
+    // Detectar anomalías en metadatos (tamaño excesivo)
     const metadataSize = JSON.stringify(metadata).length;
-    const suspiciousMetadata = metadataSize > 5000; // Metadatos inusualmente grandes
+    const suspiciousMetadata = metadataSize > 5000;
+    
+    // Umbral adaptativo por formato
+    const entropyThresholds = {
+      'jpeg': 7.5,
+      'png': 7.0,
+      'gif': 7.8,
+      'webp': 7.3
+    };
+    const threshold = entropyThresholds[metadata.format] || 7.5;
     
     return {
       type: 'image',
@@ -161,9 +271,11 @@ async function analyzeImage(buffer) {
       channels: info.channels,
       channelEntropies,
       avgEntropy,
+      pixelCorrelation,
+      exifAnalysis,
       suspiciousMetadata,
       format: metadata.format,
-      suspicious: avgEntropy > 7.5 || suspiciousMetadata
+      suspicious: avgEntropy > threshold || suspiciousMetadata || pixelCorrelation.suspicious || exifAnalysis.suspicious
     };
   } catch (error) {
     return {
@@ -175,7 +287,95 @@ async function analyzeImage(buffer) {
 }
 
 /**
- * Análisis principal
+ * ✨ NUEVO: Determina threshold adaptativo por tipo y tamaño
+ */
+function determineConfidenceThreshold(mimeType, fileSize) {
+  const baseThresholds = {
+    'image/jpeg': 0.70,
+    'image/jpg': 0.70,
+    'image/png': 0.65,
+    'image/gif': 0.75,
+    'image/webp': 0.68,
+    'application/pdf': 0.80,
+    'video/mp4': 0.85,
+    'video/webm': 0.85,
+    'audio/mpeg': 0.75,
+    'audio/wav': 0.70
+  };
+  
+  let threshold = baseThresholds[mimeType] || 0.70;
+  
+  // Archivos grandes: menos sensible (compresión normal)
+  if (fileSize > 10 * 1024 * 1024) {
+    threshold += 0.10;
+  }
+  // Archivos pequeños: más sensible
+  else if (fileSize < 100 * 1024) {
+    threshold -= 0.05;
+  }
+  
+  return Math.min(0.90, Math.max(0.50, threshold));
+}
+
+/**
+ * ✨ NUEVO: Scoring ponderado (no binario)
+ */
+function calculateWeightedConfidence(checks, mimeType) {
+  // Pesos según confiabilidad de cada técnica
+  const weights = {
+    'signatures': 0.40,        // 40% - MUY confiable (firma directa)
+    'entropyBlocks': 0.20,     // 20% - Confiable (anomalías locales)
+    'lsb': 0.15,               // 15% - Moderado (técnico)
+    'pixelCorrelation': 0.15,  // 15% - Moderado (solo imágenes)
+    'distribution': 0.05,      // 5% - Bajo (muchos falsos positivos)
+    'exif': 0.05               // 5% - Bajo (puede ser limpieza legítima)
+  };
+  
+  let weightedScore = 0;
+  let totalWeight = 0;
+  
+  // Firmas (peso máximo)
+  if (checks.signatures?.suspicious) {
+    weightedScore += weights.signatures;
+  }
+  totalWeight += weights.signatures;
+  
+  // Entropía por bloques
+  if (checks.entropyBlocks?.suspicious) {
+    weightedScore += weights.entropyBlocks;
+  }
+  totalWeight += weights.entropyBlocks;
+  
+  // LSB
+  if (checks.lsb?.suspicious) {
+    weightedScore += weights.lsb;
+  }
+  totalWeight += weights.lsb;
+  
+  // Distribución (menos peso)
+  if (checks.distribution?.suspicious) {
+    weightedScore += weights.distribution;
+  }
+  totalWeight += weights.distribution;
+  
+  // Análisis de imagen (solo si es imagen)
+  if (mimeType.startsWith('image/')) {
+    if (checks.image?.pixelCorrelation?.suspicious) {
+      weightedScore += weights.pixelCorrelation;
+    }
+    totalWeight += weights.pixelCorrelation;
+    
+    if (checks.image?.exifAnalysis?.suspicious) {
+      weightedScore += weights.exif;
+    }
+    totalWeight += weights.exif;
+  }
+  
+  return weightedScore / totalWeight;
+}
+
+/**
+ * Análisis principal (MEJORADO)
  */
 async function analyzeSteganography(fileBuffer, mimeType, fileName) {
   try {
@@ -191,9 +391,13 @@ async function analyzeSteganography(fileBuffer, mimeType, fileName) {
     const globalEntropy = calculateEntropy(fileBuffer);
     results.checks.entropy = {
       value: globalEntropy,
-      suspicious: globalEntropy > 7.8, // Entropía muy alta
+      suspicious: globalEntropy > 7.8,
       threshold: 7.8
     };
+    
+    // ✨ 1b. Análisis de entropía por bloques (NUEVO)
+    const entropyBlocks = analyzeEntropyByBlocks(fileBuffer);
+    results.checks.entropyBlocks = entropyBlocks;
     
     // 2. Análisis de LSB
     const lsbAnalysis = analyzeLSB(fileBuffer);
@@ -223,40 +427,55 @@ async function analyzeSteganography(fileBuffer, mimeType, fileName) {
       verified: true
     };
     
-    // Determinar si el archivo es sospechoso
-    const suspiciousChecks = [
-      results.checks.entropy.suspicious,
-      results.checks.lsb.suspicious,
-      results.checks.signatures.suspicious,
-      results.checks.distribution.suspicious,
-      results.checks.image?.suspicious || false
-    ];
+    // ✨ NUEVO: Calcular confidence con scoring ponderado
+    const weightedConfidence = calculateWeightedConfidence(results.checks, mimeType);
     
-    const suspiciousCount = suspiciousChecks.filter(Boolean).length;
+    // ✨ NUEVO: Threshold adaptativo
+    const adaptiveThreshold = determineConfidenceThreshold(mimeType, fileBuffer.length);
+    
+    // Determinar si el archivo es sospechoso (con threshold adaptativo)
+    const isSuspicious = weightedConfidence >= adaptiveThreshold;
+    
+    // Contar checks individuales para referencia
+    const suspiciousChecks = [
+      results.checks.entropyBlocks?.suspicious,
+      results.checks.lsb?.suspicious,
+      results.checks.signatures?.suspicious,
+      results.checks.distribution?.suspicious,
+      results.checks.image?.pixelCorrelation?.suspicious,
+      results.checks.image?.exifAnalysis?.suspicious
+    ].filter(Boolean);
     
     results.verdict = {
-      isSuspicious: suspiciousCount >= 2, // 2 o más checks sospechosos
-      suspiciousCount,
-      totalChecks: suspiciousChecks.length,
-      confidence: suspiciousCount / suspiciousChecks.length,
-      reasons: []
+      isSuspicious,
+      confidence: weightedConfidence,
+      adaptiveThreshold,
+      suspiciousChecksCount: suspiciousChecks.length,
+      reasons: [],
+      scoring: {
+        method: 'weighted',
+        weights: 'signatures:40%, entropyBlocks:20%, lsb:15%, pixelCorr:15%, dist:5%, exif:5%'
+      }
     };
     
-    // Agregar razones específicas
-    if (results.checks.entropy.suspicious) {
-      results.verdict.reasons.push('Alta entropía detectada (posible datos encriptados)');
+    // Agregar razones específicas (ordenadas por gravedad)
+    if (results.checks.signatures?.suspicious) {
+      results.verdict.reasons.push(`🚨 CRÍTICO: Firmas de herramientas detectadas: ${results.checks.signatures.detected.join(', ')}`);
     }
-    if (results.checks.lsb.suspicious) {
-      results.verdict.reasons.push('Patrón sospechoso en bits menos significativos');
+    if (results.checks.entropyBlocks?.suspicious) {
+      results.verdict.reasons.push(`⚠️ Alta entropía localizada (${(results.checks.entropyBlocks.anomalyScore * 100).toFixed(1)}% bloques anómalos)`);
     }
-    if (results.checks.signatures.suspicious) {
-      results.verdict.reasons.push(`Firmas detectadas: ${knownSignatures.join(', ')}`);
+    if (results.checks.lsb?.suspicious) {
+      results.verdict.reasons.push(`⚠️ Patrón sospechoso en bits menos significativos (entropía LSB: ${results.checks.lsb.lsbEntropy.toFixed(3)})`);
     }
-    if (results.checks.distribution.suspicious) {
-      results.verdict.reasons.push('Distribución anómala de bytes');
+    if (results.checks.image?.pixelCorrelation?.suspicious) {
+      results.verdict.reasons.push(`⚠️ Correlación de píxeles anómala (diferencia: ${results.checks.image.pixelCorrelation.avgPixelDifference.toFixed(1)})`);
     }
-    if (results.checks.image?.suspicious) {
-      results.verdict.reasons.push('Anomalías en análisis de imagen');
+    if (results.checks.distribution?.suspicious) {
+      results.verdict.reasons.push(`ℹ️ Distribución anómala de bytes (chi²: ${results.checks.distribution.chiSquare.toFixed(1)})`);
+    }
+    if (results.checks.image?.exifAnalysis?.suspicious) {
+      results.verdict.reasons.push(`ℹ️ Metadatos sospechosos: ${results.checks.image.exifAnalysis.suspiciousSignals.join(', ')}`);
     }
     
     parentPort.postMessage({

@@ -133,6 +133,15 @@ function AdminLogin({ onLoginSuccess, theme, toggleTheme }) {
             >
               {loading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
             </button>
+
+            <button 
+              type="button" 
+              className="btn-back"
+              onClick={() => window.location.href = '/'}
+              disabled={loading}
+            >
+              Volver al Inicio
+            </button>
           </form>
         ) : (
           <form onSubmit={handleVerify2FA} className="admin-login-form">

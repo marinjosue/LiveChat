@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import socket from '../services/socketService';
-import { Send, LogOut, Users, MessageCircle, Paperclip, X, Image as ImageIcon, Video as VideoIcon, Music as MusicIcon, FileText } from 'lucide-react';
+import { Send, Users, MessageCircle, Paperclip, X, Image as ImageIcon, Video as VideoIcon, Music as MusicIcon, FileText } from 'lucide-react';
 
 // PrimeReact CSS PRIMERO
 import 'primereact/resources/themes/lara-light-indigo/theme.css';
@@ -25,7 +25,6 @@ const ChatMultimedia = ({ pin, nickname, onLeave }) => {
   const [uploadingFile, setUploadingFile] = useState(false);
   const [mediaModal, setMediaModal] = useState({ isOpen: false, url: null, type: null });
   const [errorModal, setErrorModal] = useState({ isOpen: false, message: '' });
-  const [uploadingMessages, setUploadingMessages] = useState([]);
   const [downloadModal, setDownloadModal] = useState({ isOpen: false, url: null, fileName: null });
   const [uploadProgress, setUploadProgress] = useState({ show: false, message: '', percent: 0 });
 
@@ -91,7 +90,6 @@ const ChatMultimedia = ({ pin, nickname, onLeave }) => {
             ? { sender, messageType, fileData, timestamp: formattedTime }
             : msg
         ));
-        setUploadingMessages(prev => prev.filter(m => m.id !== tempId));
       } else {
         console.log('👤 Archivo de otro usuario');
         // Si es de otro usuario, agregar normalmente
@@ -131,7 +129,6 @@ const ChatMultimedia = ({ pin, nickname, onLeave }) => {
       // Eliminar mensaje temporal si hay error
       if (tempId) {
         setMessages(prev => prev.filter(m => m.id !== tempId));
-        setUploadingMessages(prev => prev.filter(m => m.id !== tempId));
       }
     });
 
@@ -354,9 +351,46 @@ const ChatMultimedia = ({ pin, nickname, onLeave }) => {
             setUploadingFile(false);
             // Eliminar mensaje temporal - el real llegará por socket o previousMessages
             setMessages(prev => prev.filter(m => m.id !== tempId));
-            setUploadingMessages(prev => prev.filter(m => m.id !== tempId));
           }, 2000);
 
+          setSelectedFile(null);
+          if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+          }
+        } else if (xhr.status === 403) {
+          // Archivo sospechoso detectado
+          const response = JSON.parse(xhr.responseText);
+          console.error('🚨 Archivo sospechoso rechazado:', response);
+          
+          const reasonsText = response.reasons ? response.reasons.join(', ') : 'Contenido sospechoso detectado';
+          const confidenceText = response.confidence ? `${response.confidence}%` : 'alto';
+          
+          if (toast.current) {
+            toast.current.show({
+              severity: 'error',
+              summary: '🚫 Archivo Rechazado - Contenido Sospechoso',
+              detail: `El archivo "${response.fileName || file.name}" ha sido RECHAZADO por razones de seguridad.\n\nMotivos detectados:\n${reasonsText}\n\nNivel de confianza: ${confidenceText}\n\n⚠️ Este archivo podría contener esteganografía u otro contenido oculto. Por su seguridad, no se permite subirlo.`,
+              sticky: true,
+              closable: true,
+              life: 20000,
+              style: { 
+                maxWidth: '550px',
+                backgroundColor: '#fee2e2',
+                borderLeft: '5px solid #dc2626',
+                color: '#7f1d1d'
+              }
+            });
+          } else {
+            // Fallback si el toast no está disponible
+            setErrorModal({ 
+              isOpen: true, 
+              message: `Archivo rechazado por seguridad: ${reasonsText}` 
+            });
+          }
+          
+          setUploadingFile(false);
+          setUploadProgress({ show: false, message: '', percent: 0 });
+          setMessages(prev => prev.filter(m => m.id !== tempId));
           setSelectedFile(null);
           if (fileInputRef.current) {
             fileInputRef.current.value = '';
@@ -367,7 +401,6 @@ const ChatMultimedia = ({ pin, nickname, onLeave }) => {
           setUploadingFile(false);
           setUploadProgress({ show: false, message: '', percent: 0 });
           setMessages(prev => prev.filter(m => m.id !== tempId));
-          setUploadingMessages(prev => prev.filter(m => m.id !== tempId));
         }
       };
 
@@ -378,7 +411,6 @@ const ChatMultimedia = ({ pin, nickname, onLeave }) => {
         setUploadingFile(false);
         setUploadProgress({ show: false, message: '', percent: 0 });
         setMessages(prev => prev.filter(m => m.id !== tempId));
-        setUploadingMessages(prev => prev.filter(m => m.id !== tempId));
       };
 
       const serverUrl = process.env.REACT_APP_SOCKET_URL || 'http://localhost:3001';
@@ -392,7 +424,6 @@ const ChatMultimedia = ({ pin, nickname, onLeave }) => {
       setUploadingFile(false);
       setUploadProgress({ show: false, message: '', percent: 0 });
       setMessages(prev => prev.filter(m => m.id !== tempId));
-      setUploadingMessages(prev => prev.filter(m => m.id !== tempId));
     }
   };
 
@@ -425,7 +456,6 @@ const ChatMultimedia = ({ pin, nickname, onLeave }) => {
       isTemp: true
     };
     
-    setUploadingMessages(prev => [...prev, tempMessage]);
     setMessages(prev => [...prev, tempMessage]);
 
     // Timeout dinámico basado en el tamaño del archivo (mínimo 90s, hasta 180s para archivos grandes)
@@ -438,7 +468,6 @@ const ChatMultimedia = ({ pin, nickname, onLeave }) => {
       setUploadingFile(false);
       setUploadProgress({ show: false, message: '', percent: 0 });
       setMessages(prev => prev.filter(m => m.id !== tempId));
-      setUploadingMessages(prev => prev.filter(m => m.id !== tempId));
     }, timeoutDuration);
 
     // Optimización: Comprimir imágenes antes de subir
@@ -494,7 +523,6 @@ const ChatMultimedia = ({ pin, nickname, onLeave }) => {
           setUploadingFile(false);
           setUploadProgress({ show: false, message: '', percent: 0 });
           setMessages(prev => prev.filter(m => m.id !== tempId));
-          setUploadingMessages(prev => prev.filter(m => m.id !== tempId));
         } else {
           console.log('✅ Servidor confirmó recepción exitosa');
         }
@@ -515,7 +543,6 @@ const ChatMultimedia = ({ pin, nickname, onLeave }) => {
       setUploadProgress({ show: false, message: '', percent: 0 });
       // Eliminar mensaje temporal
       setMessages(prev => prev.filter(m => m.id !== tempId));
-      setUploadingMessages(prev => prev.filter(m => m.id !== tempId));
     };
 
     reader.readAsDataURL(selectedFile);
@@ -604,7 +631,6 @@ const ChatMultimedia = ({ pin, nickname, onLeave }) => {
                 setErrorModal({ isOpen: true, message: response?.message || 'Error al procesar el archivo' });
                 setUploadingFile(false);
                 setMessages(prev => prev.filter(m => m.id !== tempId));
-                setUploadingMessages(prev => prev.filter(m => m.id !== tempId));
               }
             });
 
@@ -621,7 +647,6 @@ const ChatMultimedia = ({ pin, nickname, onLeave }) => {
             setUploadingFile(false);
             setUploadProgress({ show: false, message: '', percent: 0 });
             setMessages(prev => prev.filter(m => m.id !== tempId));
-            setUploadingMessages(prev => prev.filter(m => m.id !== tempId));
           };
 
           compressedReader.readAsDataURL(blob);
@@ -635,7 +660,6 @@ const ChatMultimedia = ({ pin, nickname, onLeave }) => {
         setUploadingFile(false);
         setUploadProgress({ show: false, message: '', percent: 0 });
         setMessages(prev => prev.filter(m => m.id !== tempId));
-        setUploadingMessages(prev => prev.filter(m => m.id !== tempId));
       };
 
       img.src = e.target.result;
@@ -648,7 +672,6 @@ const ChatMultimedia = ({ pin, nickname, onLeave }) => {
       setUploadingFile(false);
       setUploadProgress({ show: false, message: '', percent: 0 });
       setMessages(prev => prev.filter(m => m.id !== tempId));
-      setUploadingMessages(prev => prev.filter(m => m.id !== tempId));
     };
 
     reader.readAsDataURL(file);
@@ -720,7 +743,10 @@ const ChatMultimedia = ({ pin, nickname, onLeave }) => {
     if (msg.messageType === 'text') {
       return (
         <div key={msg.id || idx} className={`chat-message ${isSelf ? 'self' : 'other'}`}>
-          <span className="sender">{msg.sender} <small>{msg.timestamp}</small></span>
+          <div className="sender">
+            <strong>{msg.sender}</strong>
+            <small>{msg.timestamp}</small>
+          </div>
           <p>{msg.text}</p>
         </div>
       );
@@ -730,7 +756,10 @@ const ChatMultimedia = ({ pin, nickname, onLeave }) => {
     if (msg.isTemp && msg.fileData?.uploading) {
       return (
         <div key={msg.id} className={`chat-message ${isSelf ? 'self' : 'other'} uploading-message`}>
-          <span className="sender">{msg.sender} <small>{msg.timestamp}</small></span>
+          <div className="sender">
+            <strong>{msg.sender}</strong>
+            <small>{msg.timestamp}</small>
+          </div>
           <div className="file-message uploading">
             <div className="uploading-indicator">
               <div className="uploading-spinner-small"></div>
@@ -744,7 +773,10 @@ const ChatMultimedia = ({ pin, nickname, onLeave }) => {
     // Renderizar archivos multimedia
     return (
       <div key={msg.id || idx} className={`chat-message ${isSelf ? 'self' : 'other'}`}>
-        <span className="sender">{msg.sender} <small>{msg.timestamp}</small></span>
+        <div className="sender">
+          <strong>{msg.sender}</strong>
+          <small>{msg.timestamp}</small>
+        </div>
         <div className="file-message">
           {msg.messageType === 'image' && (
             <div className="image-container">
@@ -858,33 +890,34 @@ const confirmExit = async () => {
     <div className="chat-wrapper">
       <Toast ref={toast} position="top-right" />
       <ConfirmDialog />
-      <header className="chat-header">
-        <div className="chat-info">
-          <div className="chat-title">
-            <h1>Sala {pin}</h1>
-            <div className="chat-subtitle">
-              <div className="room-pin-display">
-                <MessageCircle size={16} />
-                <span>PIN: {pin}</span>
-              </div>
-              <div className="participants-count">
-                <Users size={16} />
-                <span>{participants} {limit ? `/ ${limit}` : ''} usuarios</span>
-              </div>
-              <div className="room-type-badge multimedia">
-                <Paperclip size={14} />
-                Multimedia
-              </div>
-            </div>
+      <header className="chat-topbar">
+        <div className="room-info">
+          <MessageCircle size={20} />
+          <span>Sala <strong>{pin}</strong> - {nickname}</span>
+          <span className="multimedia-badge-small">
+            <Paperclip size={12} />
+            Multimedia
+          </span>
+        </div>
+        <div className="topbar-actions">
+          <div className="user-count">
+            <Users size={18} /> {participants} {limit ? `/ ${limit}` : ''}
+            {isLastUser && <span className="last-user-badge"> (Último usuario)</span>}
+          </div>
+          <div className="room-buttons">
+            <button className="exit-btn" onClick={confirmExit} title="Salir de la sala">
+              <X size={16} />
+              <span>Salir</span>
+            </button>
           </div>
         </div>
-        <div className="chat-actions">
-          <button className="exit-btn" onClick={confirmExit} title="Salir de la sala">
-            <X size={16} />
-            <span>Salir</span>
-          </button>
-        </div>
       </header>
+      
+      {/* Indicador de sala multimedia */}
+      <div className="multimedia-info">
+        <Paperclip size={16} />
+        <span>Sala Multimedia - Puedes enviar imágenes, videos, audio y documentos</span>
+      </div>
 
       <div className="chat-messages">
         {messages.map((msg, idx) => renderMessage(msg, idx))}
@@ -939,6 +972,7 @@ const confirmExit = async () => {
         </div>
         <button onClick={sendMessage} className="send-btn" disabled={!message.trim() && !selectedFile}>
           <Send size={20} />
+          <span>Enviar</span>
         </button>
       </footer>
 

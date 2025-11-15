@@ -14,9 +14,16 @@ const getDeviceId = () => {
 
 // Guardar información de la sala actual
 const saveCurrentRoom = (roomData) => {
-    const { pin, nickname } = roomData;
+    const { pin, nickname, roomType } = roomData;
     const deviceId = getDeviceId();
-    const roomInfo = { pin, nickname, deviceId, lastActive: new Date().toISOString() };
+    const roomInfo = { 
+        pin, 
+        nickname, 
+        roomType: roomType || 'multimedia', // Por defecto multimedia si no se especifica
+        deviceId, 
+        lastActive: new Date().toISOString() 
+    };
+    console.log('💾 Guardando sala actual:', roomInfo);
     localStorage.setItem('livechat-current-room', JSON.stringify(roomInfo));
 };
 

@@ -1,14 +1,21 @@
 import React, { useState, useEffect, useRef } from 'react';
 import socket from '../services/socketService';
 import { Send, LogOut, Users, MessageCircle, Paperclip, X, Image as ImageIcon, Video as VideoIcon, Music as MusicIcon, FileText } from 'lucide-react';
-import '../styles/ChatRoom.css';
-import { getDeviceId, clearCurrentRoom, updateRoomActivity,isReconnecting,finishReconnection,markPageRefreshing } from '../utils/deviceManager';
-import { confirmDialog, ConfirmDialog } from 'primereact/confirmdialog';
+
+// PrimeReact CSS PRIMERO
 import 'primereact/resources/themes/lara-light-indigo/theme.css';
 import 'primereact/resources/primereact.min.css';
-import 'primeicons/primeicons.css'; 
+import 'primeicons/primeicons.css';
 
-const ChatRoom = ({ pin, nickname, onLeave }) => {
+// Estilos personalizados DESPUÉS (para sobrescribir)
+import '../styles/CustomToast.css';
+import '../styles/ChatRoom.css';
+
+import { getDeviceId, clearCurrentRoom, updateRoomActivity,isReconnecting,finishReconnection,markPageRefreshing } from '../utils/deviceManager';
+import { confirmDialog, ConfirmDialog } from 'primereact/confirmdialog';
+import { Toast } from 'primereact/toast'; 
+
+const ChatMultimedia = ({ pin, nickname, onLeave }) => {
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState([]);
   const [participants, setParticipants] = useState(1);
@@ -24,12 +31,29 @@ const ChatRoom = ({ pin, nickname, onLeave }) => {
 
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
+  const toast = useRef(null);
   
   useEffect(() => {
     // Configurar intervalos para actualizar la actividad del usuario
     const activityInterval = setInterval(() => {
       updateRoomActivity();
     }, 30000); // Cada 30 segundos
+    
+    // Escuchar cuando el admin cierra la sala
+    socket.on('roomClosedByAdmin', ({ message: msg }) => {
+      toast.current?.show({
+        severity: 'warn',
+        summary: 'Sala Cerrada',
+        detail: msg,
+        life: 5000
+      });
+      
+      // Esperar 5 segundos y luego salir
+      setTimeout(() => {
+        clearCurrentRoom();
+        onLeave();
+      }, 5000);
+    });
     
     socket.on('chatMessage', ({ sender, text }) => {
       const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -797,22 +821,31 @@ const confirmExit = async () => {
   const deviceId = getDeviceId();
 
   confirmDialog({
-    message: '¿Estás seguro de que deseas salir? Al salir se eliminará tu conversación de esta sala.',
-    header: 'Confirmar salida',
+    message: '¿Estás seguro de que deseas SALIR PERMANENTEMENTE? Perderás tu pertenencia a esta sala.',
+    header: 'Salir definitivamente',
     icon: 'pi pi-exclamation-triangle',
-    acceptLabel: 'Sí, salir',
+    acceptLabel: 'Sí, salir definitivamente',
     rejectLabel: 'Cancelar',
     accept: async () => {
-      console.log('🚪 Saliendo de la sala...');
+      console.log('🚪 Saliendo definitivamente de la sala...');
       
-      // Marcar que estamos saliendo intencionalmente (no recarga)
+      // Salir permanentemente (eliminar pertenencia)
+      try {
+        await fetch(`http://localhost:3001/api/my-rooms/leave-permanently/${pin}/${deviceId}`, {
+          method: 'DELETE'
+        });
+      } catch (error) {
+        console.error('Error saliendo permanentemente:', error);
+      }
+      
+      // Marcar que estamos saliendo intencionalmente
       socket.emit('intentionalLeave', { pin });
       
-      // Esperar a que el servidor confirme la eliminación de la sesión
+      // Salir de la sala
       socket.emit('leaveRoom', { pin, deviceId }, (response) => {
         console.log('✅ Respuesta del servidor:', response);
         
-        // Al salir, elimina el deviceId para que se genere uno nuevo en la próxima unión
+        // Generar nuevo deviceId para próxima sesión
         localStorage.removeItem('livechat-device-id');
         sessionStorage.removeItem('livechat-device-id');
         clearCurrentRoom();
@@ -829,21 +862,59 @@ const confirmExit = async () => {
     }
   });
 };
-  
+
+  // Función para minimizar sala (sin confirmación)
+  const minimizeRoom = async () => {
+    const deviceId = getDeviceId();
+    console.log('📱 Minimizando sala (manteniendo pertenencia)...');
+    
+    // Marcar que estamos saliendo intencionalmente (no recarga)
+    socket.emit('intentionalLeave', { pin });
+    
+    // Esperar a que el servidor confirme la eliminación de la sesión
+    socket.emit('leaveRoom', { pin, deviceId }, (response) => {
+      console.log('✅ Respuesta del servidor:', response);
+      clearCurrentRoom();
+      
+      // Pequeño delay para asegurar que el servidor procesó todo
+      setTimeout(() => {
+        onLeave();
+      }, 100);
+    });
+  };
 
   return (
     <div className="chat-wrapper">
-      <header className="chat-topbar">
-        <div className="room-info">
-          <MessageCircle size={20} /> Sala <strong>{pin}</strong> - {nickname}
-        </div>
-        <div className="topbar-actions">
-          <div className="user-count">
-            <Users size={18} /> {participants} {limit ? `/ ${limit}` : ''}
-            {isLastUser && <span className="last-user-badge"> (Último usuario)</span>}
+      <Toast ref={toast} position="top-right" />
+      <ConfirmDialog />
+      <header className="chat-header">
+        <div className="chat-info">
+          <div className="chat-title">
+            <h1>Sala {pin}</h1>
+            <div className="chat-subtitle">
+              <div className="room-pin-display">
+                <MessageCircle size={16} />
+                <span>PIN: {pin}</span>
+              </div>
+              <div className="participants-count">
+                <Users size={16} />
+                <span>{participants} {limit ? `/ ${limit}` : ''} usuarios</span>
+              </div>
+              <div className="room-type-badge multimedia">
+                <Paperclip size={14} />
+                Multimedia
+              </div>
+            </div>
           </div>
-          <button className="exit-btn" onClick={confirmExit}>
-            <LogOut size={16} /> Salir
+        </div>
+        <div className="chat-actions">
+          <button className="minimize-btn" onClick={minimizeRoom} title="Minimizar sala (mantener pertenencia)">
+            <LogOut size={16} />
+            <span>Minimizar</span>
+          </button>
+          <button className="exit-btn" onClick={confirmExit} title="Salir permanentemente">
+            <X size={16} />
+            <span>Salir</span>
           </button>
         </div>
       </header>
@@ -890,14 +961,16 @@ const confirmExit = async () => {
         >
           <Paperclip size={20} />
         </button>
-        <input
-          type="text"
-          placeholder="Escribe un mensaje..."
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
-        />
-        <button onClick={sendMessage}>
+        <div className="chat-input-container">
+          <input
+            type="text"
+            placeholder="Escribe un mensaje multimedia..."
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
+          />
+        </div>
+        <button onClick={sendMessage} className="send-btn" disabled={!message.trim() && !selectedFile}>
           <Send size={20} />
         </button>
       </footer>
@@ -989,4 +1062,4 @@ const confirmExit = async () => {
   
 };
 
-export default ChatRoom;
+export default ChatMultimedia;

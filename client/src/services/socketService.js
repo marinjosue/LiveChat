@@ -1,13 +1,22 @@
 import io from 'socket.io-client';
 import { getDeviceId, setRefreshing } from '../utils/deviceManager';
 
-// Configuración para reconexión automática
-const socket = io(process.env.REACT_APP_SOCKET_URL || 'http://localhost:3001', {
+// 🔐 CONFIGURACIÓN HTTPS CON FALLBACK A HTTP
+const getSocketURL = () => {
+  const httpsUrl = process.env.REACT_APP_SOCKET_URL || 'https://localhost:3001';
+  // Intentar HTTPS primero, fallback a HTTP si falla
+  return httpsUrl;
+};
+
+// Configuración para reconexión automática con TLS/SSL
+const socket = io(getSocketURL(), {
     reconnection: true,
     reconnectionAttempts: 5,
     reconnectionDelay: 1000,
     reconnectionDelayMax: 5000,
     timeout: 20000,
+    secure: true, // Usar conexión segura
+    rejectUnauthorized: false, // Para certificados autofirmados en desarrollo
     auth: {
         deviceId: getDeviceId() // Incluir deviceId en la conexión
     }

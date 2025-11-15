@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import CreateRoom from './components/CreateRoom';
 import JoinRoom from './components/JoinRoom';
-import ChatRoom from './components/ChatRoom';
-import { Rocket, ShieldCheck, Palette, Server, GitBranch, Users, Code, Github, Sun, Moon } from 'lucide-react';
+import RoomList from './components/RoomList';
+import MyRooms from './components/MyRooms';
+import ChatMultimedia from './components/ChatMultimedia';
+import ChatText from './components/chatText';
+import { MessageSquare, Lock, Zap, Users, LogIn, Shield, Github, Sun, Moon, History } from 'lucide-react';
 import './styles/App.css';
 import { getCurrentRoom, clearCurrentRoom, getDeviceId, saveCurrentRoom } from './utils/deviceManager';
 import socket from './services/socketService';
@@ -12,9 +14,11 @@ const App = () => {
   const [isReconnecting, setIsReconnecting] = useState(!!savedRoom);
   const [currentPin, setCurrentPin] = useState(savedRoom?.pin || null);
   const [nickname, setNickname] = useState(savedRoom?.nickname || '');
-  const [activeTab, setActiveTab] = useState('join'); // 'join' o 'create'
-  const [theme, setTheme] = useState('dark'); // 'dark' o 'light'
+  const [roomType, setRoomType] = useState(savedRoom?.roomType || 'multimedia');
+  const [activeTab, setActiveTab] = useState('rooms'); 
+  const [selectedRoomPin, setSelectedRoomPin] = useState(null);
   const [reconnectionAttempted, setReconnectionAttempted] = useState(false);
+  const [theme, setTheme] = useState(localStorage.getItem('livechat-theme') || 'dark');
 
   useEffect(() => {
     if (savedRoom && !reconnectionAttempted) {
@@ -26,8 +30,19 @@ const App = () => {
           nickname: savedRoom.nickname, 
           deviceId: getDeviceId() 
         }, (response) => {
-          if (!response.success) {
-            console.warn('Reconexión fallida:', response.message);
+          if (response && response.success) {
+            console.log('🎯 Reconexión exitosa - Tipo de sala:', response.roomType);
+            // Actualizar el tipo de sala si viene en la respuesta
+            if (response.roomType) {
+              setRoomType(response.roomType);
+              saveCurrentRoom({ 
+                pin: savedRoom.pin, 
+                nickname: savedRoom.nickname, 
+                roomType: response.roomType 
+              });
+            }
+          } else {
+            console.warn('Reconexión fallida:', response?.message || 'Sin respuesta');
           }
           setIsReconnecting(false);
         });
@@ -48,108 +63,57 @@ const App = () => {
       setIsReconnecting(false);
     }
   }, [savedRoom, reconnectionAttempted]);
-  
+
   // Efecto para aplicar el tema actual
   useEffect(() => {
-    if (theme === 'light') {
-      document.querySelector('.app-container').classList.add('light-theme');
-    } else {
-      document.querySelector('.app-container').classList.remove('light-theme');
+    const appContainer = document.querySelector('.app-container');
+    if (appContainer) {
+      if (theme === 'light') {
+        appContainer.classList.add('light-theme');
+      } else {
+        appContainer.classList.remove('light-theme');
+      }
     }
-    // Guardar preferencia de tema
     localStorage.setItem('livechat-theme', theme);
   }, [theme]);
-  
+
   const toggleTheme = () => {
     setTheme(prevTheme => prevTheme === 'dark' ? 'light' : 'dark');
   };
-  
-  const initBackgroundAnimation = () => {
-    // Esta función se ejecutará una vez al montar el componente
-    // Creará una animación de fondo usando canvas si es posible
-    const canvas = document.getElementById('background-canvas');
-    if (!canvas) return;
-    
-    const ctx = canvas.getContext('2d');
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    
-    const particlesArray = [];
-    const numberOfParticles = 100;
-    
-    class Particle {
-      constructor() {
-        this.x = Math.random() * canvas.width;
-        this.y = Math.random() * canvas.height;
-        this.size = Math.random() * 5 + 1;
-        this.speedX = Math.random() * 2 - 1;
-        this.speedY = Math.random() * 2 - 1;
-        this.color = `rgba(255, 255, 255, ${Math.random() * 0.2})`;
-      }
-      
-      update() {
-        this.x += this.speedX;
-        this.y += this.speedY;
-        
-        if (this.x > canvas.width || this.x < 0) {
-          this.speedX = -this.speedX;
-        }
-        if (this.y > canvas.height || this.y < 0) {
-          this.speedY = -this.speedY;
-        }
-      }
-      
-      draw() {
-        ctx.fillStyle = this.color;
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-        ctx.fill();
-      }
+
+  const handleRoomJoined = (pin, nick, type = 'multimedia') => {
+    console.log('🎯 handleRoomJoined - Tipo de sala recibido:', type);
+    setNickname(nick);
+    setCurrentPin(pin);
+    setRoomType(type);
+    // Guardar información de la sala actual
+    saveCurrentRoom({ pin, nickname: nick, roomType: type });
+  };
+
+  const handleRoomSelected = (pin) => {
+    setSelectedRoomPin(pin);
+    setActiveTab('join');
+  };
+
+  const handleMyRoomSelected = ({ pin, nickname, isReconnecting }) => {
+    if (isReconnecting) {
+      // Reconexión directa
+      handleRoomJoined(pin, nickname);
+    } else {
+      // Unirse normalmente
+      setSelectedRoomPin(pin);
+      setActiveTab('join');
     }
-    
-    const init = () => {
-      for (let i = 0; i < numberOfParticles; i++) {
-        particlesArray.push(new Particle());
-      }
-    };
-    
-    const animate = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      for (let i = 0; i < particlesArray.length; i++) {
-        particlesArray[i].update();
-        particlesArray[i].draw();
-      }
-      requestAnimationFrame(animate);
-    };
-    
-    init();
-    animate();
-    
-    window.addEventListener('resize', () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-      init();
-    });
-  };
-
-  const handleRoomCreated = (pin, nick) => {
-    setNickname(nick);
-    setCurrentPin(pin);
-    // Guardar información de la sala actual
-    saveCurrentRoom({ pin, nickname: nick });
-  };
-
-  const handleRoomJoined = (pin, nick) => {
-    setNickname(nick);
-    setCurrentPin(pin);
-    // Guardar información de la sala actual
-    saveCurrentRoom({ pin, nickname: nick });
   };
 
   const handleLeaveRoom = () => {
     clearCurrentRoom();
     setNickname('');
     setCurrentPin(null);
+    setRoomType('multimedia');
+    
+    // Cambiar automáticamente a "Mis Salas" después de minimizar
+    setActiveTab('myRooms');
     
     // Reconectar el socket si fue desconectado
     if (!socket.connected) {
@@ -161,136 +125,118 @@ const App = () => {
   if (isReconnecting) {
     return (
       <div className="app-container">
-        <header className="app-header">
-          <h1 className="title">LiveChat</h1>
-        </header>
-        <main className="app-main">
-          <div className="loading-container">
-            <div className="loading-spinner"></div>
-            <p>Reconectando a la sala, por favor espere...</p>
-          </div>
-        </main>
+        <div className="loading-container">
+          <div className="loading-spinner"></div>
+          <p>Reconectando a la sala...</p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="app-container">
-      <canvas id="background-canvas" className="background-canvas"></canvas>
-      
-      <header className="app-header">
-        <div className="header-content">
-          <button className="theme-toggle" onClick={toggleTheme} aria-label="Cambiar tema">
-            {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
-          </button>
-          <h1 className="title">LiveChat</h1>
-          <div className="header-divider"></div>
-          <p className="subtitle">Comunicación en tiempo real, segura y escalable</p>
+      {!currentPin ? (
+        <div className="main-layout">
+          {/* Header compacto */}
+          <header className="compact-header">
+            <div className="header-left">
+              <div className="brand">
+                <MessageSquare size={32} className="brand-icon" />
+                <h1 className="brand-text">LiveChat</h1>
+              </div>
+              <p className="tagline">Comunicación segura en tiempo real</p>
+            </div>
+            <div className="header-right">
+              <button onClick={toggleTheme} className="theme-toggle" title={theme === 'dark' ? 'Modo Claro' : 'Modo Oscuro'}>
+                {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+              </button>
+              <a href="/admin" className="admin-link">
+                <Shield size={18} />
+                <span>Panel Admin</span>
+              </a>
+            </div>
+          </header>
+
+          {/* Contenido principal - Ocupa todo el espacio */}
+          <main className="main-content">
+            {/* Tabs */}
+            <div className="main-tabs">
+              <button 
+                className={`main-tab ${activeTab === 'rooms' ? 'active' : ''}`}
+                onClick={() => setActiveTab('rooms')}
+              >
+                <Users size={20} />
+                <span>Salas Disponibles</span>
+              </button>
+              <button 
+                className={`main-tab ${activeTab === 'myRooms' ? 'active' : ''}`}
+                onClick={() => setActiveTab('myRooms')}
+              >
+                <History size={20} />
+                <span>Mis Salas</span>
+              </button>
+              <button 
+                className={`main-tab ${activeTab === 'join' ? 'active' : ''}`}
+                onClick={() => setActiveTab('join')}
+              >
+                <LogIn size={20} />
+                <span>Unirse con PIN</span>
+              </button>
+            </div>
+
+            {/* Contenido de tabs - Ocupa todo el espacio disponible */}
+            <div className="tab-content-fullscreen">
+              {activeTab === 'rooms' ? (
+                <RoomList onRoomSelected={handleRoomSelected} />
+              ) : activeTab === 'myRooms' ? (
+                <MyRooms onRoomSelect={handleMyRoomSelected} />
+              ) : (
+                <div className="join-section">
+                  <JoinRoom onRoomJoined={handleRoomJoined} initialPin={selectedRoomPin} />
+                </div>
+              )}
+            </div>
+          </main>
+
+          {/* Footer profesional */}
+          <footer className="compact-footer">
+            <div className="footer-content">
+              <div className="footer-features">
+                <div className="footer-item">
+                  <Lock size={16} />
+                  <span>Conexión segura</span>
+                </div>
+                <div className="footer-item">
+                  <Zap size={16} />
+                  <span>Tiempo real</span>
+                </div>
+                <div className="footer-item">
+                  <Users size={16} />
+                  <span>Sesión única</span>
+                </div>
+              </div>
+              <div className="footer-credits">
+                <span className="footer-text">Desarrollado por José Marín, Elkin Pabon y Micaela Salcedo</span>
+                <a 
+                  href="https://github.com/marinjosue/LiveChat" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="github-link"
+                >
+                  <Github size={18} />
+                  <span>Ver en GitHub</span>
+                </a>
+              </div>
+            </div>
+          </footer>
         </div>
-      </header>
-
-      <main className="app-main">
-        {!currentPin ? (
-          <>
-            <section className="hero-section">
-              <div className="hero-content">
-                <h2 className="hero-title">Bienvenido a LiveChat</h2>
-                <p className="hero-description">
-                  Una plataforma de comunicación en tiempo real construida con tecnologías modernas
-                  que garantiza una experiencia fluida y segura para todos los usuarios.
-                </p>
-                <div className="tech-stack">
-                  <div className="tech-item">
-                    <Code size={20} />
-                    <span>React.js</span>
-                  </div>
-                  <div className="tech-item">
-                    <Server size={20} />
-                    <span>Node.js</span>
-                  </div>
-                  <div className="tech-item">
-                    <GitBranch size={20} />
-                    <span>Socket.io</span>
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            <section className="auth-card-container">
-              <div className="auth-card">
-                <div className="auth-tabs">
-                  <button 
-                    className={`auth-tab ${activeTab === 'join' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('join')}
-                  >
-                    Unirse a Sala
-                  </button>
-                  <button 
-                    className={`auth-tab ${activeTab === 'create' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('create')}
-                  >
-                    Crear Sala
-                  </button>
-                </div>
-                
-                <div className="auth-content">
-                  {activeTab === 'join' ? (
-                    <div className="join-room-container animated-fade-in">
-                      <JoinRoom onRoomJoined={handleRoomJoined} />
-                    </div>
-                  ) : (
-                    <div className="create-room-container animated-fade-in">
-                      <CreateRoom onRoomCreated={handleRoomCreated} />
-                    </div>
-                  )}
-                </div>
-              </div>
-            </section>
-
-            <section className="features-section">
-              <div className="feature-card">
-                <Rocket size={32} />
-                <h3>Comunicación Instantánea</h3>
-                <p>Mensajería en tiempo real con respuestas inmediatas gracias a WebSockets.</p>
-              </div>
-              <div className="feature-card">
-                <ShieldCheck size={32} />
-                <h3>Seguridad Avanzada</h3>
-                <p>Control de acceso por PIN único y verificación por dispositivo para mayor protección.</p>
-              </div>
-              <div className="feature-card">
-                <Palette size={32} />
-                <h3>Diseño Responsive</h3>
-                <p>Interfaz adaptable optimizada para cualquier dispositivo y tamaño de pantalla.</p>
-              </div>
-              <div className="feature-card">
-                <Users size={32} />
-                <h3>Escalabilidad</h3>
-                <p>Arquitectura diseñada para soportar múltiples salas simultáneas con alto rendimiento.</p>
-              </div>
-            </section>
-          </>
+      ) : (
+        roomType === 'text' ? (
+          <ChatText pin={currentPin} nickname={nickname} onLeave={handleLeaveRoom} />
         ) : (
-          <ChatRoom pin={currentPin} nickname={nickname} onLeave={handleLeaveRoom} />
-        )}
-      </main>
-
-      <footer className="app-footer">
-        <div className="footer-content">
-          <div className="footer-column">
-            © {new Date().getFullYear()} LiveChat - Todos los derechos reservados
-          </div>
-          <div className="footer-column developer">
-            Desarrollado por <strong>Autepim</strong> 
-          </div>
-          <div className="footer-column github-link">
-            <a href="https://github.com/marinjosue/LiveChat" target="_blank" rel="noopener noreferrer">
-              <Github size={20} />
-              <span>Ver código fuente</span>
-            </a>
-          </div>
-        </div>
-      </footer>
+          <ChatMultimedia pin={currentPin} nickname={nickname} onLeave={handleLeaveRoom} />
+        )
+      )}
     </div>
   );
 };

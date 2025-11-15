@@ -1,19 +1,42 @@
-# 💬 LiveChat
+# 🛡️ LiveChat - Secure Edition
 
-Aplicación web de chat en tiempo real que permite crear y unirse a salas de conversación privadas mediante un sistema de PIN único. Ideal para reuniones rápidas, clases virtuales, soporte técnico o cualquier escenario que requiera comunicación instantánea grupal.
+Sistema de chat en tiempo real con salas seguras, autenticación de administradores y múltiples características de seguridad.
 
----
+## ✨ Características Principales
 
-## 📋 ¿Qué es LiveChat?
+### 🔐 Seguridad
+- **PIN Hasheado (SHA-256)**: Los PINs de sala nunca se almacenan en texto plano
+- **ID Único Encriptado**: Cada sala tiene un identificador único de 16 caracteres hexadecimales
+- **Autenticación JWT**: Tokens seguros con expiración de 24 horas
+- **2FA Opcional**: Autenticación de dos factores con TOTP (Google Authenticator)
+- **Detección de Esteganografía**: 5 técnicas de análisis para archivos multimedia
+- **Encriptación AES-256-GCM**: Mensajes encriptados en tránsito
+- **Rate Limiting**: Protección contra ataques DDoS
+- **Helmet**: Headers HTTP seguros
+- **Audit Logging**: Logs con hash SHA-256 para no repudio
 
-LiveChat es una plataforma de mensajería instantánea que permite:
+### 🏠 Gestión de Salas
+- **Creación por Admin**: Solo administradores pueden crear salas
+- **Tipos de Sala**: Texto (solo mensajes) o Multimedia (archivos, imágenes, videos)
+- **Persistencia**: Salas y mensajes guardados en MongoDB
+- **Límite de Participantes**: 2-10 usuarios por sala
+- **Auto-Expiración**: Salas vacías se eliminan automáticamente después de 1 hora
+- **Gestión desde Panel Admin**: Ver, crear y eliminar salas
 
-- **Crear salas de chat** con un PIN único de 6 dígitos
-- **Unirse a salas existentes** usando el PIN
-- **Limitar participantes** por sala (configurable al crear)
-- **Chat en tiempo real** mediante WebSockets (Socket.IO)
-- **Control de dispositivos** - un dispositivo solo puede estar en una sala a la vez
-- **Interfaz moderna y responsive** optimizada para cualquier dispositivo
+### 💬 Chat en Tiempo Real
+- **Socket.IO**: Comunicación bidireccional en tiempo real
+- **Mensajes Persistentes**: Historial completo al unirse/reconectar
+- **Archivos Multimedia**: Soporte para imágenes, videos, audio y documentos
+- **Cloudinary**: Almacenamiento CDN para archivos
+- **Validación de Archivos**: Límite de 15MB, tipos permitidos configurables
+- **Reconexión Automática**: Sesión persistente al recargar página
+
+### ⚡ Concurrencia y Rendimiento
+- **Worker Thread Pool**: Procesamiento paralelo de autenticación
+- **Thread Pool Manager**: Auto-escalado de workers (2-8)
+- **File Analysis Workers**: Análisis de archivos en threads separados
+- **Lock Management**: Prevención de deadlocks
+- **Métricas en Tiempo Real**: Estadísticas de utilización de workers
 
 ---
 
@@ -91,10 +114,40 @@ LiveChat es una plataforma de mensajería instantánea que permite:
 
 - **Docker** y **Docker Compose** (recomendado)
 - O alternativamente: **Node.js 18+** y **MongoDB** para ejecución local
+- **Cuenta de Cloudinary** (para almacenamiento de archivos multimedia)
 
 ---
 
 ## 🚀 Inicio Rápido
+
+### ⚙️ Configuración Inicial de Seguridad
+
+**IMPORTANTE: Antes de iniciar el servidor, debes configurar las credenciales de seguridad.**
+
+```bash
+# 1. Ir al directorio del servidor
+cd server
+
+# 2. Instalar dependencias
+npm install
+
+# 3. Generar claves de encriptación
+node scripts/generateEncryptionKey.js
+
+# 4. Copiar .env.example a .env
+cp .env.example .env
+
+# 5. Editar .env con las claves generadas y tu configuración
+# - Pegar las claves generadas en el paso 3
+# - Agregar credenciales de MongoDB
+# - Agregar credenciales de Cloudinary
+
+# 6. Crear el primer administrador
+node scripts/createAdmin.js
+# Sigue las instrucciones interactivas
+
+# Ahora estás listo para iniciar el servidor
+```
 
 ### 🔧 Modo Desarrollo (con Hot-Reload)
 
@@ -430,10 +483,16 @@ LiveChat/
 │   │   ├── components/        # Componentes React
 │   │   │   ├── ChatRoom.js
 │   │   │   ├── CreateRoom.js
-│   │   │   └── JoinRoom.js
+│   │   │   ├── JoinRoom.js
+│   │   │   ├── AdminLogin.js      # 🆕 Login de admin con 2FA
+│   │   │   └── AdminDashboard.js   # 🆕 Panel de administración
 │   │   ├── services/          # Socket.IO client
 │   │   ├── styles/            # Estilos CSS
-│   │   └── utils/             # Utilidades
+│   │   │   ├── AdminLogin.css     # 🆕
+│   │   │   └── AdminDashboard.css  # 🆕
+│   │   ├── utils/             # Utilidades
+│   │   ├── AdminApp.js        # 🆕 App de administración
+│   │   └── App.js
 │   ├── Dockerfile             # Producción (Nginx)
 │   ├── Dockerfile.dev         # Desarrollo (hot-reload)
 │   ├── nginx.conf             # Config Nginx
@@ -441,22 +500,51 @@ LiveChat/
 ├── server/                    # Backend Node.js
 │   ├── controllers/           # Lógica de negocio
 │   │   ├── DeviceSessionController.js
-│   │   └── RoomController.js
+│   │   ├── RoomController.js
+│   │   └── AuthController.js      # 🆕 Autenticación de admins
 │   ├── models/                # Modelos MongoDB
 │   │   ├── DeviceSession.js
-│   │   ├── Message.js
-│   │   └── Room.js
+│   │   ├── Message.js         # ✨ Extendido con encriptación
+│   │   ├── Room.js            # ✨ Extendido con tipos y seguridad
+│   │   ├── Admin.js           # 🆕 Modelo de administrador
+│   │   └── AuditLog.js        # 🆕 Logs de auditoría
+│   ├── services/              # 🆕 Servicios de seguridad
+│   │   ├── auditService.js        # Winston logging
+│   │   ├── encryptionService.js   # AES-256-GCM
+│   │   ├── fileSecurityService.js # Validación de archivos
+│   │   ├── threadPoolManager.js   # Gestión de concurrencia
+│   │   └── workerPoolService.js   # Pools de workers
+│   ├── workers/               # 🆕 Worker Threads
+│   │   ├── hashWorker.js          # Hash de contraseñas
+│   │   ├── verifyWorker.js        # Verificación bcrypt
+│   │   ├── integrityWorker.js     # Hashes SHA
+│   │   └── steganographyWorker.js # Detección de esteganografía
+│   ├── middleware/            # 🆕 Middleware de seguridad
+│   │   └── security.js            # Helmet, rate limiting, etc.
+│   ├── routes/                # 🆕 Rutas de API
+│   │   ├── auth.js                # Autenticación
+│   │   └── admin.js               # Panel de administración
+│   ├── scripts/               # 🆕 Scripts de utilidad
+│   │   ├── createAdmin.js         # Crear administrador
+│   │   └── generateEncryptionKey.js # Generar claves
+│   ├── config/
+│   │   └── cloudinary.js
 │   ├── utils/                 # Utilidades
 │   ├── Dockerfile             # Producción
 │   ├── Dockerfile.dev         # Desarrollo (nodemon)
-│   ├── server.js              # Punto de entrada
-│   └── package.json
+│   ├── server.js              # ✨ Punto de entrada (refactorizado)
+│   ├── .env.example           # 🆕 Template de configuración
+│   └── package.json           # ✨ Nuevas dependencias
 ├── docker-compose.yml         # Configuración producción
 ├── docker-compose.dev.yml     # Configuración desarrollo
+├── SECURITY_IMPLEMENTATION.md # 🆕 Documentación de seguridad
 ├── start-dev.ps1             # Script helper desarrollo
 ├── start-prod.ps1            # Script helper producción
 ├── .gitignore
 └── README.md                 # Este archivo
+
+🆕 = Nuevo archivo
+✨ = Archivo modificado con nuevas funcionalidades
 ```
 
 ---
@@ -507,6 +595,205 @@ docker-compose up --build
 
 # 3. Si todo funciona, hacer deploy
 ```
+
+---
+
+## 🔒 Panel de Administración
+
+### Acceso
+Para acceder al panel de administración, integra `AdminApp.js` en tu enrutador principal:
+
+```jsx
+import React from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import App from './App'; // Tu app normal de chat
+import AdminApp from './AdminApp'; // Panel de admin
+
+function Root() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<App />} />
+        <Route path="/admin" element={<AdminApp />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
+
+export default Root;
+```
+
+### Funcionalidades del Panel
+
+#### 📊 Overview
+- Métricas del servidor (uptime, memoria, CPU)
+- Estado de los Worker Thread pools
+- Utilización de workers globales, auth y file security
+- Rendimiento (tiempo de espera, ejecución, pico de cola)
+
+#### 📋 Logs de Auditoría
+- Últimos 10 logs con actualización automática cada 10s
+- Filtrado por admin, acción, estado, fecha
+- Información detallada: IP, User-Agent, timestamp
+
+#### 🔒 Estado de Seguridad
+- Verificación de funcionalidades activas
+- Información de configuración de seguridad
+- Alertas de configuraciones pendientes
+
+### Autenticación 2FA
+
+1. **Login inicial**: Usuario + contraseña
+2. **Habilitar 2FA** (opcional):
+   ```bash
+   POST /api/auth/enable-2fa
+   Authorization: Bearer <token>
+   ```
+   Retorna un QR code para Google Authenticator
+3. **Login con 2FA**: Ingresa código de 6 dígitos
+
+---
+
+## 🔐 API de Administración
+
+### Endpoints de Autenticación
+
+```bash
+# Registrar nuevo admin
+POST /api/auth/register
+Content-Type: application/json
+{
+  "username": "admin",
+  "email": "admin@example.com",
+  "password": "StrongPass123!",
+  "role": "superadmin"
+}
+
+# Login
+POST /api/auth/login
+{
+  "username": "admin",
+  "password": "StrongPass123!"
+}
+# Retorna: { requires2FA: true, tempToken: "..." } O { token: "..." }
+
+# Verificar código 2FA
+POST /api/auth/verify-2fa
+{
+  "tempToken": "...",
+  "code": "123456"
+}
+
+# Habilitar 2FA
+POST /api/auth/enable-2fa
+Authorization: Bearer <token>
+# Retorna: { qrCode: "data:image/png;base64,...", secret: "..." }
+```
+
+### Endpoints de Administración
+
+```bash
+# Obtener logs de auditoría (paginado)
+GET /api/admin/logs?page=1&limit=20&action=LOGIN_SUCCESS&status=success
+Authorization: Bearer <token>
+
+# Verificar integridad de logs
+POST /api/admin/logs/verify-integrity
+Authorization: Bearer <token>
+{
+  "logIds": ["log_id_1", "log_id_2"]
+}
+
+# Obtener estadísticas del sistema
+GET /api/admin/stats
+Authorization: Bearer <token>
+
+# Health check con stats de thread pools
+GET /health
+```
+
+---
+
+## 🔍 Seguridad en Detalle
+
+### 1. Encriptación de Mensajes (AES-256-GCM)
+
+Los mensajes sensibles se encriptan antes de almacenarse:
+
+```javascript
+// En el servidor
+const EncryptionService = require('./services/encryptionService');
+const encrypted = EncryptionService.encryptMessage('Mensaje secreto');
+// { encrypted, iv, salt, authTag }
+
+// Para desencriptar
+const decrypted = EncryptionService.decryptMessage(encrypted, iv, salt, authTag);
+```
+
+### 2. Detección de Esteganografía
+
+Archivos multimedia pasan por 5 análisis:
+
+1. **Entropía**: Detecta datos comprimidos ocultos (threshold: 7.8 bits/byte)
+2. **LSB Analysis**: Analiza patrones en Least Significant Bits
+3. **Firmas Conocidas**: Detecta herramientas como Steghide, OpenStego
+4. **Chi-cuadrado**: Anomalías en distribución de bytes
+5. **Análisis de Imagen**: Metadatos excesivos, canales sospechosos
+
+```bash
+# Configurar threshold de rechazo (en .env)
+STEGANOGRAPHY_CONFIDENCE_THRESHOLD=0.7  # 0-1, default 0.7
+```
+
+### 3. Gestión de Concurrencia
+
+```javascript
+// Worker Threads automáticos
+const threadPool = require('./services/threadPoolManager');
+
+// Ejecutar tarea CPU-intensiva
+const result = await threadPool.enqueueTask(
+  { operation: 'hash', data: password },
+  'high' // priority: low, normal, high
+);
+```
+
+### 4. Logs de Auditoría
+
+Todas las acciones administrativas se registran:
+
+```javascript
+const auditService = require('./services/auditService');
+
+// Registrar acción
+await auditService.logLoginSuccess(adminId, ipAddress, userAgent);
+
+// Verificar integridad
+const isValid = await auditLog.verifyIntegrity();
+```
+
+---
+
+## 🛡️ Checklist de Seguridad para Producción
+
+- [ ] **SSL/TLS**: Certificado instalado (Let's Encrypt recomendado)
+- [ ] **Firewall**: Solo puertos 80, 443 abiertos
+- [ ] **Variables de entorno**: Claves generadas con `generateEncryptionKey.js`
+- [ ] **MongoDB**: Autenticación habilitada, usuario con permisos limitados
+- [ ] **Backups**: Configurar backups automáticos de MongoDB
+- [ ] **Logs**: Rotar logs con logrotate o similar
+- [ ] **Rate Limiting**: Configurado en `.env` según tu tráfico
+- [ ] **2FA**: Habilitado para todos los administradores
+- [ ] **Monitoreo**: Configurar alertas para errores críticos
+- [ ] **Actualización**: Proceso para actualizar dependencias regularmente
+
+---
+
+## 📚 Documentación Adicional
+
+- **[SECURITY_IMPLEMENTATION.md](./SECURITY_IMPLEMENTATION.md)** - Guía detallada de implementación de seguridad
+- **Logs de Auditoría**: Ver `server/logs/` para archivos de log
+- **Ejemplos de API**: Importar colección de Postman (crear según necesidad)
 
 ---
 

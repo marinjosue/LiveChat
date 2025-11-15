@@ -1,4 +1,5 @@
 const DeviceSession = require('../models/DeviceSession');
+const RoomMembership = require('../models/RoomMembership');
 
 exports.registerSession = async (deviceId, ip, roomPin, nickname) => {
     try {
@@ -11,6 +12,10 @@ exports.registerSession = async (deviceId, ip, roomPin, nickname) => {
             existingSession.deviceId = deviceId;
             existingSession.lastActive = Date.now();
             await existingSession.save();
+            
+            // ✅ ACTUALIZAR PERTENENCIA A SALA (conectar)
+            await RoomMembership.createOrUpdate(deviceId, nickname, roomPin, ip);
+            
             return existingSession;
         }
 
@@ -22,6 +27,10 @@ exports.registerSession = async (deviceId, ip, roomPin, nickname) => {
             nickname,
             lastActive: Date.now()
         });
+        
+        // ✅ CREAR PERTENENCIA A SALA
+        await RoomMembership.createOrUpdate(deviceId, nickname, roomPin, ip);
+        
         return session;
 
     } catch (error) {

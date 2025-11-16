@@ -131,11 +131,11 @@ app.set('io', io);
 mongoose.connect(process.env.MONGODB_URI)
   .then(() => {
     console.log('✓ MongoDB conectado exitosamente');
-    logger.info('MongoDB connected successfully');
+    LoggerService.info('MongoDB connected successfully');
   })
   .catch(err => {
     console.error('✗ Error conectando a MongoDB:', err);
-    logger.error('MongoDB connection error', { error: err.message });
+    LoggerService.error('MongoDB connection error', { error: err.message });
     process.exit(1);
   });
 
@@ -148,12 +148,12 @@ const globalThreadPool = new ThreadPoolManager({
 });
 
 // Monitorear eventos del pool
-globalThreadPool.on('task-completed', (data) => {
-  logger.info('Task completed', data);
+globalThreadPool.on('taskCompleted', (data) => {
+  LoggerService.info('Task completed', data);
 });
 
-globalThreadPool.on('task-failed', (data) => {
-  logger.error('Task failed', data);
+globalThreadPool.on('taskFailed', (data) => {
+  LoggerService.error('Task failed', data);
 });
 
 globalThreadPool.on('scaled-up', (data) => {
@@ -398,7 +398,7 @@ app.post('/api/upload',
 
     } catch (error) {
       console.error('❌ Error en HTTP upload:', error);
-      logger.error('File upload error', { error: error.message });
+      LoggerService.error('File upload error', { error: error.message });
       res.status(500).json({ 
         success: false, 
         message: error.message 
@@ -476,7 +476,7 @@ app.use((req, res) => {
 // Error handler global
 app.use((err, req, res, next) => {
   console.error('Global error handler:', err);
-  logger.error('Unhandled error', {
+  LoggerService.error('Unhandled error', {
     error: err.message,
     stack: err.stack,
     path: req.path,
@@ -530,7 +530,7 @@ server.listen(PORT, () => {
   console.log(`📊 Thread Pool Stats:`, globalThreadPool.getStats());
   console.log('');
   
-  logger.info('Server started', {
+  LoggerService.info('Server started', {
     port: PORT,
     environment: process.env.NODE_ENV || 'development'
   });
@@ -562,7 +562,7 @@ async function gracefulShutdown(signal) {
   await mongoose.connection.close();
   console.log('✓ MongoDB connection closed');
   
-  logger.info('Server shutdown complete');
+  LoggerService.info('Server shutdown complete');
   process.exit(0);
 }
 

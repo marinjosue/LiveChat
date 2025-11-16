@@ -146,23 +146,82 @@ router.get('/logs/file/:filename', async (req, res) => {
  */
 router.get('/stats', async (req, res) => {
   try {
-    const [totalMessages, totalAdmins] = await Promise.all([
+    const RoomModel = require('../models/RoomModel');
+    
+    const [totalMessages, totalAdmins, totalRooms, activeRooms] = await Promise.all([
       Message.countDocuments(),
-      Admin.countDocuments()
+      Admin.countDocuments(),
+      RoomModel.countDocuments(),
+      RoomModel.countDocuments({ isActive: true })
     ]);
     
     const { ThreadPoolManager } = require('../services/threadPoolManager');
     const { FileSecurityService } = require('../services/fileSecurityService');
     
+    // Obtener estadísticas de los thread pools
+    const globalPool = ThreadPoolManager.getGlobalPool();
+    const authPool = ThreadPoolManager.getAuthPool();
+    const fileSecurityPool = FileSecurityService.getWorkerPoolStats();
+    
+    // Formatear uptime
+    const uptimeSeconds = Math.floor(process.uptime());
+    const days = Math.floor(uptimeSeconds / 86400);
+    const hours = Math.floor((uptimeSeconds % 86400) / 3600);
+    const minutes = Math.floor((uptimeSeconds % 3600) / 60);
+    const uptimeFormatted = `${days}d ${hours}h ${minutes}m`;
+    
+    // Formatear memoria
+    const memUsage = process.memoryUsage();
+    const memUsedMB = memUsage.heapUsed / 1024 / 1024;
+    const memTotalMB = memUsage.heapTotal / 1024 / 1024;
+    
     res.json({
       success: true,
-      stats: {
-        totalMessages,
-        totalAdmins,
-        fileSecurityWorkerPool: FileSecurityService.getWorkerPoolStats(),
-        uptime: process.uptime(),
-        memory: process.memoryUsage(),
-        nodeVersion: process.version
+      totalMessages,
+      totalAdmins,
+      totalRooms,
+      activeRooms,
+      server: {
+        uptime: uptimeFormatted,
+        uptimeSeconds,
+        memory: {
+          usedMB: memUsedMB,
+          totalMB: memTotalMB,
+          rss: memUsage.rss / 1024 / 1024,
+          external: memUsage.external / 1024 / 1024
+        },
+        nodeVersion: process.version,
+        platform: process.platform
+      },
+      threadPools: {
+        global: {
+          totalWorkers: globalPool.workers.total,
+          activeWorkers: globalPool.workers.active,
+          idleWorkers: globalPool.workers.idle,
+          queueSize: globalPool.tasks.queued,
+          utilization: parseFloat(globalPool.utilization) / 100,
+          avgWaitTime: parseFloat(globalPool.performance.avgWaitTime),
+          avgExecutionTime: parseFloat(globalPool.performance.avgExecutionTime),
+          peakQueueSize: globalPool.performance.peakQueueSize,
+          tasksCompleted: globalPool.tasks.completed,
+          tasksFailed: globalPool.tasks.failed
+        },
+        auth: {
+          totalWorkers: authPool.workers.total,
+          activeWorkers: authPool.workers.active,
+          idleWorkers: authPool.workers.idle,
+          queueSize: authPool.tasks.queued,
+          utilization: parseFloat(authPool.utilization) / 100,
+          tasksCompleted: authPool.tasks.completed
+        },
+        fileSecurity: {
+          totalWorkers: fileSecurityPool.workers.total,
+          activeWorkers: fileSecurityPool.workers.active,
+          idleWorkers: fileSecurityPool.workers.idle,
+          queueSize: fileSecurityPool.tasks.queued,
+          utilization: parseFloat(fileSecurityPool.utilization) / 100,
+          tasksCompleted: fileSecurityPool.tasks.completed
+        }
       }
     });
   } catch (error) {

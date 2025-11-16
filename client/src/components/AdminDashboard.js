@@ -358,13 +358,14 @@ function AdminDashboard({ admin, onLogout, theme, toggleTheme }) {
 
       {activeTab === 'overview' && stats && (
         <div className="tab-content">
+          {/* Métricas Principales */}
           <div className="stats-grid">
-            <div className="stat-card">
+            <div className="stat-card primary">
               <div className="stat-icon"><Server size={32} /></div>
               <div className="stat-content">
-                <h3>Servidor</h3>
+                <h3>Uptime</h3>
                 <p className="stat-value">{stats.server?.uptime || 'N/A'}</p>
-                <small>Uptime</small>
+                <small>Tiempo activo del servidor</small>
               </div>
             </div>
 
@@ -376,75 +377,120 @@ function AdminDashboard({ admin, onLogout, theme, toggleTheme }) {
                   {stats.server?.memory?.usedMB?.toFixed(1) || '0'} MB
                 </p>
                 <small>
-                  de {stats.server?.memory?.totalMB?.toFixed(1) || '0'} MB
+                  de {stats.server?.memory?.totalMB?.toFixed(1) || '0'} MB ({((stats.server?.memory?.usedMB / stats.server?.memory?.totalMB) * 100)?.toFixed(1) || '0'}%)
                 </small>
               </div>
             </div>
 
-            <div className="stat-card">
+            <div className="stat-card success">
               <div className="stat-icon"><Activity size={32} /></div>
               <div className="stat-content">
-                <h3>Workers Globales</h3>
+                <h3>Salas Activas</h3>
                 <p className="stat-value">
-                  {stats.threadPools?.global?.activeWorkers || 0}/{stats.threadPools?.global?.totalWorkers || 0}
+                  {stats.activeRooms || 0}
                 </p>
-                <small>Activos/Total</small>
+                <small>de {stats.totalRooms || 0} salas totales</small>
               </div>
             </div>
 
-            <div className="stat-card">
-              <div className="stat-icon"><Lock size={32} /></div>
-              <div className="stat-content">
-                <h3>Pool de Auth</h3>
-                <p className="stat-value">
-                  {stats.threadPools?.auth?.queueSize || 0}
-                </p>
-                <small>Tareas en cola</small>
-              </div>
-            </div>
-
-            <div className="stat-card">
-              <div className="stat-icon"><Folder size={32} /></div>
-              <div className="stat-content">
-                <h3>Pool de Archivos</h3>
-                <p className="stat-value">
-                  {stats.threadPools?.fileSecurity?.queueSize || 0}
-                </p>
-                <small>Tareas en cola</small>
-              </div>
-            </div>
-
-            <div className="stat-card">
+            <div className="stat-card info">
               <div className="stat-icon"><BarChart3 size={32} /></div>
               <div className="stat-content">
-                <h3>Utilización</h3>
+                <h3>Mensajes</h3>
                 <p className="stat-value">
-                  {(stats.threadPools?.global?.utilization * 100)?.toFixed(1) || '0'}%
+                  {stats.totalMessages?.toLocaleString('es-ES') || 0}
                 </p>
-                <small>Workers globales</small>
+                <small>mensajes almacenados</small>
               </div>
             </div>
           </div>
 
+          {/* Workers y Thread Pools */}
           <div className="performance-section">
-            <h2>⚡ Métricas de Rendimiento</h2>
+            <h2>⚙️ Thread Pools</h2>
+            <div className="stats-grid">
+              <div className="stat-card">
+                <div className="stat-icon"><Activity size={28} /></div>
+                <div className="stat-content">
+                  <h3>Global Pool</h3>
+                  <p className="stat-value">
+                    {stats.threadPools?.global?.activeWorkers || 0}/{stats.threadPools?.global?.totalWorkers || 0}
+                  </p>
+                  <small>
+                    {((stats.threadPools?.global?.utilization || 0) * 100).toFixed(1)}% utilización
+                    {stats.threadPools?.global?.queueSize > 0 && ` • ${stats.threadPools.global.queueSize} en cola`}
+                  </small>
+                </div>
+              </div>
+
+              <div className="stat-card">
+                <div className="stat-icon"><Lock size={28} /></div>
+                <div className="stat-content">
+                  <h3>Auth Pool</h3>
+                  <p className="stat-value">
+                    {stats.threadPools?.auth?.activeWorkers || 0}/{stats.threadPools?.auth?.totalWorkers || 0}
+                  </p>
+                  <small>
+                    {stats.threadPools?.auth?.tasksCompleted?.toLocaleString('es-ES') || 0} tareas completadas
+                    {stats.threadPools?.auth?.queueSize > 0 && ` • ${stats.threadPools.auth.queueSize} en cola`}
+                  </small>
+                </div>
+              </div>
+
+              <div className="stat-card">
+                <div className="stat-icon"><Folder size={28} /></div>
+                <div className="stat-content">
+                  <h3>File Security Pool</h3>
+                  <p className="stat-value">
+                    {stats.threadPools?.fileSecurity?.activeWorkers || 0}/{stats.threadPools?.fileSecurity?.totalWorkers || 0}
+                  </p>
+                  <small>
+                    {stats.threadPools?.fileSecurity?.tasksCompleted?.toLocaleString('es-ES') || 0} archivos procesados
+                    {stats.threadPools?.fileSecurity?.queueSize > 0 && ` • ${stats.threadPools.fileSecurity.queueSize} en cola`}
+                  </small>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Métricas de Rendimiento */}
+          <div className="performance-section">
+            <h2>⚡ Rendimiento del Sistema</h2>
             <div className="performance-grid">
               <div className="performance-item">
-                <span className="perf-label">Tiempo promedio de espera:</span>
+                <span className="perf-label">⏱️ Tiempo de espera promedio:</span>
                 <span className="perf-value">
                   {stats.threadPools?.global?.avgWaitTime?.toFixed(2) || '0'} ms
                 </span>
               </div>
               <div className="performance-item">
-                <span className="perf-label">Tiempo promedio de ejecución:</span>
+                <span className="perf-label">⚡ Tiempo de ejecución promedio:</span>
                 <span className="perf-value">
                   {stats.threadPools?.global?.avgExecutionTime?.toFixed(2) || '0'} ms
                 </span>
               </div>
               <div className="performance-item">
-                <span className="perf-label">Pico de cola:</span>
+                <span className="perf-label">📊 Pico de cola:</span>
                 <span className="perf-value">
                   {stats.threadPools?.global?.peakQueueSize || 0} tareas
+                </span>
+              </div>
+              <div className="performance-item">
+                <span className="perf-label">✅ Tareas completadas:</span>
+                <span className="perf-value">
+                  {stats.threadPools?.global?.tasksCompleted?.toLocaleString('es-ES') || 0}
+                </span>
+              </div>
+              <div className="performance-item">
+                <span className="perf-label">❌ Tareas fallidas:</span>
+                <span className="perf-value error">
+                  {stats.threadPools?.global?.tasksFailed || 0}
+                </span>
+              </div>
+              <div className="performance-item">
+                <span className="perf-label">💻 Node.js:</span>
+                <span className="perf-value">
+                  {stats.server?.nodeVersion || 'N/A'} ({stats.server?.platform || 'N/A'})
                 </span>
               </div>
             </div>

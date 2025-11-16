@@ -517,6 +517,46 @@
   border-color: var(--primary);
 }
 
+/* Variantes de color para stat-card */
+.stat-card.primary {
+  border-color: var(--primary);
+  background: linear-gradient(135deg, var(--dark-surface) 0%, rgba(102, 126, 234, 0.1) 100%);
+}
+
+.stat-card.primary .stat-icon {
+  color: var(--primary);
+}
+
+.stat-card.success {
+  border-color: #10b981;
+  background: linear-gradient(135deg, var(--dark-surface) 0%, rgba(16, 185, 129, 0.1) 100%);
+}
+
+.stat-card.success .stat-icon {
+  color: #10b981;
+}
+
+.stat-card.info {
+  border-color: #3b82f6;
+  background: linear-gradient(135deg, var(--dark-surface) 0%, rgba(59, 130, 246, 0.1) 100%);
+}
+
+.stat-card.info .stat-icon {
+  color: #3b82f6;
+}
+
+.admin-app.light-theme .stat-card.primary {
+  background: linear-gradient(135deg, var(--light-surface) 0%, rgba(102, 126, 234, 0.05) 100%);
+}
+
+.admin-app.light-theme .stat-card.success {
+  background: linear-gradient(135deg, var(--light-surface) 0%, rgba(16, 185, 129, 0.05) 100%);
+}
+
+.admin-app.light-theme .stat-card.info {
+  background: linear-gradient(135deg, var(--light-surface) 0%, rgba(59, 130, 246, 0.05) 100%);
+}
+
 .stat-icon {
   font-size: 28px;
   display: flex;
@@ -620,6 +660,11 @@
 
 .admin-app.light-theme .perf-value {
   color: var(--text-primary-light);
+}
+
+.perf-value.error {
+  color: #ef4444;
+  font-weight: 800;
 }
 
 .logs-section {

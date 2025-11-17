@@ -7,10 +7,10 @@ import 'primeicons/primeicons.css';
 import '../styles/CreateRoom.css';
 import '../styles/CustomToast.css';
 
-// Constantes para SonarQube compliance
+
 const ROOM_NAME_MAX_LENGTH = 30;
 const MIN_PARTICIPANTS = 2;
-const MAX_PARTICIPANTS = 10;
+const MAX_PARTICIPANTS = 50;
 const ROOM_TYPES = {
   TEXT: 'text',
   MULTIMEDIA: 'multimedia'

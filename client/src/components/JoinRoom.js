@@ -49,8 +49,8 @@ const JoinRoom = ({ onRoomJoined, initialPin }) => {
           // Mostrar modal con información detallada
           toast.current.show({ 
             severity: 'warn', 
-            summary: '⚠️ Dispositivo ya en uso', 
-            detail: response.message.replace(/\n/g, ' | '), 
+            summary: 'Dispositivo ya en uso', 
+            detail: response.message, 
             life: 8000,
             sticky: true
           });

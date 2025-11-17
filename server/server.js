@@ -409,7 +409,9 @@ app.post('/api/upload',
 
 // ==================== CONTROLADOR DE SALAS CON SOCKETS ====================
 
-RoomController(io);
+const roomControllerExports = RoomController(io);
+
+console.log('✅ RoomController y servicios de inactividad inicializados');
 
 // ==================== ENDPOINT ADICIONALES ====================
 
@@ -557,7 +559,16 @@ async function gracefulShutdown(signal) {
   } catch (error) {
     console.error('Error closing thread pools:', error);
   }
-  
+  // Detener controladores/servicios que usan MongoDB (evitar queries durante cierre)
+  try {
+    if (roomControllerExports && typeof roomControllerExports.stop === 'function') {
+      roomControllerExports.stop();
+      console.log('✓ RoomController stopped services');
+    }
+  } catch (err) {
+    console.error('Error stopping room controller services:', err);
+  }
+
   // Cerrar conexión a MongoDB
   await mongoose.connection.close();
   console.log('✓ MongoDB connection closed');

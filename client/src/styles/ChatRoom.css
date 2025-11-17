@@ -12,6 +12,29 @@
   backdrop-filter: blur(10px);
 }
 
+/* Contenedor con panel de participantes */
+.chat-container-with-participants {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Área principal del chat */
+.chat-main-area {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  margin-left: 280px; /* Espacio para el panel */
+  transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Cuando el panel está oculto, el chat ocupa todo el ancho */
+.chat-main-area.panel-hidden {
+  margin-left: 0;
+}
+
 @media (min-width: 769px) {
   .chat-wrapper {
     height: 90vh;

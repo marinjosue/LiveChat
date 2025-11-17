@@ -8,6 +8,8 @@ const RoomMembership = require('../models/RoomMembership');
 const { uploadToCloudinary } = require('../utils/fileUploader');
 const { FileSecurityService } = require('../services/fileSecurityService');
 const { AuditService } = require('../services/auditService');
+const { InactivityService } = require('../services/inactivityService');
+const { UserPrivacyService } = require('../services/userPrivacyService');
 
 const rooms = {};
 
@@ -16,6 +18,9 @@ const deletionTimers = {};
 
 // variable para rastrear usuarios en proceso de recarga
 const refreshingUsers = new Set();
+
+// Servicio de inactividad (se inicializa en RoomController)
+let inactivityService = null;
 
 // funcion auxiliar para obtener ip del cliente
 const getClientIp = (socket) => {
@@ -36,7 +41,45 @@ const getBrowserInfo = (deviceId) => {
   return `otro navegador/ventana (ID: ${deviceId.slice(-8)})`;
 };
 
+// Función auxiliar para emitir la lista actualizada de usuarios
+const emitUserList = (pin, room, io) => {
+  if (!room) return;
+  
+  // Generar lista de usuarios con información hasheada para privacidad
+  const userList = room.users.map(user => ({
+    socketId: user.id,
+    nickname: user.nickname,
+    deviceId: user.deviceId,
+    joinedAt: user.joinedAt || new Date()
+  }));
+
+  // Emitir a cada usuario su propia versión de la lista
+  room.users.forEach(user => {
+    const socket = io.sockets.sockets.get(user.id);
+    if (socket) {
+      const anonymousUserList = UserPrivacyService.generateAnonymousUserList(
+        userList,
+        pin,
+        user.nickname // El usuario actual verá "Tú" en lugar de su hash
+      );
+      
+      socket.emit('userListUpdate', {
+        users: anonymousUserList,
+        totalCount: room.users.length,
+        maxParticipants: room.limit
+      });
+    }
+  });
+};
+
 function RoomController(io) {
+  // Inicializar servicio de inactividad
+  if (!inactivityService) {
+    inactivityService = new InactivityService(io);
+    inactivityService.start();
+    console.log('✅ InactivityService inicializado');
+  }
+
   io.on('connection', (socket) => {
     const clientIp = getClientIp(socket);
     console.log(`Nuevo cliente conectado: ${socket.id} desde IP: ${clientIp}`);
@@ -91,8 +134,8 @@ function RoomController(io) {
         
         console.log(`🔍 Cliente intentando unirse: IP=${clientIp}, PIN=${pin}, deviceId=${deviceId}`);
         
-        // 🔒 VALIDACIÓN CRÍTICA POR IP: Una IP = Una sala (sin importar navegador/incógnito)
-        // Buscar si esta IP ya está en CUALQUIER sala activa
+        // 🔒 VALIDACIÓN CRÍTICA: Una IP = Un dispositivo = Una sala ÚNICA = Una conexión activa
+        // Buscar TODAS las sesiones activas para esta IP
         const existingSessions = await DeviceSession.find({ ip: clientIp });
         console.log(`📋 Sesiones encontradas para IP ${clientIp}:`, existingSessions.length);
         
@@ -100,42 +143,67 @@ function RoomController(io) {
           console.log(`  - Sesión: PIN=${session.roomPin}, deviceId=${session.deviceId}, nickname=${session.nickname}`);
         }
         
-        const ipInAnyRoom = existingSessions[0]; // Tomar la primera sesión encontrada
-        
-        if (ipInAnyRoom) {
-          console.log(`🔍 IP ${clientIp} encontrada en sala: ${ipInAnyRoom.roomPin}, intentando acceder a: ${pin}`);
+        // Si hay alguna sesión activa
+        if (existingSessions.length > 0) {
+          // Verificar si todas las sesiones son de la MISMA sala
+          const uniqueRooms = [...new Set(existingSessions.map(s => s.roomPin))];
           
-          // 🔒 BLOQUEAR CUALQUIER ACCESO DESDE OTRO NAVEGADOR
-          // Comparar deviceId para detectar si es el mismo navegador o uno diferente
-          if (ipInAnyRoom.deviceId !== deviceId) {
-            // Es un navegador/sesión diferente - BLOQUEAR COMPLETAMENTE
-            console.log(`❌ BLOQUEADO: IP ${clientIp} ya tiene sesión activa desde otro navegador (deviceId: ${ipInAnyRoom.deviceId})`);
+          if (uniqueRooms.length > 1) {
+            // ERROR CRÍTICO: Múltiples salas para una misma IP (no debería pasar)
+            console.error(`🚨 ERROR CRÍTICO: IP ${clientIp} tiene sesiones en ${uniqueRooms.length} salas diferentes:`, uniqueRooms);
             
-            // Detectar tipo de navegador basado en deviceId anterior
-            const browserInfo = getBrowserInfo(ipInAnyRoom.deviceId);
+            // Limpiar todas las sesiones y forzar reconexión
+            await DeviceSession.deleteMany({ ip: clientIp });
+            console.log(`🧹 Sesiones limpiadas. Usuario debe reconectar.`);
             
             return callback({ 
               success: false, 
-              message: `⚠️ ACCESO BLOQUEADO\n\nEste dispositivo ya tiene una sesión activa en la sala ${ipInAnyRoom.roomPin} desde ${browserInfo}.\n\n🔹 Usuario: ${ipInAnyRoom.nickname}\n🔹 Activo desde: ${new Date(ipInAnyRoom.lastActive).toLocaleString()}\n\n📋 Para acceder:\n1. Cierre TODAS las ventanas del navegador actual\n2. Vaya al otro navegador y haga clic en "Salir"\n3. O borre el caché/cookies del navegador actual\n\n⚡ Solo puede estar en UNA sala por dispositivo.` 
+              message: `Sesiones inconsistentes detectadas. Por favor, intenta de nuevo.` 
             });
           }
           
-          // Es el mismo navegador - permitir reconexión
-          if (ipInAnyRoom.roomPin === pin) {
-            console.log(`✅ IP ${clientIp} reconectando desde el mismo navegador a sala ${pin}`);
-            ipInAnyRoom.nickname = nickname;
-            ipInAnyRoom.lastActive = Date.now();
-            await ipInAnyRoom.save();
-          } else {
-            // Mismo navegador pero diferente sala - bloquear
-            console.log(`❌ BLOQUEADO: Mismo navegador intenta cambiar de sala ${ipInAnyRoom.roomPin} a ${pin}`);
+          // Todas las sesiones son de una misma sala
+          const existingRoomPin = uniqueRooms[0];
+          
+          if (existingRoomPin !== pin) {
+            // Dispositivo intenta acceder a OTRA sala diferente
+            console.log(`❌ BLOQUEADO: IP ${clientIp} ya tiene sesión activa en sala ${existingRoomPin}`);
             return callback({ 
               success: false, 
-              message: `Ya estás en la sala ${ipInAnyRoom.roomPin}. Debes salir de esa sala antes de unirte a otra.` 
+              message: `Este dispositivo ya está conectado a la sala ${existingRoomPin}.\n\n⚠️ Debes salir de esa sala antes de unirte a otra.\n\nSolo puedes estar en UNA sala a la vez.` 
             });
           }
+          
+          // 🚨 VERIFICACIÓN CRÍTICA: Bloquear múltiples pestañas/ventanas
+          // Verificar si ya existe un usuario activo en memoria con esta IP en esta sala
+          const activeUsersInRoom = room.users.filter(u => {
+            const userSocket = io.sockets.sockets.get(u.id);
+            if (!userSocket) return false;
+            const userIp = getClientIp(userSocket);
+            return userIp === clientIp;
+          });
+          
+          if (activeUsersInRoom.length > 0) {
+            // Ya hay una conexión activa desde esta IP en esta sala
+            console.log(`❌ BLOQUEADO: IP ${clientIp} ya tiene ${activeUsersInRoom.length} conexión(es) activa(s) en sala ${pin}`);
+            console.log(`   Sockets activos:`, activeUsersInRoom.map(u => u.id));
+            console.log(`   Nuevo intento desde socket: ${socket.id}`);
+            
+            return callback({ 
+              success: false, 
+              message: `Ya tienes una pestaña/ventana conectada a esta sala.\n\n⚠️ Solo puedes tener UNA conexión activa por dispositivo.\n\nCierra las otras pestañas primero.` 
+            });
+          }
+          
+          // Es una reconexión legítima (socket desconectado pero sesión existe)
+          console.log(`✅ IP ${clientIp} reconectando a sala ${pin} - sesión válida pero socket desconectado`);
+          
+          // Limpiar sesiones antiguas y crear una nueva para este socket
+          await DeviceSession.deleteMany({ ip: clientIp, roomPin: pin });
+          console.log(`🧹 Sesiones antiguas limpiadas para IP ${clientIp}`);
         } else {
-          console.log(`✅ IP ${clientIp} no tiene sesiones activas, permitiendo acceso a sala ${pin}`);
+          // No hay sesiones activas - NUEVA CONEXIÓN PERMITIDA
+          console.log(`✅ IP ${clientIp} sin sesiones activas - permitiendo acceso a sala ${pin}`);
         }
 
         await registerSession(deviceId, clientIp, pin, nickname);
@@ -170,17 +238,35 @@ function RoomController(io) {
           delete deletionTimers[pin];
         }
 
+        // ✅ CARGAR MENSAJES PREVIOS INMEDIATAMENTE (antes de emitir userJoined)
         const previousMessages = await Message.find({ pin }).sort({ timestamp: 1 });
-        console.log(`Cargando ${previousMessages.length} mensajes previos para sala ${pin}`);
+        console.log(`📜 Cargando ${previousMessages.length} mensajes previos para ${nickname} en sala ${pin}`);
         socket.emit('previousMessages', previousMessages);
 
+        // ✅ EMITIR userJoined CON CONTEO ACTUALIZADO A TODA LA SALA
         io.to(pin).emit('userJoined', { userId: socket.id, nickname, count: room.users.length, limit: room.limit });
+        
+        // ✅ EMITIR participantCountUpdate A TODA LA SALA (nuevo evento específico)
+        io.to(pin).emit('participantCountUpdate', { 
+          count: room.users.length, 
+          limit: room.limit,
+          isLastUser: room.users.length === 1
+        });
 
         // notificar al cliente si es el unico usuario en la sala
         socket.emit('isLastUser', room.users.length === 1);
 
+        // 🆕 Registrar actividad inicial del usuario
+        inactivityService.updateActivity(socket.id, pin, deviceId, clientIp);
+
         console.log(`${nickname} se unio a sala ${pin} (IP: ${clientIp})`);
         console.log(`🔍 Tipo de sala: ${room.roomType}`);
+        
+        // 🆕 Emitir lista actualizada de usuarios a todos en la sala (DESPUÉS de confirmar éxito)
+        setTimeout(() => {
+          emitUserList(pin, room, io);
+        }, 100);
+        
         callback({ success: true, pin, roomType: room.roomType });
       } catch (err) {
         console.error('Error en joinRoom:', err);
@@ -273,6 +359,15 @@ function RoomController(io) {
           console.log(`Reconexion: Cargando ${previousMessages.length} mensajes para ${session.nickname}`);
           socket.emit('previousMessages', previousMessages);
           
+          // 🆕 Registrar actividad y cancelar desconexión pendiente
+          if (inactivityService) {
+            inactivityService.updateActivity(socket.id, pin, deviceId, clientIp);
+            inactivityService.cancelDisconnection(socket.id);
+          }
+
+          // 🆕 Emitir lista actualizada de usuarios
+          emitUserList(pin, room, io);
+          
           console.log(`Usuario ${session.nickname} reconectado correctamente (IP: ${clientIp})`);
           return callback({ success: true, pin, roomType: room.roomType });
         }
@@ -319,6 +414,14 @@ function RoomController(io) {
           limit: room.limit
         });
 
+        // 🆕 Registrar actividad
+        if (inactivityService) {
+          inactivityService.updateActivity(socket.id, pin, deviceId);
+        }
+
+        // 🆕 Emitir lista actualizada de usuarios
+        emitUserList(pin, room, io);
+
         console.log(`Usuario ${session.nickname} reagregado despues de reconexion (IP: ${clientIp})`);
         callback({ success: true, pin, roomType: room.roomType });
       } catch (err) {
@@ -342,6 +445,13 @@ function RoomController(io) {
 
       // usar socket.userNickname directamente
       const sender = socket.userNickname || 'Anonimo';
+
+      // 🆕 Actualizar actividad del usuario
+      const user = room.users.find(u => u.id === socket.id);
+      if (user) {
+        const clientIp = socket.clientIp || getClientIp(socket);
+        inactivityService.updateActivity(socket.id, pin, user.deviceId, clientIp);
+      }
 
       console.log(`Mensaje en sala ${pin} de ${sender}: ${text}`);
       io.to(pin).emit('chatMessage', { sender, text });
@@ -590,14 +700,46 @@ function RoomController(io) {
       }
     });
 
-    // cargar mensaje 
+    // cargar mensajes (backup - los mensajes ya se cargan en joinRoom y reconnectToRoom)
     socket.on('requestPreviousMessages', async ({ pin }) => {
-      const previousMessages = await Message.find({ pin }).sort({ timestamp: 1 });
-      socket.emit('previousMessages', previousMessages);
+      try {
+        const previousMessages = await Message.find({ pin }).sort({ timestamp: 1 });
+        console.log(`📜 Solicitud manual de mensajes previos para sala ${pin}: ${previousMessages.length} mensajes`);
+        socket.emit('previousMessages', previousMessages);
+      } catch (error) {
+        console.error('Error cargando mensajes previos:', error);
+      }
+    });
+
+    // 🆕 Actualizar actividad del usuario (heartbeat)
+    socket.on('userActivity', ({ pin, deviceId }) => {
+      if (inactivityService && socket.id && pin && deviceId) {
+        const clientIp = socket.clientIp || getClientIp(socket);
+        inactivityService.updateActivity(socket.id, pin, deviceId, clientIp);
+      }
+    });
+
+    // 🆕 Solicitar lista de usuarios
+    socket.on('requestUserList', ({ pin }) => {
+      const room = rooms[pin];
+      if (room) {
+        emitUserList(pin, room, io);
+        console.log(`📋 Lista de usuarios enviada a ${socket.id} para sala ${pin}`);
+      }
     });
 
     // funcion auxiliar para manejar salas vacias
     const handleEmptyRoom = async (pin) => {
+      const room = rooms[pin];
+      
+      // 🔒 VERIFICACIÓN CRÍTICA: Confirmar que NO hay usuarios activos en memoria
+      if (room && room.users && room.users.length > 0) {
+        console.log(`⚠️ ADVERTENCIA: handleEmptyRoom llamado pero sala ${pin} tiene ${room.users.length} usuarios activos!`);
+        console.log(`   Usuarios activos:`, room.users.map(u => `${u.nickname} (${u.id})`));
+        console.log(`❌ NO SE ARCHIVARÁ LA SALA - Hay usuarios activos`);
+        return; // NO archivar si hay usuarios
+      }
+      
       console.log(`📭 Sala ${pin} quedó vacía. Manteniendo mensajes persistentes.`);
       
       // Eliminar solo las sesiones de usuarios
@@ -707,7 +849,18 @@ function RoomController(io) {
       if (room.isEmpty()) {
         await handleEmptyRoom(pin);
       } else {
+        // ✅ EMITIR userLeft CON CONTEO ACTUALIZADO
         io.to(pin).emit('userLeft', { userId: socket.id, nickname, count: room.users.length, limit: room.limit });
+        
+        // ✅ EMITIR participantCountUpdate A TODA LA SALA
+        io.to(pin).emit('participantCountUpdate', { 
+          count: room.users.length, 
+          limit: room.limit,
+          isLastUser: room.users.length === 1
+        });
+        
+        // 🆕 Emitir lista actualizada de usuarios
+        emitUserList(pin, room, io);
       }
 
       if (callback) callback({ success: true, message: 'Sesion eliminada correctamente' });
@@ -717,6 +870,11 @@ function RoomController(io) {
     socket.on('disconnect', async () => {
       const clientIp = socket.clientIp || getClientIp(socket);
       console.log(`Cliente desconectado: ${socket.id} (IP: ${clientIp})`);
+
+      // 🆕 Marcar en el servicio de inactividad
+      if (inactivityService) {
+        inactivityService.markDisconnected(socket.id);
+      }
 
       // si fue una salida intencional, no hacer nada mas (ya se manejo en leaveRoom)
       if (socket.intentionalLeave) {
@@ -756,23 +914,56 @@ function RoomController(io) {
                 
                 if (stillExists) {
                   console.log(`Usuario ${nickname} se ha reconectado, no se elimina`);
+                  // 🆕 Cancelar desconexión si se reconectó
+                  if (inactivityService) {
+                    inactivityService.cancelDisconnection(socket.id);
+                  }
                   return;
                 }
                 
                 // si no se reconecto, proceder con la eliminacion
                 console.log(`Confirmada desconexion real de ${nickname}, eliminando...`);
+                
+                // 🔒 VERIFICAR SI ES EL ÚLTIMO USUARIO ANTES DE REMOVER
+                const willBeEmpty = room.users.length === 1;
+                
                 room.removeUser(socket.id);
                 await removeSession(deviceId, clientIp, pin);
                 
-                if (room.isEmpty()) {
+                // ✅ DECREMENTAR PARTICIPANTES EN MONGODB
+                try {
+                  const roomDocument = await RoomModel.findOne({ pin: pin });
+                  if (roomDocument) {
+                    await roomDocument.decrementParticipants();
+                    console.log(`✅ Participante removido. Quedan ${roomDocument.participantCount} en BD`);
+                  }
+                } catch (dbError) {
+                  console.error('⚠️ Error decrementando participantes:', dbError);
+                }
+                
+                if (willBeEmpty) {
+                  console.log(`📭 Última persona salió de sala ${pin}`);
                   handleEmptyRoom(pin);
                 } else {
+                  console.log(`👥 Quedan ${room.users.length} usuarios en sala ${pin}`);
+                  
+                  // ✅ EMITIR userLeft CON CONTEO ACTUALIZADO
                   io.to(pin).emit('userLeft', {
                     userId: socket.id,
                     nickname,
                     count: room.users.length,
                     limit: room.limit
                   });
+                  
+                  // ✅ EMITIR participantCountUpdate A TODA LA SALA
+                  io.to(pin).emit('participantCountUpdate', { 
+                    count: room.users.length, 
+                    limit: room.limit,
+                    isLastUser: room.users.length === 1
+                  });
+                  
+                  // 🆕 Emitir lista actualizada de usuarios
+                  emitUserList(pin, room, io);
                 }
               }, 5000);
               
@@ -783,23 +974,88 @@ function RoomController(io) {
           }
 
           // eliminacion inmediata si no hay sesion valida
+          console.log(`❌ No hay sesión válida para IP ${clientIp} en sala ${pin}`);
+          
+          // 🔒 VERIFICAR SI ES EL ÚLTIMO USUARIO ANTES DE REMOVER
+          const willBeEmpty = room.users.length === 1;
+          
           room.removeUser(socket.id);
           await removeSession(deviceId, clientIp, pin);
-
-          if (room.isEmpty()) {
+          
+          // ✅ DECREMENTAR PARTICIPANTES EN MONGODB
+          try {
+            const roomDocument = await RoomModel.findOne({ pin: pin });
+            if (roomDocument) {
+              await roomDocument.decrementParticipants();
+              console.log(`✅ Participante removido. Quedan ${roomDocument.participantCount} en BD`);
+            }
+          } catch (dbError) {
+            console.error('⚠️ Error decrementando participantes:', dbError);
+          }
+          
+          if (willBeEmpty) {
+            console.log(`📭 Última persona salió de sala ${pin}`);
             handleEmptyRoom(pin);
           } else {
+            console.log(`👥 Quedan ${room.users.length} usuarios en sala ${pin}`);
+            
+            // ✅ EMITIR userLeft CON CONTEO ACTUALIZADO
             io.to(pin).emit('userLeft', {
               userId: socket.id,
               nickname,
               count: room.users.length,
               limit: room.limit
             });
+            
+            // ✅ EMITIR participantCountUpdate
+            io.to(pin).emit('participantCountUpdate', { 
+              count: room.users.length, 
+              limit: room.limit,
+              isLastUser: room.users.length === 1
+            });
+            
+            emitUserList(pin, room, io);
+          }
+
+          if (room.isEmpty()) {
+            handleEmptyRoom(pin);
+          } else {
+            // ✅ EMITIR userLeft CON CONTEO ACTUALIZADO
+            io.to(pin).emit('userLeft', {
+              userId: socket.id,
+              nickname,
+              count: room.users.length,
+              limit: room.limit
+            });
+            
+            // ✅ EMITIR participantCountUpdate A TODA LA SALA
+            io.to(pin).emit('participantCountUpdate', { 
+              count: room.users.length, 
+              limit: room.limit,
+              isLastUser: room.users.length === 1
+            });
+            
+            // 🆕 Emitir lista actualizada de usuarios
+            emitUserList(pin, room, io);
           }
         }
       }
     });
   });
+
+  // Exponer función para detener servicios desde fuera (ej. shutdown)
+  return {
+    stop: () => {
+      try {
+        if (inactivityService) {
+          inactivityService.stop();
+          console.log('✅ InactivityService detenido desde RoomController.stop()');
+        }
+      } catch (err) {
+        console.error('Error deteniendo InactivityService:', err);
+      }
+    }
+  };
 }
 
 module.exports = RoomController;

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import socket from '../services/socketService';
 import { Send, Users, MessageCircle, FileX } from 'lucide-react';
+import ParticipantsList from './ParticipantsList';
 import { getDeviceId, clearCurrentRoom, updateRoomActivity, isReconnecting, finishReconnection, markPageRefreshing } from '../utils/deviceManager';
 import { confirmDialog, ConfirmDialog } from 'primereact/confirmdialog';
 import 'primereact/resources/themes/lara-light-indigo/theme.css';
@@ -18,14 +19,21 @@ const ChatText = ({ pin, nickname, onLeave }) => {
   const [participants, setParticipants] = useState(1);
   const [limit, setLimit] = useState(null);
   const [isLastUser, setIsLastUser] = useState(false);
+  const [participantsList, setParticipantsList] = useState([]);
+  const [totalParticipants, setTotalParticipants] = useState(0);
+  const [maxParticipants, setMaxParticipants] = useState(0);
+  const [isPanelVisible, setIsPanelVisible] = useState(true);
 
   const messagesEndRef = useRef(null);
   const toast = useRef(null);
+  const activityIntervalRef = useRef(null);
   
   useEffect(() => {
     // Configurar intervalos para actualizar la actividad del usuario
-    const activityInterval = setInterval(() => {
+    activityIntervalRef.current = setInterval(() => {
       updateRoomActivity();
+      // Enviar heartbeat al servidor
+      socket.emit('userActivity', { pin, deviceId: getDeviceId() });
     }, 30000); // Cada 30 segundos
     
     // Escuchar cuando el admin cierra la sala
@@ -42,6 +50,65 @@ const ChatText = ({ pin, nickname, onLeave }) => {
         clearCurrentRoom();
         onLeave();
       }, 5000);
+    });
+
+    // Escuchar actualizaciones de la lista de usuarios
+    socket.on('userListUpdate', ({ users, totalCount, maxParticipants: max }) => {
+      console.log('📋 Lista de usuarios actualizada:', users);
+      setParticipantsList(users);
+      setTotalParticipants(totalCount);
+      setMaxParticipants(max);
+    });
+
+    // Solicitar lista de usuarios al montar el componente
+    socket.emit('requestUserList', { pin });
+
+    // Escuchar advertencia de inactividad
+    socket.on('inactivityWarning', ({ message: msg, secondsRemaining, reason }) => {
+      if (reason === 'INACTIVITY_WARNING') {
+        // Mostrar diálogo de confirmación con cuenta regresiva
+        let countdown = secondsRemaining;
+        const countdownInterval = setInterval(() => {
+          countdown--;
+        }, 1000);
+        
+        confirmDialog({
+          message: `${msg}\n\nSerás desconectado en ${countdown} segundos por inactividad.\n\n¿Deseas permanecer en la sala?`,
+          header: '⚠️ Advertencia de Inactividad',
+          icon: 'pi pi-exclamation-triangle',
+          acceptLabel: 'Sí, permanecer',
+          rejectLabel: 'Salir ahora',
+          accept: () => {
+            // Usuario responde - enviar actividad
+            clearInterval(countdownInterval);
+            socket.emit('userActivity', { pin, deviceId: getDeviceId() });
+            updateRoomActivity();
+            console.log('✅ Usuario respondió - actividad actualizada');
+          },
+          reject: () => {
+            // Usuario decide salir
+            clearInterval(countdownInterval);
+            clearCurrentRoom();
+            onLeave();
+          },
+          onHide: () => {
+            clearInterval(countdownInterval);
+          }
+        });
+      } else if (reason === 'INACTIVITY_TIMEOUT') {
+        // Desconexión definitiva
+        toast.current?.show({
+          severity: 'error',
+          summary: 'Desconectado',
+          detail: msg,
+          life: 3000
+        });
+        
+        setTimeout(() => {
+          clearCurrentRoom();
+          onLeave();
+        }, 3000);
+      }
     });
     
     socket.on('chatMessage', ({ sender, text }) => {
@@ -61,6 +128,14 @@ const ChatText = ({ pin, nickname, onLeave }) => {
       setIsLastUser(count === 1);
     });
 
+    // ✅ NUEVO: Escuchar actualización de participantes en tiempo real
+    socket.on('participantCountUpdate', ({ count, limit: roomLimit, isLastUser: isLast }) => {
+      console.log(`👥 Actualización de participantes: ${count}/${roomLimit}`);
+      setParticipants(count);
+      setLimit(roomLimit);
+      setIsLastUser(isLast);
+    });
+
     socket.on('isLastUser', (isLast) => {
       setIsLastUser(isLast);
     });
@@ -72,9 +147,14 @@ const ChatText = ({ pin, nickname, onLeave }) => {
       socket.off('chatMessage');
       socket.off('userJoined');
       socket.off('userLeft');
+      socket.off('participantCountUpdate');
       socket.off('isLastUser');
       socket.off('roomClosedByAdmin');
-      clearInterval(activityInterval);
+      socket.off('userListUpdate');
+      socket.off('inactivityWarning');
+      if (activityIntervalRef.current) {
+        clearInterval(activityIntervalRef.current);
+      }
     };
   }, [pin, onLeave]);
 
@@ -184,62 +264,75 @@ const ChatText = ({ pin, nickname, onLeave }) => {
       <Toast ref={toast} position="top-right" />
       <ConfirmDialog />
       
-      {/* Header con información de sala */}
-      <header className="chat-topbar">
-        <div className="room-info">
-          <MessageCircle size={20} />
-          <span>Sala <strong>{pin}</strong> - {nickname}</span>
-          <span className="text-only-badge-small">
-            <FileX size={12} />
-            Solo Texto
-          </span>
-        </div>
-        <div className="topbar-actions">
-          <div className="user-count">
-            <Users size={18} /> {participants} {limit ? `/ ${limit}` : ''}
-            {isLastUser && <span className="last-user-badge"> (Último usuario)</span>}
-          </div>
-          <div className="room-buttons">
-            <button className="exit-btn" onClick={handleExit} title="Salir de la sala">
-              ❌ <span>Salir</span>
-            </button>
-          </div>
-        </div>
-      </header>
-      
-      {/* Indicador de sala solo texto */}
-      <div className="text-only-info">
-        <FileX size={16} />
-        <span>Sala Solo Texto - Sin capacidades multimedia (imágenes, videos, archivos)</span>
-      </div>
-      
-      <div className="chat-messages">
-        {messages.map((msg, idx) => (
-          <div key={idx} className={`chat-message ${msg.sender === nickname ? 'self' : 'other'}`}>
-            <div className="sender">
-              <strong>{msg.sender}</strong>
-              <small>{msg.timestamp}</small>
-            </div>
-            <p>{msg.text}</p>
-          </div>
-        ))}
-        <div ref={messagesEndRef} />
-      </div>
-
-      <footer className="chat-input-bar">
-        <input
-          type="text"
-          placeholder="Escribe un mensaje de texto..."
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
-          maxLength={500}
+      <div className="chat-container-with-participants">
+        {/* Panel de participantes */}
+        <ParticipantsList 
+          participants={participantsList}
+          totalCount={totalParticipants}
+          maxParticipants={maxParticipants}
+          onVisibilityChange={setIsPanelVisible}
         />
-        <button onClick={sendMessage} className="send-btn" disabled={!message.trim()}>
-          <Send size={20} />
-          <span>Enviar</span>
-        </button>
-      </footer>
+        
+        {/* Contenedor principal del chat */}
+        <div className={`chat-main-area ${!isPanelVisible ? 'panel-hidden' : ''}`}>
+          {/* Header con información de sala */}
+          <header className="chat-topbar">
+            <div className="room-info">
+              <MessageCircle size={20} />
+              <span>Sala <strong>{pin}</strong> - {nickname}</span>
+              <span className="text-only-badge-small">
+                <FileX size={12} />
+                Solo Texto
+              </span>
+            </div>
+            <div className="topbar-actions">
+              <div className="user-count">
+                <Users size={18} /> {participants} {limit ? `/ ${limit}` : ''}
+                {isLastUser && <span className="last-user-badge"> (Último usuario)</span>}
+              </div>
+              <div className="room-buttons">
+                <button className="exit-btn" onClick={handleExit} title="Salir de la sala">
+                  ❌ <span>Salir</span>
+                </button>
+              </div>
+            </div>
+          </header>
+      
+          {/* Indicador de sala solo texto */}
+          <div className="text-only-info">
+            <FileX size={16} />
+            <span>Sala Solo Texto - Sin capacidades multimedia (imágenes, videos, archivos)</span>
+          </div>
+      
+          <div className="chat-messages">
+            {messages.map((msg, idx) => (
+              <div key={idx} className={`chat-message ${msg.sender === nickname ? 'self' : 'other'}`}>
+                <div className="sender">
+                  <strong>{msg.sender}</strong>
+                  <small>{msg.timestamp}</small>
+                </div>
+                <p>{msg.text}</p>
+              </div>
+            ))}
+            <div ref={messagesEndRef} />
+          </div>
+
+          <footer className="chat-input-bar">
+            <input
+              type="text"
+              placeholder="Escribe un mensaje de texto..."
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
+              maxLength={500}
+            />
+            <button onClick={sendMessage} className="send-btn" disabled={!message.trim()}>
+              <Send size={20} />
+              <span>Enviar</span>
+            </button>
+          </footer>
+        </div>
+      </div>
     </div>
   );
   

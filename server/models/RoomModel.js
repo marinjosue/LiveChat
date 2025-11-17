@@ -46,7 +46,7 @@ const roomSchema = new mongoose.Schema({
   maxParticipants: {
     type: Number,
     min: 2,
-    max: 10,
+    max: 50,
     required: true
   },
   

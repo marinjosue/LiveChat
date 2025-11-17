@@ -7,13 +7,15 @@ Sistema de chat en tiempo real con salas seguras, autenticación de administrado
 ### 🔐 Seguridad
 - **PIN Hasheado (SHA-256)**: Los PINs de sala nunca se almacenan en texto plano
 - **ID Único Encriptado**: Cada sala tiene un identificador único de 16 caracteres hexadecimales
+- **Cifrado de Mensajes AES-256-GCM**: Mensajes encriptados en reposo con PBKDF2 key derivation
+- **Cifrado en Tránsito**: Socket.IO con soporte TLS/SSL para comunicación segura
 - **Autenticación JWT**: Tokens seguros con expiración de 24 horas
 - **2FA Opcional**: Autenticación de dos factores con TOTP (Google Authenticator)
 - **Detección de Esteganografía**: 5 técnicas de análisis para archivos multimedia
-- **Encriptación AES-256-GCM**: Mensajes encriptados en tránsito
 - **Rate Limiting**: Protección contra ataques DDoS
 - **Helmet**: Headers HTTP seguros
 - **Audit Logging**: Logs con hash SHA-256 para no repudio
+- **Control de Dispositivos**: Un dispositivo por sala, validación por IP
 
 ### 🏠 Gestión de Salas
 - **Creación por Admin**: Solo administradores pueden crear salas
@@ -25,11 +27,13 @@ Sistema de chat en tiempo real con salas seguras, autenticación de administrado
 
 ### 💬 Chat en Tiempo Real
 - **Socket.IO**: Comunicación bidireccional en tiempo real
-- **Mensajes Persistentes**: Historial completo al unirse/reconectar
+- **Cifrado End-to-End**: Mensajes cifrados con AES-256-GCM antes de guardarse en BD
+- **Mensajes Persistentes**: Historial completo al unirse/reconectar (descifrado automático)
 - **Archivos Multimedia**: Soporte para imágenes, videos, audio y documentos
 - **Cloudinary**: Almacenamiento CDN para archivos
 - **Validación de Archivos**: Límite de 15MB, tipos permitidos configurables
 - **Reconexión Automática**: Sesión persistente al recargar página
+- **Detección de Inactividad**: Desconexión automática con advertencia previa
 
 ### ⚡ Concurrencia y Rendimiento
 - **Worker Thread Pool**: Procesamiento paralelo de autenticación
@@ -526,7 +530,9 @@ LiveChat/
 │   │   └── admin.js               # Panel de administración
 │   ├── scripts/               # 🆕 Scripts de utilidad
 │   │   ├── createAdmin.js         # Crear administrador
-│   │   └── generateEncryptionKey.js # Generar claves
+│   │   ├── generateEncryptionKey.js # Generar claves
+│   │   ├── encryptExistingMessages.js # Cifrar mensajes existentes
+│   │   └── checkEncryptionStatus.js   # Verificar estado de cifrado
 │   ├── config/
 │   │   └── cloudinary.js
 │   ├── utils/                 # Utilidades
@@ -718,17 +724,119 @@ GET /health
 
 ### 1. Encriptación de Mensajes (AES-256-GCM)
 
-Los mensajes sensibles se encriptan antes de almacenarse:
+**Todos los mensajes de texto se cifran automáticamente antes de guardarse en la base de datos.**
+
+#### Características del Cifrado:
+- **Algoritmo**: AES-256-GCM (Galois/Counter Mode) con autenticación
+- **Derivación de Clave**: PBKDF2 con 100,000 iteraciones usando SHA-512
+- **IV Aleatorio**: 16 bytes generados con `crypto.randomBytes()`
+- **Salt Único**: 64 bytes por mensaje para máxima seguridad
+- **Auth Tag**: Verificación de integridad con tag de 16 bytes
+- **Datos Adicionales Autenticados (AAD)**: PIN de sala y remitente
+
+#### Flujo de Cifrado:
 
 ```javascript
-// En el servidor
-const EncryptionService = require('./services/encryptionService');
-const encrypted = EncryptionService.encryptMessage('Mensaje secreto');
-// { encrypted, iv, salt, authTag }
+// 1. Usuario envía mensaje
+socket.emit('sendMessage', { pin: '123456', text: 'Hola mundo' });
 
-// Para desencriptar
-const decrypted = EncryptionService.decryptMessage(encrypted, iv, salt, authTag);
+// 2. Servidor cifra antes de guardar en BD
+const encryptionResult = encryptionService.encryptMessage('Hola mundo', { 
+  pin: '123456', 
+  sender: 'Usuario' 
+});
+// Resultado: ciphertext en base64 con IV+Salt+AuthTag+Encrypted
+
+// 3. Se guarda en MongoDB
+await Message.create({ 
+  text: encryptionResult.ciphertext,  // Texto cifrado
+  encrypted: true,
+  pin: '123456',
+  sender: 'Usuario'
+});
+
+// 4. Al cargar mensajes, se descifran automáticamente
+const messages = await Message.find({ pin: '123456' });
+const decrypted = messages.map(msg => {
+  if (msg.encrypted) {
+    const result = encryptionService.decryptMessage(msg.text, {
+      pin: msg.pin,
+      sender: msg.sender
+    });
+    msg.text = result.plaintext;  // Texto descifrado
+  }
+  return msg;
+});
 ```
+
+#### Scripts de Utilidad:
+
+```bash
+# Verificar estado del cifrado en la BD
+cd server
+node scripts/checkEncryptionStatus.js
+
+# Salida esperada:
+# 📊 ESTADÍSTICAS DE MENSAJES:
+# ──────────────────────────────────────────────────
+#    Total de mensajes:           150
+#    Mensajes de texto:           120
+#    Mensajes cifrados:           120 ✅
+#    Mensajes sin cifrar:         0 ⚠️
+#    Porcentaje de cifrado:       100.00%
+
+# Cifrar mensajes existentes (migración)
+node scripts/encryptExistingMessages.js
+
+# Salida:
+# 🔐 Iniciando cifrado de mensajes existentes...
+# ✅ Conectado a MongoDB
+# 📊 Mensajes encontrados sin cifrar: 45
+# ✓ Mensaje cifrado: 691b301a396d3f9a87b819c6...
+# ...
+# 📊 Resumen:
+#    ✅ Mensajes cifrados exitosamente: 45
+#    ❌ Mensajes con error: 0
+```
+
+#### Seguridad en Tránsito vs Reposo:
+
+| Capa | Tecnología | Protege Contra |
+|------|-----------|----------------|
+| **Tránsito** | Socket.IO + TLS/SSL | Interceptación de red, MITM |
+| **Reposo** | AES-256-GCM | Acceso no autorizado a BD, backups comprometidos |
+| **Aplicación** | PBKDF2 + Salt | Rainbow tables, ataques de fuerza bruta |
+
+#### Configuración de Clave Maestra:
+
+```bash
+# Generar clave de 256 bits (OBLIGATORIO en producción)
+cd server
+node scripts/generateEncryptionKey.js
+
+# Copiar la salida a .env
+# ENCRYPTION_MASTER_KEY=a1b2c3d4e5f6...
+
+# ⚠️ IMPORTANTE: Guardar esta clave en un gestor de secretos seguro
+# (AWS Secrets Manager, Azure Key Vault, HashiCorp Vault, etc.)
+```
+
+#### Ejemplo de Mensaje en MongoDB:
+
+```javascript
+// Texto plano original: "Hola mundo"
+{
+  "_id": ObjectId("691b301a396d3f9a87b819c6"),
+  "pin": "214652",
+  "sender": "Usuario",
+  "text": "gKqWpJ4n2L8x...encrypted_base64...k9xF2Q==",  // Cifrado
+  "encrypted": true,
+  "messageType": "text",
+  "timestamp": ISODate("2025-11-17T14:24:26.472Z")
+}
+```
+
+Los mensajes se envían en **texto plano** a través de Socket.IO (ya protegido por TLS/SSL en producción), pero se **guardan cifrados** en la base de datos para protección en reposo.
 
 ### 2. Detección de Esteganografía
 

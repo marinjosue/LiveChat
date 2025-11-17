@@ -10,6 +10,7 @@ const { FileSecurityService } = require('../services/fileSecurityService');
 const { AuditService } = require('../services/auditService');
 const { InactivityService } = require('../services/inactivityService');
 const { UserPrivacyService } = require('../services/userPrivacyService');
+const { encryptionService } = require('../services/encryptionService');
 
 const rooms = {};
 
@@ -176,17 +177,29 @@ function RoomController(io) {
           
           // 🚨 VERIFICACIÓN CRÍTICA: Bloquear múltiples pestañas/ventanas
           // Verificar si ya existe un usuario activo en memoria con esta IP en esta sala
-          const activeUsersInRoom = room.users.filter(u => {
-            const userSocket = io.sockets.sockets.get(u.id);
-            if (!userSocket) return false;
-            const userIp = getClientIp(userSocket);
-            return userIp === clientIp;
+          let activeUsersInRoom = [];
+          
+          // Solo verificar si la sala tiene usuarios cargados
+          if (room && room.users && room.users.length > 0) {
+            activeUsersInRoom = room.users.filter(u => {
+              const userSocket = io.sockets.sockets.get(u.id);
+              if (!userSocket) return false;
+              const userIp = getClientIp(userSocket);
+              return userIp === clientIp;
+            });
+          }
+          
+          // Verificación adicional: buscar en TODOS los sockets conectados
+          const allConnectedSockets = Array.from(io.sockets.sockets.values());
+          const socketsWithSameIp = allConnectedSockets.filter(s => {
+            return s.userPin === pin && getClientIp(s) === clientIp && s.id !== socket.id;
           });
           
-          if (activeUsersInRoom.length > 0) {
+          if (activeUsersInRoom.length > 0 || socketsWithSameIp.length > 0) {
             // Ya hay una conexión activa desde esta IP en esta sala
-            console.log(`❌ BLOQUEADO: IP ${clientIp} ya tiene ${activeUsersInRoom.length} conexión(es) activa(s) en sala ${pin}`);
-            console.log(`   Sockets activos:`, activeUsersInRoom.map(u => u.id));
+            console.log(`❌ BLOQUEADO: IP ${clientIp} ya tiene conexión(es) activa(s) en sala ${pin}`);
+            console.log(`   Usuarios en room.users:`, activeUsersInRoom.map(u => u.id));
+            console.log(`   Sockets conectados con misma IP:`, socketsWithSameIp.map(s => s.id));
             console.log(`   Nuevo intento desde socket: ${socket.id}`);
             
             return callback({ 
@@ -241,7 +254,35 @@ function RoomController(io) {
         // ✅ CARGAR MENSAJES PREVIOS INMEDIATAMENTE (antes de emitir userJoined)
         const previousMessages = await Message.find({ pin }).sort({ timestamp: 1 });
         console.log(`📜 Cargando ${previousMessages.length} mensajes previos para ${nickname} en sala ${pin}`);
-        socket.emit('previousMessages', previousMessages);
+        
+        // 🔐 DESCIFRAR mensajes de texto antes de enviar
+        const decryptedMessages = previousMessages.map(msg => {
+          const messageObj = msg.toObject();
+          
+          // Solo descifrar mensajes de texto que estén cifrados
+          if (messageObj.messageType === 'text' && messageObj.encrypted && messageObj.text) {
+            try {
+              const decryptionResult = encryptionService.decryptMessage(messageObj.text, { 
+                pin: messageObj.pin, 
+                sender: messageObj.sender 
+              });
+              
+              if (decryptionResult.success) {
+                messageObj.text = decryptionResult.plaintext;
+              } else {
+                console.error('❌ Error descifrando mensaje:', decryptionResult.error);
+                messageObj.text = '[Mensaje cifrado - error al descifrar]';
+              }
+            } catch (err) {
+              console.error('❌ Excepción descifrando mensaje:', err);
+              messageObj.text = '[Mensaje cifrado - error al descifrar]';
+            }
+          }
+          
+          return messageObj;
+        });
+        
+        socket.emit('previousMessages', decryptedMessages);
 
         // ✅ EMITIR userJoined CON CONTEO ACTUALIZADO A TODA LA SALA
         io.to(pin).emit('userJoined', { userId: socket.id, nickname, count: room.users.length, limit: room.limit });
@@ -357,7 +398,32 @@ function RoomController(io) {
           // cargar todos los mensajes previos con sus archivos
           const previousMessages = await Message.find({ pin }).sort({ timestamp: 1 });
           console.log(`Reconexion: Cargando ${previousMessages.length} mensajes para ${session.nickname}`);
-          socket.emit('previousMessages', previousMessages);
+          
+          // 🔐 DESCIFRAR mensajes de texto antes de enviar
+          const decryptedMessages = previousMessages.map(msg => {
+            const messageObj = msg.toObject();
+            
+            if (messageObj.messageType === 'text' && messageObj.encrypted && messageObj.text) {
+              try {
+                const decryptionResult = encryptionService.decryptMessage(messageObj.text, { 
+                  pin: messageObj.pin, 
+                  sender: messageObj.sender 
+                });
+                
+                if (decryptionResult.success) {
+                  messageObj.text = decryptionResult.plaintext;
+                } else {
+                  messageObj.text = '[Mensaje cifrado - error al descifrar]';
+                }
+              } catch (err) {
+                messageObj.text = '[Mensaje cifrado - error al descifrar]';
+              }
+            }
+            
+            return messageObj;
+          });
+          
+          socket.emit('previousMessages', decryptedMessages);
           
           // 🆕 Registrar actividad y cancelar desconexión pendiente
           if (inactivityService) {
@@ -404,7 +470,32 @@ function RoomController(io) {
         // cargar todos los mensajes previos con sus archivos
         const previousMessages = await Message.find({ pin }).sort({ timestamp: 1 });
         console.log(`Reconexion: Cargando ${previousMessages.length} mensajes para ${session.nickname}`);
-        socket.emit('previousMessages', previousMessages);
+        
+        // 🔐 DESCIFRAR mensajes de texto antes de enviar
+        const decryptedMessages = previousMessages.map(msg => {
+          const messageObj = msg.toObject();
+          
+          if (messageObj.messageType === 'text' && messageObj.encrypted && messageObj.text) {
+            try {
+              const decryptionResult = encryptionService.decryptMessage(messageObj.text, { 
+                pin: messageObj.pin, 
+                sender: messageObj.sender 
+              });
+              
+              if (decryptionResult.success) {
+                messageObj.text = decryptionResult.plaintext;
+              } else {
+                messageObj.text = '[Mensaje cifrado - error al descifrar]';
+              }
+            } catch (err) {
+              messageObj.text = '[Mensaje cifrado - error al descifrar]';
+            }
+          }
+          
+          return messageObj;
+        });
+        
+        socket.emit('previousMessages', decryptedMessages);
           
         // notificar a todos los usuarios de la sala
         io.to(pin).emit('userJoined', {
@@ -454,11 +545,29 @@ function RoomController(io) {
       }
 
       console.log(`Mensaje en sala ${pin} de ${sender}: ${text}`);
+      
+      // 🔐 Enviar mensaje en texto plano a la sala (Socket.IO ya usa TLS/SSL)
       io.to(pin).emit('chatMessage', { sender, text });
       
       try {
-        await Message.create({ pin, sender, text, messageType: 'text' });
-        console.log('Mensaje guardado en BD');
+        // 🔐 CIFRAR mensaje antes de guardar en BD
+        const encryptionResult = encryptionService.encryptMessage(text, { pin, sender });
+        
+        if (!encryptionResult.success) {
+          console.error('❌ Error cifrando mensaje:', encryptionResult.error);
+          // Guardar sin cifrar como fallback (mejor que perder el mensaje)
+          await Message.create({ pin, sender, text, messageType: 'text', encrypted: false });
+        } else {
+          // Guardar mensaje cifrado
+          await Message.create({ 
+            pin, 
+            sender, 
+            text: encryptionResult.ciphertext, // Texto cifrado en base64
+            messageType: 'text',
+            encrypted: true
+          });
+          console.log('🔐 Mensaje cifrado y guardado en BD');
+        }
       } catch (err) {
         console.error('Error guardando mensaje:', err);
       }
@@ -705,7 +814,32 @@ function RoomController(io) {
       try {
         const previousMessages = await Message.find({ pin }).sort({ timestamp: 1 });
         console.log(`📜 Solicitud manual de mensajes previos para sala ${pin}: ${previousMessages.length} mensajes`);
-        socket.emit('previousMessages', previousMessages);
+        
+        // 🔐 DESCIFRAR mensajes de texto antes de enviar
+        const decryptedMessages = previousMessages.map(msg => {
+          const messageObj = msg.toObject();
+          
+          if (messageObj.messageType === 'text' && messageObj.encrypted && messageObj.text) {
+            try {
+              const decryptionResult = encryptionService.decryptMessage(messageObj.text, { 
+                pin: messageObj.pin, 
+                sender: messageObj.sender 
+              });
+              
+              if (decryptionResult.success) {
+                messageObj.text = decryptionResult.plaintext;
+              } else {
+                messageObj.text = '[Mensaje cifrado - error al descifrar]';
+              }
+            } catch (err) {
+              messageObj.text = '[Mensaje cifrado - error al descifrar]';
+            }
+          }
+          
+          return messageObj;
+        });
+        
+        socket.emit('previousMessages', decryptedMessages);
       } catch (error) {
         console.error('Error cargando mensajes previos:', error);
       }

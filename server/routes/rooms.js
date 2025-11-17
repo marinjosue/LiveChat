@@ -32,20 +32,6 @@ router.get('/public', async (req, res) => {
       createdAt: room.createdAt,
       isFull: room.isFull()
     }));
-
-    // Log de acceso (comentado temporalmente)
-    // await auditService.log(
-    //   null, // No requiere admin
-    //   'ROOMS_LIST_ACCESSED',
-    //   { 
-    //     ipAddress,
-    //     roomsCount: publicRooms.length 
-    //   },
-    //   ipAddress,
-    //   req.get('User-Agent'),
-    //   'success'
-    // );
-
     res.json({
       success: true,
       rooms: publicRooms,

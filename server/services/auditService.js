@@ -25,7 +25,7 @@ const logger = winston.createLogger({
       maxsize: 5242880, // 5MB
       maxFiles: 5,
     }),
-    // Logs de auditoría en MongoDB (opcional, adicional al modelo AuditLog)
+    // Logs de auditoría en MongoDB 
     new winston.transports.MongoDB({
       db: process.env.MONGODB_URI,
       collection: 'system_logs',

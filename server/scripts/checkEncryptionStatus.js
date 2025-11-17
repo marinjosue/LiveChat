@@ -10,14 +10,14 @@ const { encryptionService } = require('../services/encryptionService');
 
 async function checkEncryptionStatus() {
   try {
-    console.log('🔍 Verificando estado de cifrado de mensajes...\n');
+    console.log('Verificando estado de cifrado de mensajes...\n');
 
     // Conectar a MongoDB
     await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/livechat', {
       useNewUrlParser: true,
       useUnifiedTopology: true
     });
-    console.log('✅ Conectado a MongoDB\n');
+    console.log('Conectado a MongoDB\n');
 
     // Estadísticas generales
     const totalMessages = await Message.countDocuments();
@@ -31,14 +31,6 @@ async function checkEncryptionStatus() {
       encrypted: { $ne: true }
     });
 
-    console.log('📊 ESTADÍSTICAS DE MENSAJES:');
-    console.log('─'.repeat(50));
-    console.log(`   Total de mensajes:           ${totalMessages}`);
-    console.log(`   Mensajes de texto:           ${textMessages}`);
-    console.log(`   Mensajes cifrados:           ${encryptedMessages} ✅`);
-    console.log(`   Mensajes sin cifrar:         ${unencryptedMessages} ⚠️`);
-    console.log(`   Archivos multimedia:         ${totalMessages - textMessages}`);
-    
     if (textMessages > 0) {
       const encryptionPercentage = ((encryptedMessages / textMessages) * 100).toFixed(2);
       console.log(`   Porcentaje de cifrado:       ${encryptionPercentage}%`);
@@ -47,18 +39,12 @@ async function checkEncryptionStatus() {
 
     // Verificar algunos mensajes cifrados (muestra)
     if (encryptedMessages > 0) {
-      console.log('\n🔐 VERIFICACIÓN DE CIFRADO (muestra de 3 mensajes):');
       const sampleMessages = await Message.find({ 
         messageType: 'text',
         encrypted: true 
       }).limit(3);
 
       for (const msg of sampleMessages) {
-        console.log(`\n   ID: ${msg._id}`);
-        console.log(`   Sala: ${msg.pin}`);
-        console.log(`   Remitente: ${msg.sender}`);
-        console.log(`   Cifrado: ${msg.text.substring(0, 50)}...`);
-        
         // Intentar descifrar
         try {
           const decryptionResult = encryptionService.decryptMessage(msg.text, {
@@ -79,7 +65,7 @@ async function checkEncryptionStatus() {
 
     // Mostrar mensajes sin cifrar
     if (unencryptedMessages > 0) {
-      console.log('\n⚠️  MENSAJES SIN CIFRAR:');
+      console.log('\n MENSAJES SIN CIFRAR:');
       const unencrypted = await Message.find({ 
         messageType: 'text',
         encrypted: { $ne: true }
@@ -91,15 +77,12 @@ async function checkEncryptionStatus() {
         console.log(`   Remitente: ${msg.sender}`);
         console.log(`   Texto: "${msg.text.substring(0, 50)}..."`);
       }
-      
-      console.log(`\n   💡 Ejecuta "node scripts/encryptExistingMessages.js" para cifrar estos mensajes`);
     }
 
     await mongoose.connection.close();
-    console.log('\n✅ Verificación completada\n');
 
   } catch (error) {
-    console.error('❌ Error en la verificación:', error);
+    console.error(' Error en la verificación:', error);
     process.exit(1);
   }
 }

@@ -25,7 +25,7 @@ async function createAdmin() {
     const mongoUri = process.env.MONGODB_URI;
     
     if (!mongoUri) {
-      console.error('❌ Error: MONGODB_URI no está configurada en .env');
+      console.error('Error: MONGODB_URI no está configurada en .env');
       process.exit(1);
     }
     
@@ -43,27 +43,27 @@ async function createAdmin() {
     
     const username = await question('Username (min 3 caracteres): ');
     if (username.length < 3) {
-      console.error('❌ El username debe tener al menos 3 caracteres');
+      console.error(' El username debe tener al menos 3 caracteres');
       process.exit(1);
     }
 
     const email = await question('Email: ');
     if (!email.includes('@')) {
-      console.error('❌ Email inválido');
+      console.error('Email inválido');
       process.exit(1);
     }
 
     const password = await question('Password (min 8 caracteres, debe incluir mayúsculas, minúsculas, números y símbolos): ');
     if (password.length < 8) {
-      console.error('❌ La contraseña debe tener al menos 8 caracteres');
+      console.error(' La contraseña debe tener al menos 8 caracteres');
       process.exit(1);
     }
 
     const roleInput = await question('Role (admin/moderator/superadmin) [admin]: ');
     const role = roleInput.trim() || 'admin';
     
-    if (!['admin', 'moderator', 'superadmin'].includes(role)) {
-      console.error('❌ Role inválido');
+    if (!['admin'].includes(role)) {
+      console.error('Role inválido');
       process.exit(1);
     }
 

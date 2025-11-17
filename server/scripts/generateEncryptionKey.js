@@ -14,7 +14,7 @@ const keyHex = key.toString('hex');
 console.log('Clave maestra generada (256 bits):');
 console.log(keyHex);
 
-console.log('\n⚠️  IMPORTANTE:');
+console.log('\nIMPORTANTE:');
 console.log('1. Guarda esta clave en un lugar seguro');
 console.log('2. Agrega esta clave a tu archivo .env:');
 console.log(`   ENCRYPTION_MASTER_KEY=${keyHex}`);

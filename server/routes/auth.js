@@ -9,7 +9,7 @@ const router = express.Router();
  * @desc    Registrar nuevo administrador
  * @access  Public (debería ser restringido en producción)
  */
-router.post('/register', 
+router.post('/register',
   authLimiter,
   validateRegister,
   AuthController.register

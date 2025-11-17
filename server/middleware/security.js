@@ -161,7 +161,6 @@ const detectSuspiciousActivity = (req, res, next) => {
   if (sqlPattern.test(bodyStr)) {
     suspicious.push('SQL_INJECTION_ATTEMPT');
   }
-  
   // Detectar XSS
   const xssPattern = /<script|javascript:|onerror=|onload=/gi;
   if (xssPattern.test(bodyStr)) {

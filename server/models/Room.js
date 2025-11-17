@@ -6,16 +6,12 @@ class Room {
     
     // Hash del PIN para almacenamiento seguro (aunque el PIN ya está en memoria)
     this.hashedPin = this._hashPin(pin);
-    
     // ID encriptado único de la sala
     this.encryptedId = this._generateEncryptedId();
-    
     // Nombre de la sala
     this.name = roomName || `Sala ${pin}`;
-    
     // Tipo de sala: 'text' o 'multimedia'
     this.roomType = roomType;
-    
     // Límite de usuarios
     this.limit = limit ? parseInt(limit) : null;
     

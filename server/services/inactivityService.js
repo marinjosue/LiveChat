@@ -12,16 +12,12 @@ const mongoose = require('mongoose');
 const INACTIVITY_CONFIG = {
   // Tiempo máximo de inactividad antes de desconectar (30 segundos para pruebas)
   MAX_INACTIVITY_TIME: 30 * 1000,
-  
   // Advertencia de inactividad antes de desconectar (10 segundos)
   INACTIVITY_WARNING_TIME: 10 * 1000,
-  
   // Intervalo de verificación de inactividad (cada 5 segundos para pruebas)
   CHECK_INTERVAL: 5 * 1000,
-  
   // Tiempo de gracia para reconexión después de cerrar navegador (30 segundos)
   RECONNECTION_GRACE_PERIOD: 30 * 1000,
-  
   // Tiempo para limpiar sesiones huérfanas (5 minutos)
   ORPHAN_SESSION_CLEANUP: 1 * 60 * 1000
 };
@@ -49,11 +45,11 @@ class InactivityService {
    */
   start() {
     if (this.checkInterval) {
-      console.log('⚠️ InactivityService ya está en ejecución');
+      console.log('InactivityService ya está en ejecución');
       return;
     }
 
-    console.log('🕐 InactivityService iniciado');
+    console.log('InactivityService iniciado');
     
     // Verificar inactividad periódicamente
     this.checkInterval = setInterval(() => {
@@ -75,7 +71,7 @@ class InactivityService {
     if (this.checkInterval) {
       clearInterval(this.checkInterval);
       this.checkInterval = null;
-      console.log('🛑 InactivityService detenido');
+      console.log('InactivityService detenido');
       LoggerService.info('InactivityService stopped');
     }
 
@@ -179,7 +175,7 @@ class InactivityService {
 
     // Crear timer de desconexión con período de gracia
     const timerId = setTimeout(async () => {
-      console.log(`🔌 Período de gracia terminado para ${socketId}, limpiando sesión...`);
+      console.log(`Período de gracia terminado para ${socketId}, limpiando sesión...`);
       await this.cleanupUserSession(socketId, pin, deviceId, ip);
       this.disconnectionTimers.delete(socketId);
       this.userActivityMap.delete(socketId);
@@ -237,7 +233,7 @@ class InactivityService {
 
     // Enviar advertencias
     if (usersToWarn.length > 0) {
-      console.log(`⚠️ Enviando advertencia a ${usersToWarn.length} usuarios por inactividad`);
+      console.log(`Enviando advertencia a ${usersToWarn.length} usuarios por inactividad`);
       
       for (const user of usersToWarn) {
         this.sendInactivityWarning(user.socketId, user.pin);
@@ -246,7 +242,7 @@ class InactivityService {
 
     // Desconectar usuarios inactivos
     if (usersToDisconnect.length > 0) {
-      console.log(`🔍 Desconectando ${usersToDisconnect.length} usuarios inactivos`);
+      console.log(`Desconectando ${usersToDisconnect.length} usuarios inactivos`);
       
       for (const user of usersToDisconnect) {
         await this.disconnectInactiveUser(user.socketId, user.pin, user.deviceId);
@@ -269,12 +265,12 @@ class InactivityService {
         
         // Enviar advertencia con cuenta regresiva
         socket.emit('inactivityWarning', {
-          message: '⚠️ Estás inactivo. ¿Sigues ahí?',
+          message: 'Estás inactivo. ¿Sigues ahí?',
           secondsRemaining: INACTIVITY_CONFIG.INACTIVITY_WARNING_TIME / 1000,
           reason: 'INACTIVITY_WARNING'
         });
 
-        console.log(`⚠️ Advertencia enviada a usuario ${socketId} en sala ${pin}`);
+        console.log(`Advertencia enviada a usuario ${socketId} en sala ${pin}`);
         
         LoggerService.info('Inactivity warning sent', {
           socketId,
@@ -302,7 +298,6 @@ class InactivityService {
     try {
       // Marcar como en proceso de desconexión para evitar duplicados
       if (this.alreadyDisconnecting.has(socketId)) {
-        console.log(`⚠️ Usuario ${socketId} ya está en proceso de desconexión, skip`);
         return;
       }
       
@@ -362,11 +357,9 @@ class InactivityService {
       // Priorizar eliminación por IP (más confiable)
       if (ip) {
         deletedSessions = await DeviceSession.deleteMany({ ip, roomPin: pin });
-        console.log(`🗑️ Sesiones eliminadas: ${deletedSessions.deletedCount} para IP ${ip} en sala ${pin}`);
       } else {
         // Fallback: eliminar por deviceId
         deletedSessions = await DeviceSession.deleteMany({ deviceId, roomPin: pin });
-        console.log(`🗑️ Sesiones eliminadas: ${deletedSessions.deletedCount} para deviceId ${deviceId}`);
       }
 
       // Actualizar membership (priorizar búsqueda por IP)
@@ -379,7 +372,6 @@ class InactivityService {
       
       if (membership) {
         await membership.disconnect();
-        console.log(`📝 Membership actualizado para ${ip || deviceId} en sala ${pin}`);
       }
 
       LoggerService.info('User session cleaned', {
@@ -418,9 +410,7 @@ class InactivityService {
         lastActive: { $lt: cutoffTime }
       });
 
-      if (orphanSessions.length > 0) {
-        console.log(`🧹 Limpiando ${orphanSessions.length} sesiones huérfanas...`);
-        
+      if (orphanSessions.length > 0) {        
         for (const session of orphanSessions) {
           // Verificar si el socket todavía existe
           const socketExists = this.userActivityMap.has(session.deviceId);
@@ -437,8 +427,6 @@ class InactivityService {
             if (membership) {
               await membership.disconnect();
             }
-
-            console.log(`🗑️ Sesión huérfana eliminada: ${session.deviceId} de sala ${session.roomPin}`);
           }
         }
 

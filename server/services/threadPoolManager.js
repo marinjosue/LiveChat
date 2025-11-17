@@ -16,7 +16,7 @@ class Task {
     this.id = id;
     this.workerScript = workerScript;
     this.workerData = workerData;
-    this.priority = priority; // Mayor número = mayor prioridad
+    this.priority = priority; 
     this.timeout = timeout;
     this.createdAt = Date.now();
     this.startedAt = null;

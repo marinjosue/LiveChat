@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const DeviceSessionSchema = new mongoose.Schema({
     deviceId: { type: String, required: true },
-    ip: { type: String, required: true, index: true }, // IP indexada para búsquedas rápidas
+    ip: { type: String, required: true, index: true }, 
     roomPin: { type: String, required: true, index: true },
     nickname: { type: String, required: true },
     lastActive: { type: Date, default: Date.now },

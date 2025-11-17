@@ -4,7 +4,6 @@ const crypto = require('crypto');
  * Servicio de encriptación para mensajes
  * Implementa AES-256-GCM para encriptación autenticada
  */
-
 const ALGORITHM = 'aes-256-gcm';
 const KEY_LENGTH = 32; // 256 bits
 const IV_LENGTH = 16; // 128 bits
@@ -26,12 +25,10 @@ class EncryptionService {
     if (envKey) {
       return Buffer.from(envKey, 'hex');
     }
-    
     // Generar clave aleatoria (solo para desarrollo)
-    console.warn('[ENCRYPTION] ⚠️ Using generated master key. Set ENCRYPTION_MASTER_KEY in production!');
+    console.warn('[ENCRYPTION] Using generated master key. Set ENCRYPTION_MASTER_KEY in production!');
     return crypto.randomBytes(KEY_LENGTH);
   }
-
   /**
    * Deriva una clave de encriptación usando PBKDF2
    */

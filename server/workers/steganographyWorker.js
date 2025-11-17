@@ -159,7 +159,7 @@ function analyzeByteDistribution(buffer) {
 }
 
 /**
- * ✨ NUEVO: Análisis de correlación de píxeles (detecta LSB embedding)
+ * NUEVO: Análisis de correlación de píxeles (detecta LSB embedding)
  */
 async function analyzePixelCorrelation(rawData, channels, pixelCount) {
   let correlationSum = 0;
@@ -187,7 +187,7 @@ async function analyzePixelCorrelation(rawData, channels, pixelCount) {
 }
 
 /**
- * ✨ NUEVO: Análisis de metadatos EXIF
+ * NUEVO: Análisis de metadatos EXIF
  */
 async function analyzeExifData(metadata) {
   const suspiciousSignals = [];

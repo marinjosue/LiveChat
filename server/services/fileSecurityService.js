@@ -20,24 +20,18 @@ class FileSecurityService {
    */
   static async analyzeSteganography(fileBuffer, mimeType, fileName) {
     try {
-      console.log(`[STEGO] Analyzing ${fileName} (${mimeType})...`);
-      
       const startTime = Date.now();
       
       // Ejecutar análisis en worker thread
       const result = await steganographyWorkerPool.runTask({
-        fileBuffer: Array.from(fileBuffer), // Convertir Buffer a Array para worker
+        fileBuffer: Array.from(fileBuffer), 
         mimeType,
         fileName
       }, 60000); // 60 segundos de timeout
       
       const duration = Date.now() - startTime;
-      
-      console.log(`[STEGO] Analysis completed in ${duration}ms`);
-      console.log(`[STEGO] Verdict: ${result.success && result.results.verdict.isSuspicious ? 'SUSPICIOUS' : 'CLEAN'}`);
-      
       if (result.success && result.results.verdict.isSuspicious) {
-        console.warn(`[STEGO] ⚠️ Suspicious file detected: ${fileName}`);
+        console.warn(`[STEGO] Suspicious file detected: ${fileName}`);
         console.warn(`[STEGO] Reasons: ${result.results.verdict.reasons.join(', ')}`);
       }
       

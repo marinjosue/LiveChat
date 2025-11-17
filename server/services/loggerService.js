@@ -12,7 +12,7 @@ const ensureLogDir = async () => {
     await fs.access(logsDir);
   } catch {
     await fs.mkdir(logsDir, { recursive: true });
-    console.log('📁 Directorio de logs creado:', logsDir);
+    console.log('Directorio de logs creado:', logsDir);
   }
 };
 

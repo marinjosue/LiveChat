@@ -43,7 +43,6 @@ const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
 const adminRoomsRoutes = require('./routes/adminRooms');
 const roomRoutes = require('./routes/rooms');
-const myRoomsRoutes = require('./routes/myRooms');
 
 const app = express();
 
@@ -172,15 +171,12 @@ app.use('/api/auth', authRoutes);
 // ⚠️ IMPORTANTE: Las rutas más específicas DEBEN ir primero
 // Rutas de salas de administración (ANTES de /api/admin genérico)
 app.use('/api/admin/rooms', adminRoomsRoutes);
-
 // Rutas de administración genérica
 app.use('/api/admin', adminRoutes);
-
 // Rutas públicas de salas
 app.use('/api/rooms', roomRoutes);
 
-// Rutas de mis salas (pertenencias de usuario)
-app.use('/api/my-rooms', myRoomsRoutes);
+
 
 // ==================== ENDPOINT DE UPLOAD CON SEGURIDAD ====================
 
@@ -210,15 +206,12 @@ app.post('/api/upload',
       }
 
       if (roomDocument.roomType === 'text') {
-        console.log(`🚫 Intento de subir archivo a sala de solo texto (PIN: ${pin})`);
+        console.log(`Intento de subir archivo a sala de solo texto (PIN: ${pin})`);
         return res.status(403).json({
           success: false,
           message: 'Esta sala es solo para mensajes de texto. No se permiten archivos multimedia.'
         });
       }
-
-      console.log(`📤 HTTP Upload: ${file.originalname} (${(file.size / 1024 / 1024).toFixed(2)}MB)`);
-
       // ===== ANÁLISIS DE SEGURIDAD DEL ARCHIVO =====
       console.log(`[SECURITY] Analyzing file: ${file.originalname}`);
       
@@ -261,7 +254,7 @@ app.post('/api/upload',
       if (securityValidation.warnings.length > 0 || 
           securityValidation.checks.steganography?.isSuspicious) {
         
-        console.warn(`[SECURITY] 🚨 Archivo sospechoso RECHAZADO: ${file.originalname}`);
+        console.warn(`[SECURITY] Archivo sospechoso RECHAZADO: ${file.originalname}`);
         console.warn(`[SECURITY] Razones: ${securityValidation.warnings.join(', ')}`);
         
         const reasons = securityValidation.checks.steganography?.reasons || securityValidation.warnings;
@@ -291,7 +284,7 @@ app.post('/api/upload',
         );
 
         // Emitir notificación WebSocket a todos los administradores conectados
-        console.warn(`[ADMIN-ALERT] 🚨 Notificando a administradores sobre archivo sospechoso rechazado`);
+        console.warn(`[ADMIN-ALERT] Notificando a administradores sobre archivo sospechoso rechazado`);
         io.emit('adminAlert:suspiciousFileRejected', {
           timestamp: new Date(),
           fileName: file.originalname,
@@ -383,7 +376,7 @@ app.post('/api/upload',
         tempId
       });
 
-      console.log(`✅ HTTP Upload exitoso: ${uploadResult.url}`);
+      console.log(`HTTP Upload exitoso: ${uploadResult.url}`);
       
       res.json({ 
         success: true, 
@@ -397,7 +390,7 @@ app.post('/api/upload',
       });
 
     } catch (error) {
-      console.error('❌ Error en HTTP upload:', error);
+      console.error('Error en HTTP upload:', error);
       LoggerService.error('File upload error', { error: error.message });
       res.status(500).json({ 
         success: false, 
@@ -410,8 +403,6 @@ app.post('/api/upload',
 // ==================== CONTROLADOR DE SALAS CON SOCKETS ====================
 
 const roomControllerExports = RoomController(io);
-
-console.log('✅ RoomController y servicios de inactividad inicializados');
 
 // ==================== ENDPOINT ADICIONALES ====================
 
@@ -529,7 +520,7 @@ server.listen(PORT, () => {
   console.log('  • Auto-scaling Workers');
   console.log('  • Lock Management (deadlock prevention)');
   console.log('');
-  console.log(`📊 Thread Pool Stats:`, globalThreadPool.getStats());
+  console.log(` Thread Pool Stats:`, globalThreadPool.getStats());
   console.log('');
   
   LoggerService.info('Server started', {
@@ -571,7 +562,7 @@ async function gracefulShutdown(signal) {
 
   // Cerrar conexión a MongoDB
   await mongoose.connection.close();
-  console.log('✓ MongoDB connection closed');
+  console.log('MongoDB connection closed');
   
   LoggerService.info('Server shutdown complete');
   process.exit(0);
@@ -583,13 +574,13 @@ process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 // Capturar excepciones no manejadas
 process.on('uncaughtException', (error) => {
-  console.error('💥 Uncaught Exception:', error);
+  console.error(' Uncaught Exception:', error);
   LoggerService.error('Uncaught exception', { error: error.message, stack: error.stack });
   gracefulShutdown('uncaughtException');
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('💥 Unhandled Rejection at:', promise, 'reason:', reason);
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
   LoggerService.error('Unhandled rejection', { reason });
   gracefulShutdown('unhandledRejection');
 });

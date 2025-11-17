@@ -3,7 +3,7 @@ const speakeasy = require('speakeasy');
 const QRCode = require('qrcode');
 const Admin = require('../models/Admin');
 const { AuditService } = require('../services/auditService');
-const { createHashWorker, createVerifyWorker, createIntegrityWorker, WorkerPool } = require('../services/workerPoolService');
+const { createHashWorker, WorkerPool } = require('../services/workerPoolService');
 const { body, validationResult } = require('express-validator');
 const path = require('path');
 
@@ -13,7 +13,7 @@ const authWorkerPool = new WorkerPool(
   4 // 4 workers concurrentes
 );
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES_IN = '24h';
 
 /**
@@ -23,7 +23,7 @@ const validateRegister = [
   body('username').trim().isLength({ min: 3, max: 50 }).isAlphanumeric(),
   body('email').trim().isEmail().normalizeEmail(),
   body('password').isLength({ min: 8 }).matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])/),
-  body('role').optional().isIn(['admin', 'moderator', 'superadmin'])
+  body('role').optional().isIn(['admin'])
 ];
 
 /**
@@ -35,7 +35,7 @@ const validateLogin = [
 ];
 
 /**
- * Extrae IP del request
+ * Extrae IP del request para validacion de una sala por maquina
  */
 const getClientIp = (req) => {
   return req.headers['x-forwarded-for']?.split(',')[0] || 
@@ -84,11 +84,7 @@ class AuthController {
           message: 'Usuario o email ya existe' 
         });
       }
-
-      // Hashear contraseña usando Worker Thread (proceso CPU-intensivo)
-      console.log(`[AUTH] Hashing password for ${username} in worker thread...`);
       const hashResult = await createHashWorker(password);
-
       if (!hashResult.success) {
         throw new Error('Error al hashear contraseña');
       }
@@ -113,9 +109,6 @@ class AuthController {
         userAgent,
         status: 'SUCCESS'
       });
-
-      console.log(`[AUTH] Admin created: ${username}`);
-
       res.status(201).json({
         success: true,
         message: 'Administrador creado exitosamente',
@@ -131,7 +124,6 @@ class AuthController {
       });
     }
   }
-
   /**
    * Login de administrador con verificación en Worker Thread
    * Soporta autenticación concurrente
@@ -147,9 +139,6 @@ class AuthController {
       const { username, password } = req.body;
       const ipAddress = getClientIp(req);
       const userAgent = req.headers['user-agent'];
-
-      console.log(`[AUTH] Login attempt for ${username} from ${ipAddress}`);
-
       // Buscar administrador
       const admin = await Admin.findOne({ username });
 
@@ -171,9 +160,7 @@ class AuthController {
           message: `Cuenta bloqueada. Intenta de nuevo en ${timeLeft} minutos.` 
         });
       }
-
       // Verificar contraseña usando Worker Thread Pool (concurrente)
-      console.log(`[AUTH] Verifying password for ${username} in worker thread...`);
       const verifyResult = await authWorkerPool.runTask({
         password,
         hash: admin.passwordHash
@@ -220,9 +207,6 @@ class AuthController {
         JWT_SECRET,
         { expiresIn: JWT_EXPIRES_IN }
       );
-
-      console.log(`[AUTH] Login successful for ${username}`);
-
       res.json({
         success: true,
         token,
@@ -368,9 +352,6 @@ class AuthController {
         JWT_SECRET,
         { expiresIn: JWT_EXPIRES_IN }
       );
-
-      console.log(`[AUTH] 2FA verified for ${admin.username}`);
-
       res.json({
         success: true,
         token,
@@ -394,8 +375,6 @@ class AuthController {
   static async verifyToken(req, res, next) {
     try {
       const authHeader = req.headers.authorization;
-      console.log('[AUTH] verifyToken - Authorization header:', authHeader ? authHeader.substring(0, 20) + '...' : 'MISSING');
-      
       const token = authHeader?.replace('Bearer ', '');
 
       if (!token) {
@@ -431,8 +410,6 @@ class AuthController {
           message: 'Administrador no válido' 
         });
       }
-
-      console.log('[AUTH] verifyToken - Success for:', admin.username);
       req.admin = decoded;
       next();
 
@@ -468,13 +445,6 @@ class AuthController {
       const ipAddress = getClientIp(req);
       const userAgent = req.headers['user-agent'];
 
-      console.log('[AUTH] confirm2FA - Request received:', {
-        hasCode: !!code,
-        codeLength: code?.length,
-        adminId,
-        hasAdmin: !!req.admin
-      });
-
       if (!code) {
         return res.status(400).json({ 
           success: false, 
@@ -495,9 +465,6 @@ class AuthController {
           message: 'Primero debes habilitar 2FA' 
         });
       }
-
-      console.log('[AUTH] confirm2FA - Verifying code for:', admin.username);
-
       // Verificar código 2FA
       const verified = speakeasy.totp.verify({
         secret: admin.secret2FA,
@@ -526,9 +493,6 @@ class AuthController {
       // Activar 2FA
       admin.isEnabled2FA = true;
       await admin.save();
-
-      console.log('[AUTH] confirm2FA - 2FA activated successfully for:', admin.username);
-
       await AuditService.log({
         adminId: admin._id,
         adminUsername: admin.username,
@@ -644,5 +608,4 @@ module.exports = {
   AuthController,
   validateRegister,
   validateLogin,
-  authWorkerPool
 };

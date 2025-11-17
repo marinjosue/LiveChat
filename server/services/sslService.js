@@ -29,9 +29,6 @@ class SSLCertificateService {
       if (!fs.existsSync(this.certDir)) {
         fs.mkdirSync(this.certDir, { recursive: true });
       }
-
-      console.log('🔐 Generando certificados SSL para desarrollo...');
-
       // Generar clave privada
       execSync(`openssl genrsa -out "${this.keyPath}" 2048`, { stdio: 'pipe' });
 
@@ -39,14 +36,9 @@ class SSLCertificateService {
       const command = `openssl req -new -x509 -key "${this.keyPath}" -out "${this.certPath}" -days 365 -subj "/C=EC/ST=Pichincha/L=Quito/O=ESPE/CN=localhost"`;
       execSync(command, { stdio: 'pipe' });
 
-      console.log('✅ Certificados SSL generados exitosamente');
-      console.log(`   🔑 Clave privada: ${this.keyPath}`);
-      console.log(`   📜 Certificado: ${this.certPath}`);
-
       return true;
     } catch (error) {
-      console.error('❌ Error generando certificados SSL:', error.message);
-      console.log('💡 Asegúrate de tener OpenSSL instalado o usa certificados existentes');
+      console.error('Error generando certificados SSL:', error.message);
       return false;
     }
   }
@@ -83,10 +75,9 @@ class SSLCertificateService {
       fs.writeFileSync(this.keyPath, privateKey);
       fs.writeFileSync(this.certPath, cert);
 
-      console.log('✅ Certificados SSL por defecto creados');
       return true;
     } catch (error) {
-      console.error('❌ Error creando certificados por defecto:', error.message);
+      console.error(' Error creando certificados por defecto:', error.message);
       return false;
     }
   }

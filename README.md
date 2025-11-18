@@ -48,26 +48,7 @@ Este proyecto fomenta el aprendizaje en programación concurrente, WebSockets pa
 
 ## Arquitectura
 
-```
-┌─────────────────────────────────────────────┐
-│              LIVECHAT APP                   │
-├─────────────────────────────────────────────┤
-│                                             │
-│  ┌──────────────┐      ┌──────────────┐   │
-│  │   CLIENT     │◄────►│   SERVER     │   │
-│  │              │      │              │   │
-│  │ React + Nginx│      │ Node.js +    │   │
-│  │   (Port 80)  │      │  Socket.IO   │   │
-│  │              │      │  (Port 3001) │   │
-│  └──────────────┘      └───────┬──────┘   │
-│                                │           │
-│                                ▼           │
-│                        ┌──────────────┐   │
-│                        │   MongoDB    │   │
-│                        │ (Port 27017) │   │
-│                        └──────────────┘   │
-└─────────────────────────────────────────────┘
-```
+![](imagenes/Ingresa%20a%20la%20sala.png)
 
 ---
 
@@ -925,6 +906,10 @@ const isValid = await auditLog.verifyIntegrity();
 ## Licencia
 
 Este proyecto está desarrollado por **Autepim**.
+
+---
+
+-  [Pruebas del Sistema](./PRUEBAS.md)
 
 ---
 

@@ -2,6 +2,35 @@ const winston = require('winston');
 require('winston-mongodb');
 const AuditLog = require('../models/AuditLog');
 
+// Configurar transports base
+const transports = [
+  // Logs de errores en archivo
+  new winston.transports.File({ 
+    filename: 'logs/error.log', 
+    level: 'error',
+    maxsize: 5242880, // 5MB
+    maxFiles: 5,
+  }),
+  // Logs generales en archivo
+  new winston.transports.File({ 
+    filename: 'logs/combined.log',
+    maxsize: 5242880, // 5MB
+    maxFiles: 5,
+  }),
+  new winston.transports.Console({ level: 'info' })
+];
+
+// Agregar MongoDB logger en modo no-test
+if (process.env.NODE_ENV !== 'test') {
+  transports.push(
+    new winston.transports.MongoDB({
+      db: process.env.MONGODB_URI,
+      collection: 'system_logs',
+      level: 'info',
+    })
+  );
+}
+
 // Configuración del logger con Winston
 const logger = winston.createLogger({
   level: 'info',
@@ -11,31 +40,7 @@ const logger = winston.createLogger({
     winston.format.json()
   ),
   defaultMeta: { service: 'livechat-server' },
-  transports: [
-    // Logs de errores en archivo
-    new winston.transports.File({ 
-      filename: 'logs/error.log', 
-      level: 'error',
-      maxsize: 5242880, // 5MB
-      maxFiles: 5,
-    }),
-    // Logs generales en archivo
-    new winston.transports.File({ 
-      filename: 'logs/combined.log',
-      maxsize: 5242880, // 5MB
-      maxFiles: 5,
-    }),
-    // Logs de auditoría en MongoDB 
-    new winston.transports.MongoDB({
-      db: process.env.MONGODB_URI,
-      collection: 'system_logs',
-      level: 'info',
-      options: { useUnifiedTopology: true },
-      tryReconnect: true,
-      decolorize: true,
-      expireAfterSeconds: 7776000, // 90 días
-    })
-  ],
+  transports,
   // Manejar excepciones no capturadas
   exceptionHandlers: [
     new winston.transports.File({ filename: 'logs/exceptions.log' })
@@ -46,7 +51,7 @@ const logger = winston.createLogger({
   ]
 });
 
-// En desarrollo, también loguear a consola
+// En desarrollo, también loguear a consola con colores
 if (process.env.NODE_ENV !== 'production') {
   logger.add(new winston.transports.Console({
     format: winston.format.combine(

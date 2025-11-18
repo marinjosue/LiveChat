@@ -886,7 +886,7 @@ const isValid = await auditLog.verifyIntegrity();
 
 ## Documentación Adicional
 
-- **[SECURITY_IMPLEMENTATION.md](./SECURITY_IMPLEMENTATION.md)** - Guía detallada de implementación de seguridad
+- **[Pruebas del Sistema](./PRUEBAS.md)** - Guía detallada de implementación de seguridad
 - **Logs de Auditoría**: Ver `server/logs/` para archivos de log
 - **Ejemplos de API**: Importar colección de Postman (crear según necesidad)
 
@@ -909,9 +909,6 @@ Este proyecto está desarrollado por **Autepim**.
 
 ---
 
--  [Pruebas del Sistema](./PRUEBAS.md)
 
----
-
-**Desarrollado con ❤️ por Autepim**
+**Desarrollado con  por Autepim**
 

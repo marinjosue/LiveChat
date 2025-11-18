@@ -10,14 +10,14 @@ const mongoose = require('mongoose');
 
 // Configuración de timeouts
 const INACTIVITY_CONFIG = {
-  // Tiempo máximo de inactividad antes de desconectar (30 segundos para pruebas)
+  // Tiempo máximo de inactividad antes de desconectar (30 segundos)
   MAX_INACTIVITY_TIME: 30 * 1000,
-  // Advertencia de inactividad antes de desconectar (10 segundos)
-  INACTIVITY_WARNING_TIME: 10 * 1000,
-  // Intervalo de verificación de inactividad (cada 5 segundos para pruebas)
+  // Advertencia de inactividad antes de desconectar (15 segundos)
+  INACTIVITY_WARNING_TIME: 15 * 1000,
+  // Intervalo de verificación de inactividad (cada 5 segundos)
   CHECK_INTERVAL: 5 * 1000,
-  // Tiempo de gracia para reconexión después de cerrar navegador (30 segundos)
-  RECONNECTION_GRACE_PERIOD: 30 * 1000,
+  // Tiempo de gracia para reconexión después de cerrar navegador (60 segundos)
+  RECONNECTION_GRACE_PERIOD: 60 * 1000,
   // Tiempo para limpiar sesiones huérfanas (5 minutos)
   ORPHAN_SESSION_CLEANUP: 1 * 60 * 1000
 };
@@ -214,6 +214,14 @@ class InactivityService {
     const usersToDisconnect = [];
 
     for (const [socketId, userData] of this.userActivityMap) {
+      // Verificar que el socket todavía existe y está conectado
+      const socket = this.io.sockets.sockets.get(socketId);
+      if (!socket || !socket.connected) {
+        // Socket no existe o no está conectado, limpiar del mapa
+        this.userActivityMap.delete(socketId);
+        continue;
+      }
+      
       const timeSinceLastActivity = now - userData.lastActivity;
       
       // Skip si ya está en proceso de desconexión

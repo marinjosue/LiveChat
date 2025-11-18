@@ -1,5 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
+import { Toast } from 'primereact/toast';
+import { confirmDialog, ConfirmDialog } from 'primereact/confirmdialog';
 import { 
   Home, 
   Lock, 
@@ -17,6 +19,7 @@ import '../styles/RoomManagement.css';
 const BACKEND_URL = process.env.REACT_APP_SOCKET_URL || 'http://localhost:3001';
 
 function RoomManagement() {
+  const toast = useRef(null);
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -76,66 +79,94 @@ function RoomManagement() {
   };
 
   const handleDeleteRoom = async (pin, roomName) => {
-    if (!window.confirm(`¿Estás seguro de ELIMINAR (desactivar) la sala "${roomName}" (PIN: ${pin})?\n\n⚠️ La sala será marcada como inactiva y los usuarios no podrán acceder.`)) {
-      return;
-    }
+    confirmDialog({
+      message: `¿Estás seguro de DESACTIVAR la sala "${roomName}" (PIN: ${pin})?\n\nLa sala será marcada como inactiva y los usuarios no podrán acceder.`,
+      header: '⚠️ Confirmar Desactivación',
+      icon: 'pi pi-exclamation-triangle',
+      acceptLabel: 'Sí, desactivar',
+      rejectLabel: 'Cancelar',
+      accept: async () => {
+        const token = localStorage.getItem('adminToken');
+        try {
+          console.log(`🗑️ Desactivando sala ${pin}...`);
+          const response = await axios.delete(
+            `${BACKEND_URL}/api/admin/rooms/${pin}`,
+            { headers: { 'Authorization': `Bearer ${token}` } }
+          );
 
-    const token = localStorage.getItem('adminToken');
-    try {
-      console.log(`🗑️ Eliminando sala ${pin}...`);
-      const response = await axios.delete(
-        `${BACKEND_URL}/api/admin/rooms/${pin}`,
-        { headers: { 'Authorization': `Bearer ${token}` } }
-      );
-
-      if (response.data.success) {
-        console.log('✅ Sala eliminada exitosamente');
-        // Recargar la lista de salas
-        await loadRooms();
-        alert(`✅ Sala "${roomName}" desactivada exitosamente`);
+          if (response.data.success) {
+            console.log('✅ Sala desactivada exitosamente');
+            await loadRooms();
+            toast.current.show({
+              severity: 'success',
+              summary: '✅ Sala Desactivada',
+              detail: `La sala "${roomName}" ha sido desactivada exitosamente`,
+              life: 3000
+            });
+          }
+        } catch (err) {
+          console.error('❌ Error desactivando sala:', err);
+          toast.current.show({
+            severity: 'error',
+            summary: '❌ Error',
+            detail: 'Error al desactivar sala: ' + (err.response?.data?.message || err.message),
+            life: 5000
+          });
+        }
       }
-    } catch (err) {
-      console.error('❌ Error eliminando sala:', err);
-      alert('❌ Error al eliminar sala: ' + (err.response?.data?.message || err.message));
-    }
+    });
   };
 
   const handleToggleRoomStatus = async (pin, roomName, currentStatus) => {
     const action = currentStatus ? 'desactivar' : 'reactivar';
     const actionText = currentStatus ? 'desactivada' : 'reactivada';
     
-    if (!window.confirm(`¿Deseas ${action} la sala "${roomName}" (PIN: ${pin})?`)) {
-      return;
-    }
-
-    const token = localStorage.getItem('adminToken');
-    try {
-      console.log(`🔄 ${action} sala ${pin}...`);
-      
-      if (currentStatus) {
-        // Desactivar
-        await axios.delete(
-          `${BACKEND_URL}/api/admin/rooms/${pin}`,
-          { headers: { 'Authorization': `Bearer ${token}` } }
-        );
-      } else {
-        // Reactivar
-        await axios.patch(
-          `${BACKEND_URL}/api/admin/rooms/${pin}/activate`,
-          {},
-          { headers: { 'Authorization': `Bearer ${token}` } }
-        );
+    confirmDialog({
+      message: `¿Deseas ${action} la sala "${roomName}" (PIN: ${pin})?`,
+      header: `🔄 Confirmar ${action.charAt(0).toUpperCase() + action.slice(1)}`,
+      icon: 'pi pi-refresh',
+      acceptLabel: `Sí, ${action}`,
+      rejectLabel: 'Cancelar',
+      accept: async () => {
+        const token = localStorage.getItem('adminToken');
+        try {
+          console.log(`🔄 ${action} sala ${pin}...`);
+          
+          if (currentStatus) {
+            // Desactivar
+            await axios.delete(
+              `${BACKEND_URL}/api/admin/rooms/${pin}`,
+              { headers: { 'Authorization': `Bearer ${token}` } }
+            );
+          } else {
+            // Reactivar
+            await axios.patch(
+              `${BACKEND_URL}/api/admin/rooms/${pin}/activate`,
+              {},
+              { headers: { 'Authorization': `Bearer ${token}` } }
+            );
+          }
+          
+          console.log(`✅ Sala ${actionText} exitosamente`);
+          await loadRooms();
+          toast.current.show({
+            severity: 'success',
+            summary: `✅ Sala ${actionText.charAt(0).toUpperCase() + actionText.slice(1)}`,
+            detail: `La sala "${roomName}" ha sido ${actionText} exitosamente`,
+            life: 3000
+          });
+          
+        } catch (err) {
+          console.error(`❌ Error al ${action} sala:`, err);
+          toast.current.show({
+            severity: 'error',
+            summary: '❌ Error',
+            detail: `Error al ${action} sala: ` + (err.response?.data?.message || err.message),
+            life: 5000
+          });
+        }
       }
-      
-      console.log(`✅ Sala ${actionText} exitosamente`);
-      // Recargar la lista de salas
-      await loadRooms();
-      alert(`✅ Sala "${roomName}" ${actionText} exitosamente`);
-      
-    } catch (err) {
-      console.error(`❌ Error al ${action} sala:`, err);
-      alert(`❌ Error al ${action} sala: ` + (err.response?.data?.message || err.message));
-    }
+    });
   };
 
   const formatDate = (dateString) => {
@@ -168,8 +199,51 @@ function RoomManagement() {
     );
   }
 
+  const handleDeleteRoomPermanently = async (pin, roomName) => {
+    confirmDialog({
+      message: `¿Estás ABSOLUTAMENTE SEGURO de eliminar DEFINITIVAMENTE la sala "${roomName}" (PIN: ${pin})?\n\n🚨 ADVERTENCIA: Esta acción es IRREVERSIBLE\n• Se eliminarán todos los mensajes\n• Se eliminarán todos los archivos\n• Se eliminarán todas las sesiones\n• NO se puede deshacer`,
+      header: '🚨 ELIMINAR DEFINITIVAMENTE',
+      icon: 'pi pi-exclamation-circle',
+      acceptLabel: 'Sí, eliminar definitivamente',
+      rejectLabel: 'Cancelar',
+      acceptClassName: 'p-button-danger',
+      accept: async () => {
+        const token = localStorage.getItem('adminToken');
+        try {
+          console.log(`🚨 Eliminando definitivamente sala ${pin}...`);
+          const response = await axios.delete(
+            `${BACKEND_URL}/api/admin/rooms/${pin}/permanent`,
+            { headers: { 'Authorization': `Bearer ${token}` } }
+          );
+
+          if (response.data.success) {
+            console.log('✅ Sala eliminada definitivamente');
+            await loadRooms();
+            toast.current.show({
+              severity: 'warn',
+              summary: '🚨 Sala Eliminada Definitivamente',
+              detail: `La sala "${roomName}" y todos sus datos han sido eliminados permanentemente`,
+              life: 5000
+            });
+          }
+        } catch (err) {
+          console.error('❌ Error eliminando sala definitivamente:', err);
+          toast.current.show({
+            severity: 'error',
+            summary: '❌ Error',
+            detail: 'Error al eliminar sala definitivamente: ' + (err.response?.data?.message || err.message),
+            life: 5000
+          });
+        }
+      }
+    });
+  };
+
   return (
     <div className="room-management">
+      <Toast ref={toast} position="top-right" />
+      <ConfirmDialog />
+      
       <div className="room-management-header">
         <div className="header-title">
           <Home size={28} />
@@ -298,19 +372,28 @@ function RoomManagement() {
                 <button
                   className={`btn-action ${room.isActive ? 'btn-warning' : 'btn-success'}`}
                   onClick={() => handleToggleRoomStatus(room.pin, room.name, room.isActive)}
-                  title={room.isActive ? 'Desactivar sala' : 'Reactivar sala'}
+                  title={room.isActive ? 'Desactivar sala temporalmente' : 'Reactivar sala'}
                 >
                   <Power size={16} />
                   {room.isActive ? 'Desactivar' : 'Reactivar'}
                 </button>
                 
                 <button
-                  className="btn-action btn-danger"
+                  className="btn-action btn-danger-outline"
                   onClick={() => handleDeleteRoom(room.pin, room.name)}
-                  title="Desactivar sala permanentemente"
+                  title="Marcar sala como inactiva"
                 >
                   <Trash2 size={16} />
-                  Eliminar
+                  Inactivar
+                </button>
+                
+                <button
+                  className="btn-action btn-danger"
+                  onClick={() => handleDeleteRoomPermanently(room.pin, room.name)}
+                  title="Eliminar definitivamente (irreversible)"
+                >
+                  <Trash2 size={16} />
+                  🚨 Eliminar Definitivo
                 </button>
               </div>
             </div>

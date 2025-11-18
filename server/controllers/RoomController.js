@@ -303,10 +303,10 @@ function RoomController(io) {
       socket.refreshing = true;
       console.log(`Socket ${socket.id} indica refresh en sala ${pin}`);
 
-      // eliminar de la lista despues de un tiempo prudencial
+      // eliminar de la lista despues de un tiempo prudencial (60 segundos)
       setTimeout(() => {
         refreshingUsers.delete(key);
-      }, 30000);
+      }, 60000);
     });
 
     // reconectar a sala
@@ -343,10 +343,33 @@ function RoomController(io) {
         const key = `${pin}:${deviceId}`;
         refreshingUsers.delete(key);
 
-        // BUSCAR SESIÓN POR IP (no por deviceId, ya que puede cambiar entre navegadores)
-        const session = await getSessionByIp(clientIp, pin);
+        // BUSCAR SESIÓN POR IP O DEVICEID (intentar ambos métodos)
+        let session = await getSessionByIp(clientIp, pin);
+        
         if (!session) {
-          console.log(`No hay sesión válida para IP ${clientIp} en sala ${pin}`);
+          // Intentar buscar por deviceId como fallback
+          session = await DeviceSession.findOne({ deviceId, roomPin: pin });
+        }
+        
+        // Si no hay sesión pero hay un membership activo, recrear la sesión
+        if (!session) {
+          const membership = await RoomMembership.findOne({ 
+            $or: [
+              { deviceId, roomPin: pin },
+              { ip: clientIp, roomPin: pin }
+            ]
+          });
+          
+          if (membership) {
+            // Recrear sesión desde el membership
+            console.log(`⚙️ Recreando sesión desde membership para ${membership.nickname}`);
+            await registerSession(deviceId, clientIp, pin, membership.nickname);
+            session = await getSessionByIp(clientIp, pin);
+          }
+        }
+        
+        if (!session) {
+          console.log(`No hay sesión válida para IP ${clientIp} / deviceId ${deviceId} en sala ${pin}`);
           return callback({ success: false, message: 'Sesion no valida o expirada para este dispositivo' });
         }
 
@@ -593,11 +616,11 @@ function RoomController(io) {
         console.log(`Enviado por: ${sender}`);
 
         // ===== 2. VALIDAR TAMAÑO =====
-        const MAX_SIZE = 15 * 1024 * 1024;
+        const MAX_SIZE = 25 * 1024 * 1024;
         if (fileSize > MAX_SIZE) {
           console.log('Archivo demasiado grande');
-          socket.emit('fileError', { message: 'El archivo supera el limite de 15MB', tempId });
-          if (callback) callback({ success: false, message: 'El archivo supera el limite de 15MB' });
+          socket.emit('fileError', { message: 'El archivo supera el limite de 25MB', tempId });
+          if (callback) callback({ success: false, message: 'El archivo supera el limite de 25MB' });
           return;
         }
 
@@ -625,46 +648,58 @@ function RoomController(io) {
             checkSteganography: true,
             checkIntegrity: true,
             checkFileType: true,
-            maxSize: 15 * 1024 * 1024
+            maxSize: 25 * 1024 * 1024
           }
         );
 
         // ===== 5. EVALUAR RESULTADO DEL ANÁLISIS =====
-        if (!securityValidation.isValid) {
-          console.error(`[SECURITY] Archivo rechazado: ${securityValidation.errors.join(', ')}`);
-          
-          // Registrar rechazo en auditoría
-          await AuditService.logFileRejected(
-            null,
-            {
-              fileName,
-              fileSize,
-              fileType,
-              method: 'socket.io'
-            },
-            securityValidation.errors.join(', '),
-            socket.handshake.address
-          );
+      if (!securityValidation.isValid) {
+        console.error(`[SECURITY] Archivo rechazado: ${securityValidation.errors.join(', ')}`);
+        
+        // Verificar si es por esteganografía
+        const isSteganography = securityValidation.checks.steganography?.isSuspicious || false;
+        const stegoReasons = securityValidation.checks.steganography?.reasons || [];
+        const stegoConfidence = securityValidation.checks.steganography?.confidence || 0;
+        
+        // Registrar rechazo en auditoría
+        await AuditService.logFileRejected(
+          null,
+          {
+            fileName,
+            fileSize,
+            fileType,
+            method: 'socket.io',
+            isSteganography,
+            confidence: stegoConfidence
+          },
+          securityValidation.errors.join(', '),
+          socket.handshake.address
+        );
 
-          socket.emit('fileError', {
-            message: 'Archivo rechazado por razones de seguridad',
-            errors: securityValidation.errors,
-            warnings: securityValidation.warnings,
-            tempId
+        // Emitir error con información de esteganografía si aplica
+        socket.emit('fileError', {
+          message: isSteganography ? 'Archivo rechazado - Contenido sospechoso detectado' : 'Archivo rechazado por razones de seguridad',
+          isSuspicious: isSteganography,
+          reasons: isSteganography ? stegoReasons : securityValidation.errors,
+          confidence: Math.round(stegoConfidence * 100),
+          errors: securityValidation.errors,
+          warnings: securityValidation.warnings,
+          tempId
+        });
+        
+        if (callback) {
+          callback({
+            success: false,
+            message: isSteganography ? 'Archivo rechazado - Contenido sospechoso detectado' : 'Archivo rechazado por razones de seguridad',
+            isSuspicious: isSteganography,
+            reasons: isSteganography ? stegoReasons : securityValidation.errors,
+            confidence: Math.round(stegoConfidence * 100),
+            errors: securityValidation.errors
           });
-          
-          if (callback) {
-            callback({
-              success: false,
-              message: 'Archivo rechazado por razones de seguridad',
-              errors: securityValidation.errors
-            });
-          }
-          
-          return;
         }
-
-        // ===== 6. REGISTRAR ADVERTENCIAS (Si hay esteganografía sospechosa) =====
+        
+        return;
+      }        // ===== 6. REGISTRAR ADVERTENCIAS (Si hay esteganografía sospechosa) =====
         if (securityValidation.warnings.length > 0) {
           console.warn(`[SECURITY] Advertencias detectadas: ${securityValidation.warnings.join(', ')}`);
           
@@ -814,9 +849,13 @@ function RoomController(io) {
 
     // Actualizar actividad del usuario (heartbeat)
     socket.on('userActivity', ({ pin, deviceId }) => {
-      if (inactivityService && socket.id && pin && deviceId) {
-        const clientIp = socket.clientIp || getClientIp(socket);
-        inactivityService.updateActivity(socket.id, pin, deviceId, clientIp);
+      // Verificar que el usuario está realmente en la sala
+      const room = rooms[pin];
+      if (room && room.users.some(u => u.id === socket.id)) {
+        if (inactivityService && socket.id && pin && deviceId) {
+          const clientIp = socket.clientIp || getClientIp(socket);
+          inactivityService.updateActivity(socket.id, pin, deviceId, clientIp);
+        }
       }
     });
 
@@ -983,6 +1022,8 @@ function RoomController(io) {
           const isRefreshing = refreshingUsers.has(`${pin}:${deviceId}`) || socket.refreshing;
           
           if (isRefreshing) {
+            console.log(`🔄 Usuario ${nickname} en proceso de recarga, NO remover de la sala`);
+            // Mantener la sesión activa durante la recarga
             continue;
           }
 
@@ -991,7 +1032,7 @@ function RoomController(io) {
             const session = await getSessionByIp(clientIp, pin);
             
             if (session) {
-              // esperar un poco para confirmar que es desconexion real y no recarga
+              // esperar tiempo suficiente para confirmar que es desconexion real y no recarga
               setTimeout(async () => {
                 // verificar nuevamente si el usuario se ha reconectado
                 const stillExists = rooms[pin]?.users.some(u => u.id === socket.id);
@@ -1041,7 +1082,7 @@ function RoomController(io) {
                   // Emitir lista actualizada de usuarios
                   emitUserList(pin, room, io);
                 }
-              }, 5000);
+              }, 10000);
               
               continue;
             }

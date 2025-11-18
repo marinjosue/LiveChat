@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { Toast } from 'primereact/toast';
+import { Dialog } from 'primereact/dialog';
+import { confirmDialog, ConfirmDialog } from 'primereact/confirmdialog';
 import CreateRoom from './CreateRoom';
 import RoomManagement from './RoomManagement';
 import { BarChart3, Home, ScrollText, Shield, Settings, LogOut, Sun, Moon, Server, Database, Activity, Lock, Folder, Check, Info } from 'lucide-react';
@@ -172,7 +174,12 @@ function AdminDashboard({ admin, onLogout, theme, toggleTheme }) {
       console.log('Respuesta 2FA:', response.data);
 
       if (response.data.success) {
-        alert('✅ 2FA habilitado exitosamente!');
+        toast.current.show({
+          severity: 'success',
+          summary: '✅ 2FA Habilitado',
+          detail: '2FA ha sido habilitado exitosamente. Tu cuenta ahora está más segura.',
+          life: 5000
+        });
         setQrCode(null);
         setSecret2FA(null);
         setVerificationCode('');
@@ -207,26 +214,41 @@ function AdminDashboard({ admin, onLogout, theme, toggleTheme }) {
   };
 
   const handleDisable2FA = async () => {
-    if (!window.confirm('¿Estás seguro de deshabilitar 2FA? Esto reducirá la seguridad de tu cuenta.')) {
-      return;
-    }
-    
-    const token = localStorage.getItem('adminToken');
-    
-    try {
-      const response = await axios.post(
-        `${BACKEND_URL}/api/auth/disable-2fa`,
-        {},
-        { headers: { 'Authorization': `Bearer ${token}` } }
-      );
-      
-      if (response.data.success) {
-        alert('✅ 2FA deshabilitado');
-        loadDashboardData();
+    confirmDialog({
+      message: '¿Estás seguro de deshabilitar 2FA? Esto reducirá la seguridad de tu cuenta.',
+      header: '⚠️ Confirmar Deshabilitación de 2FA',
+      icon: 'pi pi-exclamation-triangle',
+      acceptLabel: 'Sí, deshabilitar',
+      rejectLabel: 'Cancelar',
+      accept: async () => {
+        const token = localStorage.getItem('adminToken');
+        
+        try {
+          const response = await axios.post(
+            `${BACKEND_URL}/api/auth/disable-2fa`,
+            {},
+            { headers: { 'Authorization': `Bearer ${token}` } }
+          );
+          
+          if (response.data.success) {
+            toast.current.show({
+              severity: 'success',
+              summary: '✅ 2FA Deshabilitado',
+              detail: '2FA ha sido deshabilitado correctamente',
+              life: 3000
+            });
+            loadDashboardData();
+          }
+        } catch (err) {
+          toast.current.show({
+            severity: 'error',
+            summary: '❌ Error',
+            detail: 'Error al deshabilitar 2FA: ' + (err.response?.data?.message || err.message),
+            life: 5000
+          });
+        }
       }
-    } catch (err) {
-      setError('Error al deshabilitar 2FA: ' + (err.response?.data?.message || err.message));
-    }
+    });
   };
 
   const getLogStatusBadge = (status) => {
@@ -268,6 +290,7 @@ function AdminDashboard({ admin, onLogout, theme, toggleTheme }) {
   return (
     <div className="admin-dashboard">
       <Toast ref={toast} position="top-right" />
+      <ConfirmDialog />
       
       <header className="dashboard-header">
         <div className="header-left">

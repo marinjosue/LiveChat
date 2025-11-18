@@ -20,6 +20,7 @@ class Room {
       maxFileSize: options.maxFileSize || 15 * 1024 * 1024, // 15MB por defecto
       allowedFileTypes: options.allowedFileTypes || [
         'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+        'image/bmp', 'image/x-ms-bmp', 'image/x-bmp',
         'application/pdf', 'application/msword',
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         'video/mp4', 'video/webm',

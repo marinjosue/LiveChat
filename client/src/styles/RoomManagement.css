@@ -363,6 +363,7 @@
   display: flex;
   justify-content: flex-end;
   gap: 0.75rem;
+  flex-wrap: wrap;
 }
 
 .btn-toggle,
@@ -410,19 +411,50 @@
   box-shadow: 0 4px 12px rgba(74, 222, 128, 0.3);
 }
 
+.btn-action.btn-danger-outline {
+  background: transparent;
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.5);
+}
+
+.btn-action.btn-danger-outline:hover {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.7);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
+}
+
 .btn-delete,
 .btn-action.btn-danger {
-  background: rgba(239, 68, 68, 0.1);
-  color: #f87171;
-  border-color: rgba(239, 68, 68, 0.3);
+  background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+  color: #ffffff;
+  border-color: #dc2626;
+  font-weight: 700;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-action.btn-danger::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s ease;
+}
+
+.btn-action.btn-danger:hover::before {
+  left: 100%;
 }
 
 .btn-delete:hover,
 .btn-action.btn-danger:hover {
-  background: rgba(239, 68, 68, 0.2);
-  border-color: rgba(239, 68, 68, 0.5);
+  background: linear-gradient(135deg, #991b1b 0%, #7f1d1d 100%);
+  border-color: #991b1b;
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+  box-shadow: 0 4px 16px rgba(220, 38, 38, 0.5);
 }
 
 .btn-toggle:active,

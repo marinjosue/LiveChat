@@ -223,7 +223,7 @@ app.post('/api/upload',
           checkSteganography: true,
           checkIntegrity: true,
           checkFileType: true,
-          maxSize: 15 * 1024 * 1024
+          maxSize: 25 * 1024 * 1024
         }
       );
 

@@ -155,14 +155,6 @@ router.get('/stats', async (req, res) => {
       RoomModel.countDocuments({ isActive: true })
     ]);
     
-    const { ThreadPoolManager } = require('../services/threadPoolManager');
-    const { FileSecurityService } = require('../services/fileSecurityService');
-    
-    // Obtener estadísticas de los thread pools
-    const globalPool = ThreadPoolManager.getGlobalPool();
-    const authPool = ThreadPoolManager.getAuthPool();
-    const fileSecurityPool = FileSecurityService.getWorkerPoolStats();
-    
     // Formatear uptime
     const uptimeSeconds = Math.floor(process.uptime());
     const days = Math.floor(uptimeSeconds / 86400);
@@ -172,10 +164,10 @@ router.get('/stats', async (req, res) => {
     
     // Formatear memoria
     const memUsage = process.memoryUsage();
-    const memUsedMB = memUsage.heapUsed / 1024 / 1024;
-    const memTotalMB = memUsage.heapTotal / 1024 / 1024;
+    const memUsedMB = Math.round(memUsage.heapUsed / 1024 / 1024);
+    const memTotalMB = Math.round(memUsage.heapTotal / 1024 / 1024);
     
-    res.json({
+    const response = {
       success: true,
       totalMessages,
       totalAdmins,
@@ -187,47 +179,79 @@ router.get('/stats', async (req, res) => {
         memory: {
           usedMB: memUsedMB,
           totalMB: memTotalMB,
-          rss: memUsage.rss / 1024 / 1024,
-          external: memUsage.external / 1024 / 1024
+          rss: Math.round(memUsage.rss / 1024 / 1024),
+          external: Math.round(memUsage.external / 1024 / 1024)
         },
         nodeVersion: process.version,
         platform: process.platform
-      },
-      threadPools: {
-        global: {
-          totalWorkers: globalPool.workers.total,
-          activeWorkers: globalPool.workers.active,
-          idleWorkers: globalPool.workers.idle,
-          queueSize: globalPool.tasks.queued,
-          utilization: parseFloat(globalPool.utilization) / 100,
-          avgWaitTime: parseFloat(globalPool.performance.avgWaitTime),
-          avgExecutionTime: parseFloat(globalPool.performance.avgExecutionTime),
-          peakQueueSize: globalPool.performance.peakQueueSize,
-          tasksCompleted: globalPool.tasks.completed,
-          tasksFailed: globalPool.tasks.failed
-        },
-        auth: {
-          totalWorkers: authPool.workers.total,
-          activeWorkers: authPool.workers.active,
-          idleWorkers: authPool.workers.idle,
-          queueSize: authPool.tasks.queued,
-          utilization: parseFloat(authPool.utilization) / 100,
-          tasksCompleted: authPool.tasks.completed
-        },
-        fileSecurity: {
-          totalWorkers: fileSecurityPool.workers.total,
-          activeWorkers: fileSecurityPool.workers.active,
-          idleWorkers: fileSecurityPool.workers.idle,
-          queueSize: fileSecurityPool.tasks.queued,
-          utilization: parseFloat(fileSecurityPool.utilization) / 100,
-          tasksCompleted: fileSecurityPool.tasks.completed
+      }
+    };
+    
+    // Intentar obtener estadísticas de thread pools (opcional, no crítico)
+    try {
+      const { ThreadPoolManager } = require('../services/threadPoolManager');
+      const { FileSecurityService } = require('../services/fileSecurityService');
+      
+      // Obtener estadísticas de los thread pools de forma segura
+      const globalPool = ThreadPoolManager.getGlobalPool?.() || null;
+      const authPool = ThreadPoolManager.getAuthPool?.() || null;
+      const fileSecurityPool = FileSecurityService.getWorkerPoolStats?.() || null;
+      
+      if (globalPool || authPool || fileSecurityPool) {
+        response.threadPools = {};
+        
+        if (globalPool) {
+          response.threadPools.global = {
+            totalWorkers: globalPool.workers?.total || 0,
+            activeWorkers: globalPool.workers?.active || 0,
+            idleWorkers: globalPool.workers?.idle || 0,
+            queueSize: globalPool.tasks?.queued || 0,
+            utilization: parseFloat(globalPool.utilization || 0) / 100,
+            avgWaitTime: parseFloat(globalPool.performance?.avgWaitTime || 0),
+            avgExecutionTime: parseFloat(globalPool.performance?.avgExecutionTime || 0),
+            peakQueueSize: globalPool.performance?.peakQueueSize || 0,
+            tasksCompleted: globalPool.tasks?.completed || 0,
+            tasksFailed: globalPool.tasks?.failed || 0
+          };
+        }
+        
+        if (authPool) {
+          response.threadPools.auth = {
+            totalWorkers: authPool.workers?.total || 0,
+            activeWorkers: authPool.workers?.active || 0,
+            idleWorkers: authPool.workers?.idle || 0,
+            queueSize: authPool.tasks?.queued || 0,
+            utilization: parseFloat(authPool.utilization || 0) / 100,
+            tasksCompleted: authPool.tasks?.completed || 0
+          };
+        }
+        
+        if (fileSecurityPool) {
+          response.threadPools.fileSecurity = {
+            totalWorkers: fileSecurityPool.workers?.total || 0,
+            activeWorkers: fileSecurityPool.workers?.active || 0,
+            idleWorkers: fileSecurityPool.workers?.idle || 0,
+            queueSize: fileSecurityPool.tasks?.queued || 0,
+            utilization: parseFloat(fileSecurityPool.utilization || 0) / 100,
+            tasksCompleted: fileSecurityPool.tasks?.completed || 0
+          };
         }
       }
-    });
+    } catch (poolError) {
+      // Si falla obtener stats de thread pools, continuar sin ellos
+      console.error('Error obteniendo estadísticas de thread pools:', poolError.message);
+      response.threadPools = {
+        error: 'Thread pool stats not available'
+      };
+    }
+    
+    res.json(response);
   } catch (error) {
+    console.error('Error en /api/admin/stats:', error);
     res.status(500).json({
       success: false,
-      message: error.message
+      message: error.message,
+      error: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });

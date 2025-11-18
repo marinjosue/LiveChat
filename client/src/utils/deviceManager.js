@@ -61,10 +61,10 @@ const markPageRefreshing = (pin) => {
     if (currentRoom && currentRoom.pin === pin) {
         localStorage.setItem('livechat-refreshing', 'true');
         localStorage.setItem('livechat-refresh-timestamp', Date.now().toString());
-        // Establecer expiración de 30 segundos para el estado de recarga
+        // Establecer expiración de 60 segundos para el estado de recarga
         setTimeout(() => {
             localStorage.removeItem('livechat-refreshing');
-        }, 30000);
+        }, 60000);
     }
 };
 
@@ -91,11 +91,11 @@ const isReconnecting = () => {
     const refreshing = localStorage.getItem('livechat-refreshing') === 'true';
     const timestamp = localStorage.getItem('livechat-refresh-timestamp');
     
-    // Si ha pasado más de 30 segundos, ya no estamos en recarga
+    // Si ha pasado más de 60 segundos, ya no estamos en recarga
     if (refreshing && timestamp) {
         const now = Date.now();
         const refreshTime = parseInt(timestamp, 10);
-        if (now - refreshTime > 30000) {
+        if (now - refreshTime > 60000) {
             localStorage.removeItem('livechat-refreshing');
             localStorage.removeItem('livechat-refresh-timestamp');
             return false;

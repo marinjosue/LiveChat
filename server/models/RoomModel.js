@@ -208,8 +208,9 @@ roomSchema.pre('save', function(next) {
   if (this.roomType === 'multimedia' && (!this.multimediaConfig.allowedFileTypes || this.multimediaConfig.allowedFileTypes.length === 0)) {
     this.multimediaConfig.allowedFileTypes = [
       'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+      'image/bmp', 'image/x-ms-bmp', 'image/x-bmp',
       'application/pdf', 'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.openxmlformats-oficedocument.wordprocessingml.document',
       'video/mp4', 'video/webm',
       'audio/mpeg', 'audio/wav'
     ];

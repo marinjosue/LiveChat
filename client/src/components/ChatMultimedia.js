@@ -14,7 +14,8 @@ import '../styles/ChatRoom.css';
 
 import { getDeviceId, clearCurrentRoom, updateRoomActivity,isReconnecting,finishReconnection,markPageRefreshing } from '../utils/deviceManager';
 import { confirmDialog, ConfirmDialog } from 'primereact/confirmdialog';
-import { Toast } from 'primereact/toast'; 
+import { Toast } from 'primereact/toast';
+import { Dialog } from 'primereact/dialog'; 
 
 const ChatMultimedia = ({ pin, nickname, onLeave }) => {
   const [message, setMessage] = useState('');
@@ -32,6 +33,15 @@ const ChatMultimedia = ({ pin, nickname, onLeave }) => {
   const [totalParticipants, setTotalParticipants] = useState(0);
   const [maxParticipants, setMaxParticipants] = useState(0);
   const [isPanelVisible, setIsPanelVisible] = useState(true);
+  const [steganographyModal, setSteganographyModal] = useState({ 
+    isOpen: false, 
+    fileName: '', 
+    reasons: [], 
+    confidence: 0,
+    criticalReasons: [],
+    warningReasons: [],
+    infoReasons: []
+  });
 
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -45,6 +55,28 @@ const ChatMultimedia = ({ pin, nickname, onLeave }) => {
       // Enviar heartbeat al servidor
       socket.emit('userActivity', { pin, deviceId: getDeviceId() });
     }, 30000); // Cada 30 segundos
+    
+    // 🔧 LISTENER DE MENSAJES PREVIOS - Debe estar ANTES de solicitar los mensajes
+    const handlePreviousMessages = (messages) => {
+      console.log('📜 Mensajes previos recibidos:', messages.length);
+      const formattedMessages = messages.map(msg => ({
+        sender: msg.sender,
+        text: msg.text,
+        messageType: msg.messageType || 'text',
+        fileData: msg.fileData,
+        timestamp: new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      }));
+      
+      // Restaurar mensajes sin borrar los temporales que están subiendo
+      setMessages(prev => {
+        // Mantener solo mensajes temporales que estén subiendo activamente
+        const uploadingTemp = prev.filter(m => m.isTemp && m.fileData?.uploading);
+        // Agregar mensajes del servidor
+        return [...formattedMessages, ...uploadingTemp];
+      });
+    };
+    
+    socket.on('previousMessages', handlePreviousMessages);
     
     // Escuchar cuando el admin cierra la sala
     socket.on('roomClosedByAdmin', ({ message: msg }) => {
@@ -78,8 +110,21 @@ const ChatMultimedia = ({ pin, nickname, onLeave }) => {
       if (reason === 'INACTIVITY_WARNING') {
         // Mostrar diálogo de confirmación con cuenta regresiva
         let countdown = secondsRemaining;
+        
+        const updateDialogMessage = () => {
+          const messageElement = document.querySelector('.p-dialog-content p');
+          if (messageElement) {
+            messageElement.textContent = `${msg}\n\nSerás desconectado en ${countdown} segundos por inactividad.\n\n¿Deseas permanecer en la sala?`;
+          }
+        };
+        
         const countdownInterval = setInterval(() => {
           countdown--;
+          updateDialogMessage();
+          
+          if (countdown <= 0) {
+            clearInterval(countdownInterval);
+          }
         }, 1000);
         
         confirmDialog({
@@ -174,28 +219,56 @@ const ChatMultimedia = ({ pin, nickname, onLeave }) => {
       }, 1500);
     });
 
-    socket.on('fileError', ({ message: errorMsg, tempId }) => {
+    socket.on('fileError', ({ message: errorMsg, tempId, isSuspicious, reasons, confidence, fileName }) => {
       console.error('❌ Error de archivo:', errorMsg);
       
-      // Mensajes de error más amigables
-      let userMessage = errorMsg;
-      if (errorMsg.includes('15MB')) {
-        userMessage = 'El archivo es demasiado grande. Máximo 15MB.';
-      } else if (errorMsg.includes('Cloudinary')) {
-        userMessage = 'Error al subir el archivo. Por favor intenta de nuevo.';
-      } else if (errorMsg.includes('no existe')) {
-        userMessage = 'La sala ya no existe. Por favor actualiza la página.';
-      } else if (errorMsg.includes('base64') || errorMsg.includes('formato')) {
-        userMessage = 'Formato de archivo no válido. Por favor intenta con otro archivo.';
+      // Caso especial: Archivo sospechoso con esteganografía
+      if (isSuspicious && reasons) {
+        // Categorizar motivos por severidad (sin emojis)
+        const criticalReasons = reasons.filter(r => r.includes('CRÍTICO') || r.includes('ALTA SOSPECHA'));
+        const warningReasons = reasons.filter(r => !r.includes('CRÍTICO') && !r.includes('ALTA SOSPECHA') && !r.includes('Metadatos'));
+        const infoReasons = reasons.filter(r => r.includes('Metadatos'));
+        
+        // Mostrar modal de esteganografía
+        setSteganographyModal({
+          isOpen: true,
+          fileName: fileName || 'archivo',
+          reasons,
+          confidence: confidence || 0,
+          criticalReasons,
+          warningReasons,
+          infoReasons
+        });
+      } else {
+        // Mensajes de error normales más amigables
+        let userMessage = errorMsg;
+        if (errorMsg.includes('25MB')) {
+          userMessage = 'El archivo es demasiado grande. Máximo 25MB.';
+        } else if (errorMsg.includes('Cloudinary')) {
+          userMessage = 'Error al subir el archivo. Por favor intenta de nuevo.';
+        } else if (errorMsg.includes('no existe')) {
+          userMessage = 'La sala ya no existe. Por favor actualiza la página.';
+        } else if (errorMsg.includes('base64') || errorMsg.includes('formato')) {
+          userMessage = 'Formato de archivo no válido. Por favor intenta con otro archivo.';
+        } else if (errorMsg.includes('seguridad') || errorMsg.includes('rechazado')) {
+          userMessage = '⚠️ Archivo rechazado por razones de seguridad.';
+        }
+        
+        setErrorModal({ isOpen: true, message: userMessage });
       }
       
-      setErrorModal({ isOpen: true, message: userMessage });
       setUploadingFile(false);
       setUploadProgress({ show: false, message: '', percent: 0 });
       
       // Eliminar mensaje temporal si hay error
       if (tempId) {
         setMessages(prev => prev.filter(m => m.id !== tempId));
+      }
+      
+      // Limpiar archivo seleccionado
+      setSelectedFile(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
       }
     });
 
@@ -223,25 +296,12 @@ const ChatMultimedia = ({ pin, nickname, onLeave }) => {
       setIsLastUser(isLast);
     });
 
-    // Manejar mensajes previos
-    socket.on('previousMessages', (messages) => {
-      console.log('📜 Mensajes previos recibidos:', messages.length);
-      const formattedMessages = messages.map(msg => ({
-        sender: msg.sender,
-        text: msg.text,
-        messageType: msg.messageType || 'text',
-        fileData: msg.fileData,
-        timestamp: new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      }));
-      
-      // Restaurar mensajes sin borrar los temporales que están subiendo
-      setMessages(prev => {
-        // Mantener solo mensajes temporales que estén subiendo activamente
-        const uploadingTemp = prev.filter(m => m.isTemp && m.fileData?.uploading);
-        // Agregar mensajes del servidor
-        return [...formattedMessages, ...uploadingTemp];
-      });
-    });
+    // 🔧 Solicitar mensajes previos DESPUÉS de configurar el listener
+    console.log(`📤 Solicitando mensajes previos para sala ${pin}`);
+    socket.emit('requestPreviousMessages', { pin });
+    
+    // ✅ Enviar actividad inicial al montar el componente
+    socket.emit('userActivity', { pin, deviceId: getDeviceId() });
 
     return () => {
       socket.off('chatMessage');
@@ -252,14 +312,15 @@ const ChatMultimedia = ({ pin, nickname, onLeave }) => {
       socket.off('userLeft');
       socket.off('participantCountUpdate');
       socket.off('isLastUser');
-      socket.off('previousMessages');
+      socket.off('previousMessages', handlePreviousMessages);
       socket.off('userListUpdate');
       socket.off('inactivityWarning');
+      socket.off('roomClosedByAdmin');
       if (activityIntervalRef.current) {
         clearInterval(activityIntervalRef.current);
       }
     };
-  }, [pin]);
+  }, [pin, nickname]);
 
   useEffect(() => {
     // Verificar si estamos reconectando desde un refresh
@@ -272,17 +333,13 @@ const ChatMultimedia = ({ pin, nickname, onLeave }) => {
           deviceId: getDeviceId() 
         }, (response) => {
           if (response && response.success) {
-            console.log('Reconexión exitosa');
-            // Solicitar mensajes previos por si no se cargaron
-            socket.emit('requestPreviousMessages', { pin });
+            console.log('✅ Reconexión exitosa');
+            // Enviar actividad inmediatamente
+            socket.emit('userActivity', { pin, deviceId: getDeviceId() });
           } else {
-            console.error('Error en reconexión:', response?.message || 'Sin respuesta del servidor');
-            // Si falla la reconexión, intentar unirse nuevamente
-            socket.emit('joinRoom', { pin, nickname, deviceId: getDeviceId() }, (joinResponse) => {
-              if (joinResponse && joinResponse.success) {
-                console.log('Reingreso exitoso a la sala');
-              }
-            });
+            console.error('❌ Error en reconexión:', response?.message || 'Sin respuesta');
+            // Si falla la reconexión, el usuario ya está en la sala (joinRoom se encargó)
+            // Solo marcamos la reconexión como finalizada
           }
           // Marcar reconexión como finalizada
           finishReconnection();
@@ -325,12 +382,12 @@ const ChatMultimedia = ({ pin, nickname, onLeave }) => {
 
     console.log('📎 Archivo seleccionado:', file.name, 'Tamaño:', (file.size / (1024 * 1024)).toFixed(2), 'MB', 'Tipo:', file.type);
 
-    // Validar tamaño (15MB)
-    const MAX_SIZE = 15 * 1024 * 1024;
+    // Validar tamaño (25MB)
+    const MAX_SIZE = 25 * 1024 * 1024;
     if (file.size > MAX_SIZE) {
       setErrorModal({ 
         isOpen: true, 
-        message: `El archivo "${file.name}" supera el límite de 15MB. Tamaño actual: ${(file.size / (1024 * 1024)).toFixed(2)}MB` 
+        message: `El archivo "${file.name}" supera el límite de 25MB. Tamaño actual: ${(file.size / (1024 * 1024)).toFixed(2)}MB` 
       });
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
@@ -442,31 +499,25 @@ const ChatMultimedia = ({ pin, nickname, onLeave }) => {
           const response = JSON.parse(xhr.responseText);
           console.error('🚨 Archivo sospechoso rechazado:', response);
           
-          const reasonsText = response.reasons ? response.reasons.join(', ') : 'Contenido sospechoso detectado';
-          const confidenceText = response.confidence ? `${response.confidence}%` : 'alto';
+          const reasons = response.reasons || [];
+          const fileName = response.fileName || file.name;
+          const confidence = response.confidence || 0;
           
-          if (toast.current) {
-            toast.current.show({
-              severity: 'error',
-              summary: '🚫 Archivo Rechazado - Contenido Sospechoso',
-              detail: `El archivo "${response.fileName || file.name}" ha sido RECHAZADO por razones de seguridad.\n\nMotivos detectados:\n${reasonsText}\n\nNivel de confianza: ${confidenceText}\n\n⚠️ Este archivo podría contener esteganografía u otro contenido oculto. Por su seguridad, no se permite subirlo.`,
-              sticky: true,
-              closable: true,
-              life: 20000,
-              style: { 
-                maxWidth: '550px',
-                backgroundColor: '#fee2e2',
-                borderLeft: '5px solid #dc2626',
-                color: '#7f1d1d'
-              }
-            });
-          } else {
-            // Fallback si el toast no está disponible
-            setErrorModal({ 
-              isOpen: true, 
-              message: `Archivo rechazado por seguridad: ${reasonsText}` 
-            });
-          }
+          // Categorizar motivos por severidad (sin emojis)
+          const criticalReasons = reasons.filter(r => r.includes('CRÍTICO') || r.includes('ALTA SOSPECHA'));
+          const warningReasons = reasons.filter(r => !r.includes('CRÍTICO') && !r.includes('ALTA SOSPECHA') && !r.includes('Metadatos'));
+          const infoReasons = reasons.filter(r => r.includes('Metadatos'));
+          
+          // Mostrar modal de esteganografía
+          setSteganographyModal({
+            isOpen: true,
+            fileName,
+            reasons,
+            confidence,
+            criticalReasons,
+            warningReasons,
+            infoReasons
+          });
           
           setUploadingFile(false);
           setUploadProgress({ show: false, message: '', percent: 0 });
@@ -599,7 +650,13 @@ const ChatMultimedia = ({ pin, nickname, onLeave }) => {
         
         if (!response || !response.success) {
           console.error('❌ Error confirmado por servidor:', response);
-          setErrorModal({ isOpen: true, message: response?.message || 'Error al procesar el archivo' });
+          
+          // Si es archivo sospechoso, el evento fileError por socket ya mostró el modal
+          // No mostrar el modal genérico de error
+          if (!response?.isSuspicious) {
+            setErrorModal({ isOpen: true, message: response?.message || 'Error al procesar el archivo' });
+          }
+          
           setUploadingFile(false);
           setUploadProgress({ show: false, message: '', percent: 0 });
           setMessages(prev => prev.filter(m => m.id !== tempId));
@@ -708,7 +765,12 @@ const ChatMultimedia = ({ pin, nickname, onLeave }) => {
               clearTimeout(uploadTimeout);
               if (!response || !response.success) {
                 console.error('❌ Error confirmado por servidor');
-                setErrorModal({ isOpen: true, message: response?.message || 'Error al procesar el archivo' });
+                
+                // Si es archivo sospechoso, el evento fileError por socket ya mostró el modal
+                if (!response?.isSuspicious) {
+                  setErrorModal({ isOpen: true, message: response?.message || 'Error al procesar el archivo' });
+                }
+                
                 setUploadingFile(false);
                 setMessages(prev => prev.filter(m => m.id !== tempId));
               }
@@ -1150,6 +1212,161 @@ const confirmExit = async () => {
           </div>
         </div>
       )}
+
+      {/* Modal de Esteganografía Detectada */}
+      <Dialog 
+        visible={steganographyModal.isOpen} 
+        onHide={() => setSteganographyModal({ ...steganographyModal, isOpen: false })}
+        header={
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <i className="pi pi-ban" style={{ fontSize: '24px', color: '#d32f2f' }}></i>
+            <span style={{ fontSize: '20px', fontWeight: '600', color: '#333' }}>Archivo Bloqueado</span>
+          </div>
+        }
+        style={{ width: '90vw', maxWidth: '550px' }}
+        draggable={false}
+        resizable={false}
+        modal
+      >
+        <div style={{ padding: '0' }}>
+          {/* Nombre del archivo */}
+          <div style={{ 
+            background: 'linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%)', 
+            padding: '16px', 
+            borderRadius: '10px', 
+            marginBottom: '20px',
+            border: '1px solid #ef9a9a',
+            boxShadow: '0 2px 4px rgba(211,47,47,0.1)'
+          }}>
+            <p style={{ margin: '0 0 8px 0', fontSize: '13px', color: '#666', fontWeight: '500' }}>Archivo rechazado</p>
+            <p style={{ 
+              margin: 0, 
+              fontSize: '17px', 
+              fontWeight: 'bold', 
+              color: '#c62828',
+              wordBreak: 'break-word'
+            }}>
+              {steganographyModal.fileName}
+            </p>
+          </div>
+
+          {/* Razones críticas */}
+          {steganographyModal.criticalReasons.length > 0 && (
+            <div style={{ marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                <i className="pi pi-exclamation-triangle" style={{ color: '#d32f2f', fontSize: '16px' }}></i>
+                <p style={{ 
+                  fontWeight: '600', 
+                  color: '#d32f2f', 
+                  margin: 0,
+                  fontSize: '15px'
+                }}>
+                  Detección crítica
+                </p>
+              </div>
+              {steganographyModal.criticalReasons.map((reason, idx) => (
+                <div key={idx} style={{ 
+                  background: '#ffebee', 
+                  padding: '12px 14px', 
+                  borderRadius: '8px',
+                  marginBottom: '6px',
+                  fontSize: '14px',
+                  borderLeft: '4px solid #d32f2f',
+                  color: '#444',
+                  lineHeight: '1.5'
+                }}>
+                  {reason.replace('CRÍTICO: ', '').replace('ALTA SOSPECHA: ', '')}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Razones de advertencia */}
+          {steganographyModal.warningReasons.length > 0 && (
+            <div style={{ marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                <i className="pi pi-info-circle" style={{ color: '#f57c00', fontSize: '16px' }}></i>
+                <p style={{ 
+                  fontWeight: '600', 
+                  color: '#f57c00', 
+                  margin: 0,
+                  fontSize: '15px'
+                }}>
+                  Indicadores adicionales
+                </p>
+              </div>
+              {steganographyModal.warningReasons.slice(0, 2).map((reason, idx) => (
+                <div key={idx} style={{ 
+                  background: '#fff3e0', 
+                  padding: '10px 12px', 
+                  borderRadius: '8px',
+                  marginBottom: '6px',
+                  fontSize: '13px',
+                  borderLeft: '4px solid #f57c00',
+                  color: '#555',
+                  lineHeight: '1.4'
+                }}>
+                  {reason}
+                </div>
+              ))}
+              {steganographyModal.warningReasons.length > 2 && (
+                <p style={{ 
+                  fontSize: '12px', 
+                  color: '#888', 
+                  margin: '8px 0 0 4px',
+                  fontStyle: 'italic'
+                }}>
+                  +{steganographyModal.warningReasons.length - 2} indicador(es) más detectado(s)
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Nivel de confianza */}
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'space-between',
+            background: 'linear-gradient(135deg, #f5f5f5 0%, #eeeeee 100%)',
+            padding: '14px 16px',
+            borderRadius: '8px',
+            marginTop: '20px',
+            border: '1px solid #e0e0e0'
+          }}>
+            <span style={{ fontSize: '14px', color: '#555', fontWeight: '500' }}>Nivel de confianza</span>
+            <span style={{ 
+              fontSize: '22px', 
+              fontWeight: 'bold', 
+              color: steganographyModal.confidence >= 70 ? '#d32f2f' : '#f57c00'
+            }}>
+              {steganographyModal.confidence}%
+            </span>
+          </div>
+
+          {/* Mensaje informativo */}
+          <div style={{ 
+            marginTop: '20px', 
+            padding: '14px', 
+            background: 'linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%)', 
+            borderRadius: '8px',
+            borderLeft: '4px solid #1976d2',
+            border: '1px solid #90caf9'
+          }}>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+              <i className="pi pi-shield" style={{ color: '#1565c0', fontSize: '18px', marginTop: '2px' }}></i>
+              <p style={{ 
+                margin: 0, 
+                fontSize: '13px', 
+                color: '#0d47a1',
+                lineHeight: '1.6',
+                flex: 1
+              }}>
+                <strong>Protección activa:</strong> Este archivo contiene patrones sospechosos de esteganografía. Por seguridad, no se permite su envío.
+              </p>
+            </div>
+          </div>
+        </div>
+      </Dialog>
     </div>
   );
   

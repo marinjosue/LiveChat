@@ -22,6 +22,8 @@ class FileSecurityService {
     try {
       const startTime = Date.now();
       
+      console.log(`[STEGO] 🔍 Analizando: ${fileName} (${mimeType}, ${(fileBuffer.length / 1024).toFixed(1)}KB)`);
+      
       // Ejecutar análisis en worker thread
       const result = await steganographyWorkerPool.runTask({
         fileBuffer: Array.from(fileBuffer), 
@@ -30,9 +32,22 @@ class FileSecurityService {
       }, 60000); // 60 segundos de timeout
       
       const duration = Date.now() - startTime;
-      if (result.success && result.results.verdict.isSuspicious) {
-        console.warn(`[STEGO] Suspicious file detected: ${fileName}`);
-        console.warn(`[STEGO] Reasons: ${result.results.verdict.reasons.join(', ')}`);
+      
+      if (result.success) {
+        const verdict = result.results.verdict;
+        console.log(`[STEGO] ✅ Análisis completado en ${duration}ms`);
+        console.log(`[STEGO] 📊 Confidence: ${(verdict.confidence * 100).toFixed(1)}% (threshold: ${(verdict.adaptiveThreshold * 100).toFixed(1)}%)`);
+        console.log(`[STEGO] 🎯 Checks sospechosos: ${verdict.suspiciousChecksCount}`);
+        
+        if (verdict.isSuspicious) {
+          console.warn(`[STEGO] 🚨 ARCHIVO SOSPECHOSO: ${fileName}`);
+          console.warn(`[STEGO] 📋 Razones:`);
+          verdict.reasons.forEach(r => console.warn(`[STEGO]    - ${r}`));
+        } else {
+          console.log(`[STEGO] ✓ Archivo limpio`);
+        }
+      } else {
+        console.error(`[STEGO] ❌ Error en análisis: ${result.error}`);
       }
       
       return {
@@ -102,6 +117,9 @@ class FileSecurityService {
       'image/jpeg': ['ffd8ffe0', 'ffd8ffe1', 'ffd8ffe2'],
       'image/png': ['89504e47'],
       'image/gif': ['47494638'],
+      'image/bmp': ['424d'],        // BM signature
+      'image/x-ms-bmp': ['424d'],
+      'image/x-bmp': ['424d'],
       'application/pdf': ['25504446'],
       'video/mp4': ['66747970'],
       'audio/mpeg': ['494433', 'fffb']
@@ -180,10 +198,10 @@ class FileSecurityService {
       if (stegoCheck.isSuspicious) {
         validation.warnings.push(`Steganography detected: ${stegoCheck.reasons.join(', ')}`);
         
-        // Opcional: rechazar archivos sospechosos
-        if (stegoCheck.confidence > 0.7) {
+        // Rechazar archivos sospechosos con threshold más bajo
+        if (stegoCheck.confidence > 0.5) {
           validation.isValid = false;
-          validation.errors.push('File rejected due to high steganography confidence');
+          validation.errors.push('File rejected due to steganography detection');
         }
       }
     }

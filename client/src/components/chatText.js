@@ -36,6 +36,19 @@ const ChatText = ({ pin, nickname, onLeave }) => {
       socket.emit('userActivity', { pin, deviceId: getDeviceId() });
     }, 30000); // Cada 30 segundos
     
+    // 🔧 LISTENER DE MENSAJES PREVIOS - Debe estar ANTES de solicitar los mensajes
+    const handlePreviousMessages = (messages) => {
+      console.log(`📨 Mensajes previos recibidos: ${messages.length}`);
+      const formattedMessages = messages.map(msg => ({
+        sender: msg.sender,
+        text: msg.text,
+        timestamp: new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      }));
+      setMessages(formattedMessages);
+    };
+    
+    socket.on('previousMessages', handlePreviousMessages);
+    
     // Escuchar cuando el admin cierra la sala
     socket.on('roomClosedByAdmin', ({ message: msg }) => {
       toast.current?.show({
@@ -68,8 +81,21 @@ const ChatText = ({ pin, nickname, onLeave }) => {
       if (reason === 'INACTIVITY_WARNING') {
         // Mostrar diálogo de confirmación con cuenta regresiva
         let countdown = secondsRemaining;
+        
+        const updateDialogMessage = () => {
+          const messageElement = document.querySelector('.p-dialog-content p');
+          if (messageElement) {
+            messageElement.textContent = `${msg}\n\nSerás desconectado en ${countdown} segundos por inactividad.\n\n¿Deseas permanecer en la sala?`;
+          }
+        };
+        
         const countdownInterval = setInterval(() => {
           countdown--;
+          updateDialogMessage();
+          
+          if (countdown <= 0) {
+            clearInterval(countdownInterval);
+          }
         }, 1000);
         
         confirmDialog({
@@ -140,8 +166,12 @@ const ChatText = ({ pin, nickname, onLeave }) => {
       setIsLastUser(isLast);
     });
 
-    // Solicitar mensajes previos cuando se conecta a la sala
+    // 🔧 Solicitar mensajes previos DESPUÉS de configurar el listener
+    console.log(`📤 Solicitando mensajes previos para sala ${pin}`);
     socket.emit('requestPreviousMessages', { pin });
+    
+    // ✅ Enviar actividad inicial al montar el componente
+    socket.emit('userActivity', { pin, deviceId: getDeviceId() });
 
     return () => {
       socket.off('chatMessage');
@@ -152,26 +182,13 @@ const ChatText = ({ pin, nickname, onLeave }) => {
       socket.off('roomClosedByAdmin');
       socket.off('userListUpdate');
       socket.off('inactivityWarning');
+      socket.off('previousMessages', handlePreviousMessages);
       if (activityIntervalRef.current) {
         clearInterval(activityIntervalRef.current);
+        activityIntervalRef.current = null;
       }
     };
   }, [pin, onLeave]);
-
-  useEffect(() => {
-    socket.on('previousMessages', (messages) => {
-      const formattedMessages = messages.map(msg => ({
-        sender: msg.sender,
-        text: msg.text,
-        timestamp: new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      }));
-      setMessages(formattedMessages);
-    });
-
-    return () => {
-      socket.off('previousMessages');
-    };
-  }, []);
 
   useEffect(() => {
     // Verificar si estamos reconectando desde un refresh
@@ -183,10 +200,14 @@ const ChatText = ({ pin, nickname, onLeave }) => {
           nickname, 
           deviceId: getDeviceId() 
         }, (response) => {
-          if (response.success) {
-            console.log('Reconexión exitosa');
+          if (response && response.success) {
+            console.log('✅ Reconexión exitosa');
+            // Enviar actividad inmediatamente
+            socket.emit('userActivity', { pin, deviceId: getDeviceId() });
           } else {
-            console.error('Error en reconexión:', response.message);
+            console.error('❌ Error en reconexión:', response?.message || 'Sin respuesta');
+            // Si falla la reconexión, el usuario ya está en la sala (joinRoom se encargó)
+            // Solo marcamos la reconexión como finalizada
           }
           // Marcar reconexión como finalizada
           finishReconnection();

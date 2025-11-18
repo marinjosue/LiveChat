@@ -276,18 +276,10 @@ Se obtuvo el siguiente resultado:
 
 ![](imagenes/pruebasU.png)
 
-### Logros
+### Pruebas de Cobertura
+![](imagenes/cober.png)
 
-| Métrica | Estado |
-|---------|--------|
-| Pruebas superadas | 100% (754/754) |
-| Servidor testeable | ✓ |
-| Dependencia de MongoDB | ✗ |
-| Dependencia de Socket.IO | ✗ |
-| Dependencia de Worker Threads | ✗ |
-| Servicios pesados | ✗ |
-| Tiempo de ejecución | < 10s |
-| Aislamiento de tests | ✓ |
+
 
 </details>
 

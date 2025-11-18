@@ -1,7 +1,7 @@
 const express = require("supertest");
 const request = require("supertest");
 
-describe("Health Check", () => {
+describe("Verificación de Salud", () => {
   let app;
 
   beforeEach(() => {
@@ -17,14 +17,14 @@ describe("Health Check", () => {
     });
   });
 
-  test("GET /health deve responder com success: true", async () => {
+  test("GET /health debe responder con success: true", async () => {
     const res = await request(app).get("/health");
 
     expect(res.statusCode).toBe(200);
     expect(res.body).toHaveProperty("success", true);
   });
 
-  test("health endpoint should return JSON", async () => {
+  test("el endpoint health debería retornar JSON", async () => {
     const res = await request(app).get("/health");
 
     expect(res.headers["content-type"]).toContain("application/json");

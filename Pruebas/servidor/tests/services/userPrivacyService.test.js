@@ -10,6 +10,334 @@ describe('UserPrivacyService', () => {
       expect(UserPrivacyService).toHaveProperty('hashNickname');
       expect(UserPrivacyService).toHaveProperty('generateAnonymousUser');
       expect(UserPrivacyService).toHaveProperty('getPublicUserInfo');
+      expect(UserPrivacyService).toHaveProperty('generateAnonymousUserList');
+      expect(UserPrivacyService).toHaveProperty('compareNicknames');
+      expect(UserPrivacyService).toHaveProperty('generateUserStats');
+    });
+  });
+
+  describe('hashNickname', () => {
+    it('should hash a nickname without salt', () => {
+      const hash = UserPrivacyService.hashNickname('testUser');
+      expect(hash).toBeDefined();
+      expect(hash.length).toBe(8);
+      expect(hash).toMatch(/^[A-F0-9]+$/);
+    });
+
+    it('should hash a nickname with salt', () => {
+      const hash1 = UserPrivacyService.hashNickname('testUser', '1234');
+      const hash2 = UserPrivacyService.hashNickname('testUser', '5678');
+      expect(hash1).toBeDefined();
+      expect(hash2).toBeDefined();
+      expect(hash1).not.toBe(hash2);
+    });
+
+    it('should produce consistent hashes', () => {
+      const hash1 = UserPrivacyService.hashNickname('testUser', 'salt');
+      const hash2 = UserPrivacyService.hashNickname('testUser', 'salt');
+      expect(hash1).toBe(hash2);
+    });
+
+    it('should produce different hashes for different nicknames', () => {
+      const hash1 = UserPrivacyService.hashNickname('user1');
+      const hash2 = UserPrivacyService.hashNickname('user2');
+      expect(hash1).not.toBe(hash2);
+    });
+
+    it('should handle special characters', () => {
+      const hash = UserPrivacyService.hashNickname('User@#$%');
+      expect(hash).toBeDefined();
+      expect(hash.length).toBe(8);
+    });
+
+    it('should handle empty string', () => {
+      const hash = UserPrivacyService.hashNickname('');
+      expect(hash).toBeDefined();
+      expect(hash.length).toBe(8);
+    });
+  });
+
+  describe('generateAnonymousUser', () => {
+    it('should generate anonymous user info', () => {
+      const result = UserPrivacyService.generateAnonymousUser('testUser');
+      expect(result).toHaveProperty('hash');
+      expect(result).toHaveProperty('displayName');
+      expect(result).toHaveProperty('color');
+      expect(result).toHaveProperty('initials');
+      expect(result).toHaveProperty('originalNickname');
+    });
+
+    it('should generate valid display name', () => {
+      const result = UserPrivacyService.generateAnonymousUser('testUser');
+      expect(result.displayName).toMatch(/^Usuario-[A-F0-9]{8}$/);
+    });
+
+    it('should generate valid HSL color', () => {
+      const result = UserPrivacyService.generateAnonymousUser('testUser');
+      expect(result.color).toMatch(/^hsl\(\d+, 65%, 55%\)$/);
+    });
+
+    it('should generate 2-character initials', () => {
+      const result = UserPrivacyService.generateAnonymousUser('testUser');
+      expect(result.initials.length).toBe(2);
+      expect(result.initials).toMatch(/^[A-F0-9]{2}$/);
+    });
+
+    it('should preserve original nickname', () => {
+      const nickname = 'testUser';
+      const result = UserPrivacyService.generateAnonymousUser(nickname);
+      expect(result.originalNickname).toBe(nickname);
+    });
+
+    it('should generate different colors for different users', () => {
+      const result1 = UserPrivacyService.generateAnonymousUser('user1');
+      const result2 = UserPrivacyService.generateAnonymousUser('user2');
+      expect(result1.color).not.toBe(result2.color);
+    });
+
+    it('should use salt for anonymous generation', () => {
+      const result1 = UserPrivacyService.generateAnonymousUser('user', 'salt1');
+      const result2 = UserPrivacyService.generateAnonymousUser('user', 'salt2');
+      expect(result1.hash).not.toBe(result2.hash);
+    });
+  });
+
+  describe('getPublicUserInfo', () => {
+    it('should return public user info for other users', () => {
+      const info = UserPrivacyService.getPublicUserInfo('testUser', '1234', false);
+      expect(info).toHaveProperty('hash');
+      expect(info).toHaveProperty('displayName');
+      expect(info).toHaveProperty('color');
+      expect(info).toHaveProperty('initials');
+      expect(info).toHaveProperty('isYou');
+      expect(info.isYou).toBe(false);
+    });
+
+    it('should return "Tú" for own user', () => {
+      const nickname = 'testUser';
+      const info = UserPrivacyService.getPublicUserInfo(nickname, '1234', true);
+      expect(info.displayName).toContain('Tú');
+      expect(info.displayName).toContain(nickname);
+      expect(info.isYou).toBe(true);
+    });
+
+    it('should not show "Tú" for other users', () => {
+      const info = UserPrivacyService.getPublicUserInfo('otherUser', '1234', false);
+      expect(info.displayName).not.toContain('Tú');
+      expect(info.displayName).toMatch(/^Usuario-/);
+    });
+
+    it('should include hash in response', () => {
+      const info = UserPrivacyService.getPublicUserInfo('testUser', '1234');
+      expect(info.hash).toBeDefined();
+      expect(info.hash.length).toBe(8);
+    });
+
+    it('should use room PIN as salt', () => {
+      const info1 = UserPrivacyService.getPublicUserInfo('user', '1234');
+      const info2 = UserPrivacyService.getPublicUserInfo('user', '5678');
+      expect(info1.hash).not.toBe(info2.hash);
+    });
+  });
+
+  describe('generateAnonymousUserList', () => {
+    it('should generate anonymous list for multiple users', () => {
+      const users = [
+        { id: 's1', nickname: 'user1' },
+        { id: 's2', nickname: 'user2' },
+        { id: 's3', nickname: 'user3' }
+      ];
+      
+      const list = UserPrivacyService.generateAnonymousUserList(users, '1234');
+      expect(list).toHaveLength(3);
+      expect(list[0]).toHaveProperty('socketId');
+      expect(list[0]).toHaveProperty('hash');
+      expect(list[0]).toHaveProperty('displayName');
+    });
+
+    it('should mark current user correctly', () => {
+      const users = [
+        { id: 's1', nickname: 'user1' },
+        { id: 's2', nickname: 'currentUser' },
+        { id: 's3', nickname: 'user3' }
+      ];
+      
+      const list = UserPrivacyService.generateAnonymousUserList(users, '1234', 'currentUser');
+      const currentUser = list.find(u => u.isYou);
+      expect(currentUser).toBeDefined();
+      expect(currentUser.displayName).toContain('Tú');
+    });
+
+    it('should include joinedAt timestamp', () => {
+      const users = [
+        { id: 's1', nickname: 'user1', joinedAt: new Date() }
+      ];
+      
+      const list = UserPrivacyService.generateAnonymousUserList(users, '1234');
+      expect(list[0].joinedAt).toBeInstanceOf(Date);
+    });
+
+    it('should handle users without joinedAt', () => {
+      const users = [
+        { id: 's1', nickname: 'user1' }
+      ];
+      
+      const list = UserPrivacyService.generateAnonymousUserList(users, '1234');
+      expect(list[0].joinedAt).toBeInstanceOf(Date);
+    });
+
+    it('should preserve socketId', () => {
+      const users = [
+        { id: 'socket123', nickname: 'user1' }
+      ];
+      
+      const list = UserPrivacyService.generateAnonymousUserList(users, '1234');
+      expect(list[0].socketId).toBe('socket123');
+    });
+
+    it('should handle empty user list', () => {
+      const list = UserPrivacyService.generateAnonymousUserList([], '1234');
+      expect(list).toHaveLength(0);
+    });
+
+    it('should not mark anyone as "you" when no current user provided', () => {
+      const users = [
+        { id: 's1', nickname: 'user1' },
+        { id: 's2', nickname: 'user2' }
+      ];
+      
+      const list = UserPrivacyService.generateAnonymousUserList(users, '1234');
+      const hasYou = list.some(u => u.isYou);
+      expect(hasYou).toBe(false);
+    });
+  });
+
+  describe('compareNicknames', () => {
+    it('should return true for matching nicknames', () => {
+      const result = UserPrivacyService.compareNicknames('user1', 'user1', 'salt');
+      expect(result).toBe(true);
+    });
+
+    it('should return false for different nicknames', () => {
+      const result = UserPrivacyService.compareNicknames('user1', 'user2', 'salt');
+      expect(result).toBe(false);
+    });
+
+    it('should work without salt', () => {
+      const result = UserPrivacyService.compareNicknames('user1', 'user1');
+      expect(result).toBe(true);
+    });
+
+    it('should be case-sensitive', () => {
+      const result = UserPrivacyService.compareNicknames('User1', 'user1', 'salt');
+      expect(result).toBe(false);
+    });
+
+    it('should handle special characters', () => {
+      const result = UserPrivacyService.compareNicknames('user@123', 'user@123', 'salt');
+      expect(result).toBe(true);
+    });
+  });
+
+  describe('generateUserStats', () => {
+    it('should generate total user count', () => {
+      const users = [
+        { nickname: 'user1', joinedAt: new Date() },
+        { nickname: 'user2', joinedAt: new Date() },
+        { nickname: 'user3', joinedAt: new Date() }
+      ];
+      
+      const stats = UserPrivacyService.generateUserStats(users);
+      expect(stats.totalUsers).toBe(3);
+    });
+
+    it('should count active users in last 5 minutes', () => {
+      const now = Date.now();
+      const users = [
+        { nickname: 'user1', lastActive: new Date(now - 2 * 60 * 1000) },
+        { nickname: 'user2', lastActive: new Date(now - 10 * 60 * 1000) },
+        { nickname: 'user3', joinedAt: new Date(now - 1 * 60 * 1000) }
+      ];
+      
+      const stats = UserPrivacyService.generateUserStats(users);
+      expect(stats.activeInLast5Min).toBeGreaterThan(0);
+    });
+
+    it('should generate user hashes', () => {
+      const users = [
+        { nickname: 'user1' },
+        { nickname: 'user2' }
+      ];
+      
+      const stats = UserPrivacyService.generateUserStats(users);
+      expect(stats.userHashes).toHaveLength(2);
+      expect(stats.userHashes[0]).toMatch(/^[A-F0-9]{8}$/);
+    });
+
+    it('should handle empty user list', () => {
+      const stats = UserPrivacyService.generateUserStats([]);
+      expect(stats.totalUsers).toBe(0);
+      expect(stats.activeInLast5Min).toBe(0);
+      expect(stats.userHashes).toHaveLength(0);
+    });
+
+    it('should count users with joinedAt as lastActive fallback', () => {
+      const now = Date.now();
+      const users = [
+        { nickname: 'user1', joinedAt: new Date(now - 1 * 60 * 1000) }
+      ];
+      
+      const stats = UserPrivacyService.generateUserStats(users);
+      expect(stats.activeInLast5Min).toBe(1);
+    });
+
+    it('should not count inactive users', () => {
+      const now = Date.now();
+      const users = [
+        { nickname: 'user1', lastActive: new Date(now - 10 * 60 * 1000) },
+        { nickname: 'user2', lastActive: new Date(now - 20 * 60 * 1000) }
+      ];
+      
+      const stats = UserPrivacyService.generateUserStats(users);
+      expect(stats.activeInLast5Min).toBe(0);
+    });
+
+    it('should handle users without lastActive or joinedAt', () => {
+      const users = [
+        { nickname: 'user1' }
+      ];
+      
+      const stats = UserPrivacyService.generateUserStats(users);
+      expect(stats).toHaveProperty('totalUsers');
+      expect(stats).toHaveProperty('activeInLast5Min');
+    });
+  });
+
+  describe('Edge Cases', () => {
+    it('should handle very long nicknames', () => {
+      const longNickname = 'a'.repeat(1000);
+      const hash = UserPrivacyService.hashNickname(longNickname);
+      expect(hash).toBeDefined();
+      expect(hash.length).toBe(8);
+    });
+
+    it('should handle unicode characters', () => {
+      const unicode = '用户名123';
+      const result = UserPrivacyService.generateAnonymousUser(unicode);
+      expect(result.hash).toBeDefined();
+      expect(result.originalNickname).toBe(unicode);
+    });
+
+    it('should handle emojis in nicknames', () => {
+      const emoji = 'User😀';
+      const hash = UserPrivacyService.hashNickname(emoji);
+      expect(hash).toBeDefined();
+    });
+
+    it('should handle null nickname gracefully', () => {
+      const result = UserPrivacyService.generateAnonymousUser('');
+      expect(result).toHaveProperty('hash');
+      expect(result).toHaveProperty('displayName');
     });
   });
 

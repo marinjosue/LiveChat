@@ -4,16 +4,16 @@ const RoomMembership = require('../models/RoomMembership');
 exports.registerSession = async (deviceId, ip, roomPin, nickname) => {
     try {
         // BUSCAR TODAS LAS SESIONES POR IP (único por dispositivo)
-        const existingSessions = await DeviceSession.find({ ip });
+        const existingSessions = await DeviceSession.find({ ipAddress: ip });
 
         if (existingSessions.length > 0) {
             // Verificar si todas son de la misma sala
-            const uniqueRooms = [...new Set(existingSessions.map(s => s.roomPin))];
+            const uniqueRooms = [...new Set(existingSessions.map(s => s.pin))];
             
             if (uniqueRooms.length > 1) {
                 // ERROR: Múltiples salas - limpiar todo
                 console.error(`! ERROR!: IP ${ip} tiene sesiones en múltiples salas:`, uniqueRooms);
-                await DeviceSession.deleteMany({ ip });
+                await DeviceSession.deleteMany({ ipAddress: ip });
                 console.log(`Sesiones inconsistentes eliminadas`);
             } else if (uniqueRooms[0] === roomPin) {
                 // Actualizar sesión existente en la MISMA sala
@@ -43,8 +43,8 @@ exports.registerSession = async (deviceId, ip, roomPin, nickname) => {
         // Crear nueva sesión (primera vez que esta IP se une a una sala)
         const session = await DeviceSession.create({ 
             deviceId, 
-            ip, 
-            roomPin, 
+            ipAddress: ip, 
+            pin: roomPin, 
             nickname,
             lastActive: Date.now()
         });
@@ -61,7 +61,7 @@ exports.registerSession = async (deviceId, ip, roomPin, nickname) => {
 
 exports.validateSession = async (deviceId, ip, roomPin) => {
     // buscar por ip
-    const session = await DeviceSession.findOne({ ip, roomPin });
+    const session = await DeviceSession.findOne({ ipAddress: ip, pin: roomPin });
     if (session) {
         // actualizar ultima actividad
         session.lastActive = Date.now();
@@ -75,7 +75,7 @@ exports.validateSession = async (deviceId, ip, roomPin) => {
 exports.removeSession = async (deviceId, ip, roomPin) => {
     try {
         //  ELIMINAR TODAS las sesiones de esta IP (limpieza completa del dispositivo)
-        const result = await DeviceSession.deleteMany({ ip });
+        const result = await DeviceSession.deleteMany({ ipAddress: ip });
         console.log('🗑️ removeSession resultado:', { 
             deviceId,
             ip, 
@@ -90,11 +90,11 @@ exports.removeSession = async (deviceId, ip, roomPin) => {
         }
         
         // Verificar que no quedaron sesiones residuales
-        const remainingSessions = await DeviceSession.find({ ip });
+        const remainingSessions = await DeviceSession.find({ ipAddress: ip });
         if (remainingSessions.length > 0) {
             console.error(`ERROR: Quedaron ${remainingSessions.length} sesiones después de eliminar para IP: ${ip}`);
             // Forzar eliminación
-            await DeviceSession.deleteMany({ ip });
+            await DeviceSession.deleteMany({ ipAddress: ip });
             console.log(` Sesiones residuales eliminadas forzadamente`);
         }
         
@@ -106,11 +106,11 @@ exports.removeSession = async (deviceId, ip, roomPin) => {
 };
 
 exports.getSessionByIp = async (ip, roomPin) => {
-    const session = await DeviceSession.findOne({ ip, roomPin });
+    const session = await DeviceSession.findOne({ ipAddress: ip, pin: roomPin });
     console.log(`getSessionByIp: IP=${ip}, roomPin=${roomPin}, encontrada=${session ? 'SÍ' : 'NO'}`);
     return session;
 };
 
 exports.getSessionByDeviceId = async (deviceId, roomPin) => {
-    return await DeviceSession.findOne({ deviceId, roomPin });
+    return await DeviceSession.findOne({ deviceId, pin: roomPin });
 };

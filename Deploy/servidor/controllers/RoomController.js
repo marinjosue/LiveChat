@@ -11,6 +11,7 @@ const { AuditService } = require('../services/auditService');
 const { InactivityService } = require('../services/inactivityService');
 const { UserPrivacyService } = require('../services/userPrivacyService');
 const { encryptionService } = require('../services/encryptionService');
+const { getCleanIP } = require('../utils/ipUtils');
 
 const rooms = {};
 
@@ -20,17 +21,6 @@ const deletionTimers = {};
 const refreshingUsers = new Set();
 // Servicio de inactividad (se inicializa en RoomController)
 let inactivityService = null;
-// funcion auxiliar para obtener ip del cliente
-const getClientIp = (socket) => {
-  const ip = socket.handshake.headers['x-forwarded-for']?.split(',')[0] || 
-             socket.handshake.address || 
-             socket.conn.remoteAddress;
-  
-  // Limpiar la IP si viene con ::ffff:
-  const cleanIp = ip.replace('::ffff:', '');
-  console.log(`📍 IP detectada - Original: ${ip}, Limpia: ${cleanIp}`);
-  return cleanIp;
-};
 
 // Función auxiliar para emitir la lista actualizada de usuarios
 const emitUserList = (pin, room, io) => {
@@ -72,7 +62,7 @@ function RoomController(io) {
   }
 
   io.on('connection', (socket) => {
-    const clientIp = getClientIp(socket);
+    const clientIp = getCleanIP(socket); // ✅ Usar getCleanIP importada
     console.log(`Nuevo cliente conectado: ${socket.id} desde IP: ${clientIp}`);
 
     // crear sala - DESHABILITADO (solo admin puede crear salas)
@@ -86,15 +76,14 @@ function RoomController(io) {
     // unirse a sala
     socket.on('joinRoom', async ({ pin, username, deviceId }) => {
       try {
-        const userIP = getCleanIP(socket);
+        const userIP = getCleanIP(socket); // ✅ Usar getCleanIP importada
         
         // ✅ SOLUCIÓN: Usar deviceId como identificador principal
         console.log(`📱 Cliente: deviceId=${deviceId}, IP=${userIP}, username=${username}`);
         
         // Buscar sesiones activas por deviceId (más confiable que IP)
         const existingSessions = await DeviceSession.find({ 
-          deviceId: deviceId,  // ✅ Usar deviceId en lugar de IP
-          isActive: true 
+          deviceId: deviceId  // ✅ Usar deviceId en lugar de IP
         });
         
         console.log(`📋 Sesiones encontradas para deviceId ${deviceId}:`, existingSessions.length);
@@ -108,10 +97,7 @@ function RoomController(io) {
           
           if (sameRoomSession) {
             console.log(`♻️ Reconexión detectada a la misma sala ${pin}`);
-            // Permitir reconexión - actualizar socketId
-            sameRoomSession.socketId = socket.id;
-            sameRoomSession.lastActivity = new Date();
-            await sameRoomSession.save();
+            // Permitir reconexión - continuar con el flujo normal
           } else {
             // Está en OTRA sala diferente
             return socket.emit('joinError', {
@@ -158,16 +144,16 @@ function RoomController(io) {
         if (room.isFull()) return socket.emit('joinError', { success: false, message: 'La sala esta llena.' });
 
         try {
-          const clientIp = getClientIp(socket);
+          const clientIp = getCleanIP(socket);
           
           console.log(`Cliente intentando unirse: IP=${clientIp}, PIN=${pin}, deviceId=${deviceId}`);
           
           //  VALIDACIÓN: Una IP = Un dispositivo = Una sala ÚNICA = Una conexión activa
-          const existingSessions = await DeviceSession.find({ ip: clientIp });
+          const existingSessions = await DeviceSession.find({ ipAddress: clientIp });
           console.log(`📋 Sesiones encontradas para IP ${clientIp}:`, existingSessions.length);
           
           for (const session of existingSessions) {
-            console.log(`  - Sesión: PIN=${session.roomPin}, deviceId=${session.deviceId}, nickname=${session.nickname}`);
+            console.log(`  - Sesión: PIN=${session.pin}, deviceId=${session.deviceId}, nickname=${session.nickname}`);
           }
           
           // Si hay alguna sesión activa
@@ -180,7 +166,7 @@ function RoomController(io) {
               console.error(`ERROR CRÍTICO: IP ${clientIp} tiene sesiones en ${uniqueRooms.length} salas diferentes:`, uniqueRooms);
               
               // Limpiar todas las sesiones y forzar reconexión
-              await DeviceSession.deleteMany({ ip: clientIp });
+              await DeviceSession.deleteMany({ ipAddress: clientIp });
               console.log(`Sesiones limpiadas. Usuario debe reconectar.`);
               
               return socket.emit('joinError', { 
@@ -208,7 +194,7 @@ function RoomController(io) {
               activeUsersInRoom = room.users.filter(u => {
                 const userSocket = io.sockets.sockets.get(u.id);
                 if (!userSocket) return false;
-                const userIp = getClientIp(userSocket);
+                const userIp = getCleanIP(userSocket);
                 return userIp === clientIp;
               });
             }
@@ -216,7 +202,7 @@ function RoomController(io) {
             // Verificación adicional: buscar en TODOS los sockets conectados
             const allConnectedSockets = Array.from(io.sockets.sockets.values());
             const socketsWithSameIp = allConnectedSockets.filter(s => {
-              return s.userPin === pin && getClientIp(s) === clientIp && s.id !== socket.id;
+              return s.userPin === pin && getCleanIP(s) === clientIp && s.id !== socket.id;
             });
             
             if (activeUsersInRoom.length > 0 || socketsWithSameIp.length > 0) {
@@ -232,7 +218,7 @@ function RoomController(io) {
               });
             }
             // Limpiar sesiones antiguas y crear una nueva para este socket
-            await DeviceSession.deleteMany({ ip: clientIp, roomPin: pin });
+            await DeviceSession.deleteMany({ ipAddress: clientIp, pin: pin });
             console.log(` Sesiones antiguas limpiadas para IP ${clientIp}`);
           } else {
             // No hay sesiones activas - NUEVA CONEXIÓN PERMITIDA
@@ -353,7 +339,7 @@ function RoomController(io) {
     // reconectar a sala
     socket.on('reconnectToRoom', async ({ pin, nickname, deviceId }, callback) => {
       try {
-        const clientIp = getClientIp(socket);
+        const clientIp = getCleanIP(socket);
         let room = rooms[pin];
         
         // Si la sala no está en memoria, buscar en MongoDB
@@ -389,7 +375,7 @@ function RoomController(io) {
         
         if (!session) {
           // Intentar buscar por deviceId como fallback
-          session = await DeviceSession.findOne({ deviceId, roomPin: pin });
+          session = await DeviceSession.findOne({ deviceId, pin: pin });
         }
         
         // Si no hay sesión pero hay un membership activo, recrear la sesión
@@ -579,7 +565,7 @@ function RoomController(io) {
       // Actualizar actividad del usuario
       const user = room.users.find(u => u.id === socket.id);
       if (user) {
-        const clientIp = socket.clientIp || getClientIp(socket);
+        const clientIp = socket.clientIp || getCleanIP(socket);
         inactivityService.updateActivity(socket.id, pin, user.deviceId, clientIp);
       }
       // Enviar mensaje en texto plano a la sala (Socket.IO ya usa TLS/SSL)
@@ -894,7 +880,7 @@ function RoomController(io) {
       const room = rooms[pin];
       if (room && room.users.some(u => u.id === socket.id)) {
         if (inactivityService && socket.id && pin && deviceId) {
-          const clientIp = socket.clientIp || getClientIp(socket);
+          const clientIp = socket.clientIp || getCleanIP(socket);
           inactivityService.updateActivity(socket.id, pin, deviceId, clientIp);
         }
       }
@@ -919,7 +905,7 @@ function RoomController(io) {
       }
       
       // Eliminar solo las sesiones de usuarios
-      await DeviceSession.deleteMany({ roomPin: pin });
+      await DeviceSession.deleteMany({ pin: pin });
       
       // ACTUALIZAR PARTICIPANTES EN MONGODB (a 0) pero mantener isActive=true
       try {
@@ -978,7 +964,7 @@ function RoomController(io) {
           return;
         }
 
-        const clientIp = socket.clientIp || getClientIp(socket);
+        const clientIp = socket.clientIp || getCleanIP(socket);
         const nickname = user.nickname || 'Desconocido';
         
         console.log(`Usuario ${nickname} saliendo de sala ${pin} (IP: ${clientIp})`);
@@ -1022,7 +1008,7 @@ function RoomController(io) {
 
     // desconexion
     socket.on('disconnect', async () => {
-      const clientIp = socket.clientIp || getClientIp(socket);
+      const clientIp = socket.clientIp || getCleanIP(socket);
       //  Marcar en el servicio de inactividad
       if (inactivityService) {
         inactivityService.markDisconnected(socket.id);

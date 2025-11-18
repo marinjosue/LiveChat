@@ -74,12 +74,12 @@ function RoomController(io) {
     });
 
     // unirse a sala
-    socket.on('joinRoom', async ({ pin, username, deviceId }) => {
+    socket.on('joinRoom', async ({ pin, nickname, deviceId }) => {
       try {
         const userIP = getCleanIP(socket); // ✅ Usar getCleanIP importada
         
         // ✅ SOLUCIÓN: Usar deviceId como identificador principal
-        console.log(`📱 Cliente: deviceId=${deviceId}, IP=${userIP}, username=${username}`);
+        console.log(`📱 Cliente: deviceId=${deviceId}, IP=${userIP}, nickname=${nickname}`);
         
         // Buscar sesiones activas por deviceId (más confiable que IP)
         const existingSessions = await DeviceSession.find({ 
@@ -109,12 +109,12 @@ function RoomController(io) {
         }
         
         // validar datos de entrada
-        if (!pin || !username || !deviceId) {
+        if (!pin || !nickname || !deviceId) {
           return socket.emit('joinError', { success: false, message: 'Datos incompletos' });
         }
         
-        // validar longitud de username (maximo 12 caracteres)
-        if (username.length > 12) {
+        // validar longitud de nickname (maximo 12 caracteres)
+        if (nickname.length > 12) {
           return socket.emit('joinError', { success: false, message: 'El nombre no puede exceder 12 caracteres' });
         }
         
@@ -225,12 +225,12 @@ function RoomController(io) {
             console.log(`IP ${clientIp} sin sesiones activas - permitiendo acceso a sala ${pin}`);
           }
 
-          await registerSession(deviceId, clientIp, pin, username);
-          room.addUser(socket.id, username, deviceId);
+          await registerSession(deviceId, clientIp, pin, nickname);
+          room.addUser(socket.id, nickname, deviceId);
           socket.join(pin);
           socket.clientIp = clientIp;
           socket.userPin = pin;
-          socket.userNickname = username;
+          socket.userNickname = nickname;
 
           // CREAR O ACTUALIZAR ROOM MEMBERSHIP
           try {
@@ -257,7 +257,7 @@ function RoomController(io) {
 
           // CARGAR MENSAJES PREVIOS INMEDIATAMENTE (antes de emitir userJoined)
           const previousMessages = await Message.find({ pin }).sort({ timestamp: 1 });
-          console.log(`Cargando ${previousMessages.length} mensajes previos para ${username} en sala ${pin}`);
+          console.log(`Cargando ${previousMessages.length} mensajes previos para ${nickname} en sala ${pin}`);
           
           // DESCIFRAR mensajes de texto antes de enviar
           const decryptedMessages = previousMessages.map(msg => {
@@ -289,7 +289,7 @@ function RoomController(io) {
           socket.emit('previousMessages', decryptedMessages);
 
           // EMITIR userJoined CON CONTEO ACTUALIZADO A TODA LA SALA
-          io.to(pin).emit('userJoined', { userId: socket.id, nickname: username, count: room.users.length, limit: room.limit });
+          io.to(pin).emit('userJoined', { userId: socket.id, nickname: nickname, count: room.users.length, limit: room.limit });
           
           // EMITIR participantCountUpdate A TODA LA SALA (nuevo evento específico)
           io.to(pin).emit('participantCountUpdate', { 
@@ -304,7 +304,7 @@ function RoomController(io) {
           // Registrar actividad inicial del usuario
           inactivityService.updateActivity(socket.id, pin, deviceId, clientIp);
 
-          console.log(`${username} se unio a sala ${pin} (IP: ${clientIp})`);
+          console.log(`${nickname} se unio a sala ${pin} (IP: ${clientIp})`);
           console.log(`Tipo de sala: ${room.roomType}`);
           
           // Emitir lista actualizada de usuarios a todos en la sala (DESPUÉS de confirmar éxito)

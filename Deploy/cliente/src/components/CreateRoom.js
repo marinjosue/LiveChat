@@ -77,12 +77,7 @@ const CreateRoom = ({ onRoomCreated, adminToken }) => {
         roomType: roomType,
         maxParticipants: limit
       };
-      
-      console.log('📤 Enviando datos de sala:', payload);
-      console.log('🔍 Tipo de sala seleccionado:', roomType);
-      console.log('🔍 ¿Es TEXT?', roomType === ROOM_TYPES.TEXT);
-      console.log('🔍 ¿Es MULTIMEDIA?', roomType === ROOM_TYPES.MULTIMEDIA);
-      
+            
       const response = await fetch(`${BACKEND_URL}/api/admin/rooms`, {
         method: 'POST',
         headers: {

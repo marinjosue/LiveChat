@@ -1,7 +1,7 @@
 import io from 'socket.io-client';
 import { getDeviceId, setRefreshing } from '../utils/deviceManager';
 
-// 🔐 CONFIGURACIÓN HTTPS CON FALLBACK A HTTP
+// CONFIGURACIÓN HTTPS CON FALLBACK A HTTP
 const getSocketURL = () => {
   const httpsUrl = process.env.REACT_APP_SOCKET_URL || 'http://localhost:3001';
   // Intentar HTTPS primero, fallback a HTTP si falla

@@ -502,11 +502,15 @@
 }
 
 .app-container.light-theme .footer-item {
-  color: var(--text-secondary-light);
+  color: #475569;
 }
 
 .app-container.light-theme .footer-item:hover {
-  color: var(--text-primary-light);
+  color: #1e293b;
+}
+
+.app-container.light-theme .footer-text {
+  color: #64748b;
 }
 
 .footer-item svg {
@@ -529,7 +533,7 @@
 }
 
 .app-container.light-theme .footer-text {
-  color: var(--text-secondary-light);
+  color: #64748b;
 }
 
 .github-link {
@@ -755,4 +759,27 @@
 .app-container.light-theme .spinner {
   border: 4px solid rgba(99, 102, 241, 0.1);
   border-top-color: #6366f1;
+}
+
+/* ==================== LIGHT THEME - CONTRASTES MEJORADOS ==================== */
+
+/* Badges en modo claro */
+.app-container.light-theme .text-only-badge-small,
+.app-container.light-theme .multimedia-badge-small {
+  background: rgba(99, 102, 241, 0.15);
+  color: #4f46e5;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+}
+
+/* Footer items en modo claro */
+.app-container.light-theme .footer-item {
+  color: #475569;
+}
+
+.app-container.light-theme .footer-item:hover {
+  color: #1e293b;
+}
+
+.app-container.light-theme .footer-text {
+  color: #64748b;
 }

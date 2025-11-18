@@ -189,7 +189,7 @@
 }
 
 .type-option:hover:not(:disabled) {
-  background: rgba(59, 130, 246, 0.08);
+  background: rgba(200, 182, 23, 0.08);
   border-color: var(--create-room-primary-light);
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
@@ -204,11 +204,11 @@
 .type-option.active {
   background: rgba(121, 80, 242, 0.25);
   border-color: #7b57ff;
-  box-shadow: 0 0 12px rgba(121, 80, 242, 0.4);
+  box-shadow: 0 0 12px rgba(138, 205, 118, 0.4);
   transform: scale(1.03);
 }
 
-
+/* Comentado para eliminar el visto
 .type-option.active::before {
   content: '✓';
   position: absolute;
@@ -232,6 +232,7 @@
   50% { transform: scale(1.2); }
   100% { transform: scale(1); }
 }
+*/
 
 .type-icon {
   color: var(--create-room-primary-light);
@@ -484,6 +485,11 @@ background: linear-gradient(
   color: #1e293b;
 }
 
+.admin-app.light-theme .form-label svg,
+.app-container.light-theme .form-label svg {
+  color: #4f46e5;
+}
+
 .admin-app.light-theme .form-input,
 .app-container.light-theme .form-input {
   background: white;
@@ -493,8 +499,9 @@ background: linear-gradient(
 
 .admin-app.light-theme .form-input:focus,
 .app-container.light-theme .form-input:focus {
-  border-color: var(--create-room-primary);
+  border-color: #6366f1;
   background: #f8fafc;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
 }
 
 .admin-app.light-theme .form-input::placeholder,
@@ -516,13 +523,29 @@ background: linear-gradient(
 
 .admin-app.light-theme .type-option.active,
 .app-container.light-theme .type-option.active {
-  background: rgba(37, 85, 161, 0.1);
-  border-color: var(--create-room-primary);
+  background: rgba(99, 102, 241, 0.1);
+  border-color: #6366f1;
+  box-shadow: 0 0 12px rgba(99, 102, 241, 0.2);
+}
+
+.admin-app.light-theme .type-icon,
+.app-container.light-theme .type-icon {
+  color: #6366f1;
+}
+
+.admin-app.light-theme .type-option.active .type-icon,
+.app-container.light-theme .type-option.active .type-icon {
+  color: #4f46e5;
 }
 
 .admin-app.light-theme .type-info h4,
 .app-container.light-theme .type-info h4 {
   color: #1e293b;
+}
+
+.admin-app.light-theme .type-option.active .type-info h4,
+.app-container.light-theme .type-option.active .type-info h4 {
+  color: #4f46e5;
 }
 
 .admin-app.light-theme .type-info p,
@@ -535,10 +558,24 @@ background: linear-gradient(
   background: #cbd5e1;
 }
 
+.admin-app.light-theme .slider::-webkit-slider-thumb,
+.admin-app.light-theme .slider::-moz-range-thumb,
+.app-container.light-theme .slider::-webkit-slider-thumb,
+.app-container.light-theme .slider::-moz-range-thumb {
+  background: #6366f1;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4);
+}
+
 .admin-app.light-theme .slider-value,
 .app-container.light-theme .slider-value {
-  color: var(--create-room-primary);
-  background: rgba(59, 130, 246, 0.1);
+  color: #4f46e5;
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+}
+
+.admin-app.light-theme .input-hint,
+.app-container.light-theme .input-hint {
+  color: #64748b;
 }
 
 /* ==================== RESPONSIVE DESIGN ==================== */

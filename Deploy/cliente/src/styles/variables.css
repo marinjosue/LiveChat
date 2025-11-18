@@ -11,10 +11,10 @@
   --accent: #f59e0b;
   
   /* Estados */
-  --success: #10b981;
-  --warning: #f59e0b;
-  --error: #ef4444;
-  --info: #06b6d4;
+  --success: #12db9848;
+  --warning: #f59f0b75;
+  --error: #ef44446b;
+  --info: #06b5d46f;
   
   /* Tema oscuro */
   --dark-bg: #0a0b1e;

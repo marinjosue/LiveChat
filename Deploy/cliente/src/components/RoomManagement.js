@@ -393,7 +393,7 @@ function RoomManagement() {
                   title="Eliminar definitivamente (irreversible)"
                 >
                   <Trash2 size={16} />
-                  🚨 Eliminar Definitivo
+                  Eliminar Definitivo
                 </button>
               </div>
             </div>

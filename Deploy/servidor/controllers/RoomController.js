@@ -22,12 +22,27 @@ const refreshingUsers = new Set();
 let inactivityService = null;
 // funcion auxiliar para obtener ip del cliente
 const getClientIp = (socket) => {
-  const ip = socket.handshake.headers['x-forwarded-for']?.split(',')[0] || 
-             socket.handshake.address || 
-             socket.conn.remoteAddress;
+  let ip = socket.handshake.headers['x-forwarded-for']?.split(',')[0] || 
+           socket.handshake.headers['x-real-ip'] ||
+           socket.handshake.address || 
+           socket.conn.remoteAddress ||
+           socket.request?.connection?.remoteAddress;
   
-  // Limpiar la IP si viene con ::ffff:
-  const cleanIp = ip.replace('::ffff:', '');
+  // Si no hay IP, usar un fallback
+  if (!ip) {
+    console.warn('⚠️ No se pudo obtener IP del socket, usando fallback');
+    ip = '0.0.0.0';
+  }
+  
+  // Limpiar la IP si viene con ::ffff: o espacios
+  const cleanIp = ip.toString().trim().replace('::ffff:', '');
+  
+  // Validar que no sea vacía después de limpiar
+  if (!cleanIp || cleanIp === '') {
+    console.warn('⚠️ IP vacía después de limpiar, usando fallback');
+    return '0.0.0.0';
+  }
+  
   console.log(`📍 IP detectada - Original: ${ip}, Limpia: ${cleanIp}`);
   return cleanIp;
 };
@@ -90,10 +105,17 @@ function RoomController(io) {
         return callback({ success: false, message: 'Datos incompletos' });
       }
       
-      // validar longitud de nickname (maximo 12 caracteres)
-      if (nickname.length > 12) {
+      // Extraer nickname base si ya tiene número
+      const baseNickname = UserPrivacyService.extractBaseNickname(nickname);
+      
+      // validar longitud de nickname base (maximo 12 caracteres)
+      if (baseNickname.length > 12) {
         return callback({ success: false, message: 'El nombre no puede exceder 12 caracteres' });
       }
+      
+      // Generar nickname único con número aleatorio
+      const uniqueNickname = UserPrivacyService.createUniqueNickname(baseNickname);
+      console.log(`📝 Nickname generado: ${baseNickname} → ${uniqueNickname}`);
       
       let room = rooms[pin];
       
@@ -202,16 +224,16 @@ function RoomController(io) {
           console.log(`IP ${clientIp} sin sesiones activas - permitiendo acceso a sala ${pin}`);
         }
 
-        await registerSession(deviceId, clientIp, pin, nickname);
-        room.addUser(socket.id, nickname, deviceId);
+        await registerSession(deviceId, clientIp, pin, uniqueNickname);
+        room.addUser(socket.id, uniqueNickname, deviceId);
         socket.join(pin);
         socket.clientIp = clientIp;
         socket.userPin = pin;
-        socket.userNickname = nickname;
+        socket.userNickname = uniqueNickname;
 
         // CREAR O ACTUALIZAR ROOM MEMBERSHIP
         try {
-          await RoomMembership.createOrUpdate(deviceId, nickname, pin, clientIp);
+          await RoomMembership.createOrUpdate(deviceId, uniqueNickname, pin, clientIp);
         } catch (membershipError) {
           console.error(' Error creando RoomMembership:', membershipError);
         }
@@ -266,7 +288,7 @@ function RoomController(io) {
         socket.emit('previousMessages', decryptedMessages);
 
         // EMITIR userJoined CON CONTEO ACTUALIZADO A TODA LA SALA
-        io.to(pin).emit('userJoined', { userId: socket.id, nickname, count: room.users.length, limit: room.limit });
+        io.to(pin).emit('userJoined', { userId: socket.id, nickname: uniqueNickname, count: room.users.length, limit: room.limit });
         
         // EMITIR participantCountUpdate A TODA LA SALA (nuevo evento específico)
         io.to(pin).emit('participantCountUpdate', { 
@@ -281,7 +303,7 @@ function RoomController(io) {
         // Registrar actividad inicial del usuario
         inactivityService.updateActivity(socket.id, pin, deviceId, clientIp);
 
-        console.log(`${nickname} se unio a sala ${pin} (IP: ${clientIp})`);
+        console.log(`${uniqueNickname} se unio a sala ${pin} (IP: ${clientIp})`);
         console.log(`Tipo de sala: ${room.roomType}`);
         
         // Emitir lista actualizada de usuarios a todos en la sala (DESPUÉS de confirmar éxito)
@@ -289,7 +311,7 @@ function RoomController(io) {
           emitUserList(pin, room, io);
         }, 100);
         
-        callback({ success: true, pin, roomType: room.roomType });
+        callback({ success: true, pin, roomType: room.roomType, nickname: uniqueNickname });
       } catch (err) {
         console.error('Error en joinRoom:', err);
         callback({ success: false, message: err.message });

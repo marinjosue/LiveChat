@@ -88,12 +88,15 @@ const JoinRoom = ({ onRoomJoined, initialPin }) => {
       console.log('🔍 Respuesta completa de joinRoom:', response);
       if (response.success) {
         const roomType = response.roomType || 'multimedia';
+        // Usar el nickname único devuelto por el servidor
+        const uniqueNickname = response.nickname || nickname;
         console.log('🎯 JoinRoom - PIN:', pin);
+        console.log('🎯 JoinRoom - Nickname único:', uniqueNickname);
         console.log('🎯 JoinRoom - roomType recibido:', response.roomType);
         console.log('🎯 JoinRoom - roomType final:', roomType);
-        saveCurrentRoom({ pin, nickname, roomType });
-        toast.current.show({ severity: 'success', summary: 'Unido', detail: `Te has unido a la sala ${pin}`, life: 2000 });
-        setTimeout(() => onRoomJoined(pin, nickname, roomType), 2000);
+        saveCurrentRoom({ pin, nickname: uniqueNickname, roomType });
+        toast.current.show({ severity: 'success', summary: 'Unido', detail: `Te has unido a la sala ${pin} como ${uniqueNickname}`, life: 3000 });
+        setTimeout(() => onRoomJoined(pin, uniqueNickname, roomType), 2000);
       } else {
         // Si es un error de bloqueo por múltiples navegadores, mostrar modal especial
         if (response.message && response.message.includes('ACCESO BLOQUEADO')) {

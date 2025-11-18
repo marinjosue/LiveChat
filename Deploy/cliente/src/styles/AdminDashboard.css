@@ -347,11 +347,8 @@
   letter-spacing: 1px;
   border: 1px solid rgba(99, 102, 241, 0.2);
 }
-.admin-app.light-theme .room-pin,
-.admin-app .light-theme .room-pin,
-.light-theme .room-pin,
-body.light-theme .room-pin {
-  /* fondo claro y buen contraste para el PIN cuando se activa el tema claro */
+
+.admin-app.light-theme .room-pin {
   background: var(--light-surface, #f1f5f9);
   color: var(--primary, #0b0836);
   border: 1px solid var(--primary-light, #c7d2fe);

@@ -7,6 +7,63 @@ const crypto = require('crypto');
 
 class UserPrivacyService {
   /**
+   * Genera un número aleatorio único de 4 dígitos
+   * @returns {string} Número de 4 dígitos
+   */
+  static generateUniqueNumber() {
+    // Generar un número aleatorio de 4 dígitos (1000-9999)
+    const min = 1000;
+    const max = 9999;
+    const randomNumber = Math.floor(Math.random() * (max - min + 1)) + min;
+    return randomNumber.toString();
+  }
+
+  /**
+   * Genera un identificador único basado en timestamp y random
+   * @returns {string} Número único de 4-5 dígitos
+   */
+  static generateTimestampBasedNumber() {
+    // Usar timestamp + random para garantizar unicidad
+    const timestamp = Date.now();
+    const random = Math.floor(Math.random() * 10000);
+    const combined = (timestamp + random).toString();
+    // Tomar los últimos 4 dígitos
+    return combined.slice(-4);
+  }
+
+  /**
+   * Crea un nickname único agregando un número aleatorio
+   * @param {string} nickname - Nickname base del usuario
+   * @returns {string} Nickname con número único (ej: "Juan#1234")
+   */
+  static createUniqueNickname(nickname) {
+    const uniqueNumber = this.generateTimestampBasedNumber();
+    return `${nickname}#${uniqueNumber}`;
+  }
+
+  /**
+   * Extrae el nickname base sin el número
+   * @param {string} fullNickname - Nickname completo con número (ej: "Juan#1234")
+   * @returns {string} Nickname base (ej: "Juan")
+   */
+  static extractBaseNickname(fullNickname) {
+    if (!fullNickname) return '';
+    const parts = fullNickname.split('#');
+    return parts[0];
+  }
+
+  /**
+   * Extrae el número único del nickname
+   * @param {string} fullNickname - Nickname completo con número (ej: "Juan#1234")
+   * @returns {string} Número único (ej: "1234") o vacío si no existe
+   */
+  static extractUniqueNumber(fullNickname) {
+    if (!fullNickname) return '';
+    const parts = fullNickname.split('#');
+    return parts.length > 1 ? parts[1] : '';
+  }
+
+  /**
    * Genera un hash SHA-256 de un nickname para privacidad
    * @param {string} nickname - Nickname del usuario
    * @param {string} salt - Salt opcional para el hash (usar PIN de la sala)

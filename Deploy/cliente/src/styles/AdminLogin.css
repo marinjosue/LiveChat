@@ -22,6 +22,7 @@
   padding: 40px;
   animation: slideIn 0.3s ease-out;
   transition: all 0.3s ease;
+  position: relative;
 }
 
 .admin-app.light-theme .admin-login-card {
@@ -44,7 +45,6 @@
 .admin-login-header {
   text-align: center;
   margin-bottom: 30px;
-  position: relative;
 }
 
 .header-title {
@@ -81,18 +81,20 @@
 
 .theme-toggle-admin {
   position: absolute;
-  top: 0;
-  right: 0;
+  top: 16px;
+  right: 16px;
   padding: 8px;
-  background: transparent;
+  background: rgba(255, 255, 255, 0.05);
   border: 1px solid #334155;
-  border-radius: 6px;
+  border-radius: 8px;
   color: #94a3b8;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   align-items: center;
   justify-content: center;
+  z-index: 10;
+  backdrop-filter: blur(10px);
 }
 
 .theme-toggle-admin:hover {
@@ -282,14 +284,8 @@
   }
 
   .theme-toggle-admin {
-    position: static;
-    margin-bottom: 16px;
-  }
-
-  .admin-login-header {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
+    top: 12px;
+    right: 12px;
   }
 }
 

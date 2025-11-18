@@ -99,20 +99,21 @@ const vUser = Validators.validateAdminUsername(formData.username);
   return (
     <div className="admin-login-container">
       <div className="admin-login-card">
+        <button 
+          className="theme-toggle-admin" 
+          onClick={toggleTheme}
+          title={theme === 'dark' ? 'Modo Claro' : 'Modo Oscuro'}
+          type="button"
+        >
+          {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+        </button>
+        
         <div className="admin-login-header">
           <div className="header-title">
             <Shield size={32} className="header-icon" />
             <h2>Administración LiveChat</h2>
           </div>
           <p>{step === 'login' ? 'Iniciar Sesión' : 'Autenticación 2FA'}</p>
-          <button 
-            className="theme-toggle-admin" 
-            onClick={toggleTheme}
-            title={theme === 'dark' ? 'Modo Claro' : 'Modo Oscuro'}
-            type="button"
-          >
-            {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
-          </button>
         </div>
 
         {error && (

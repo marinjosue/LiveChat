@@ -33,7 +33,7 @@ function calculateEntropy(buffer) {
 }
 
 /**
- * ✨ NUEVO: Análisis de entropía por bloques
+ *  NUEVO: Análisis de entropía por bloques
  * Detecta datos ocultos localizados (más preciso que entropía global)
  */
 function analyzeEntropyByBlocks(buffer) {
@@ -47,7 +47,7 @@ function analyzeEntropyByBlocks(buffer) {
     const entropy = calculateEntropy(block);
     entropies.push(entropy);
     
-    if (entropy > 7.8) {
+    if (entropy > 7.95) {
       highEntropyBlocks++;
     }
   }
@@ -63,7 +63,7 @@ function analyzeEntropyByBlocks(buffer) {
     highEntropyBlocks,
     totalBlocks: entropies.length,
     anomalyScore,
-    suspicious: anomalyScore > 0.15 // > 15% bloques con alta entropía (MUY sensible)
+    suspicious: anomalyScore > 0.25 // > 25% bloques con alta entropía (reducir falsos positivos)
   };
 }
 
@@ -104,19 +104,19 @@ function analyzeLSB(buffer) {
   const ratioDeviation = Math.abs(onesRatio - 0.5);
   
   // OpenStego tiende a crear patrones con:
-  // 1. Alta entropía en LSB (>0.85)
-  // 2. Patrones muy cortos (maxConsecutive < 5)
+  // 1. Alta entropía en LSB (>0.95)
+  // 2. Patrones muy cortos (maxConsecutive < 4)
   // 3. Ratio desbalanceado (lejos de 0.5)
-  const isHighEntropy = lsbEntropy > 0.85;
-  const isShortPatterns = maxConsecutive < 5;
-  const isUnbalanced = ratioDeviation > 0.15;
+  const isHighEntropy = lsbEntropy > 0.95;
+  const isShortPatterns = maxConsecutive < 4;
+  const isUnbalanced = ratioDeviation > 0.20;
   
   return {
     lsbEntropy,
     onesRatio,
     ratioDeviation,
     maxConsecutiveSame: maxConsecutive,
-    suspicious: isHighEntropy || (isShortPatterns && isUnbalanced),
+    suspicious: (isHighEntropy && isShortPatterns) || (isHighEntropy && isUnbalanced) || (isShortPatterns && isUnbalanced && lsbEntropy > 0.90),
     indicators: {
       highEntropy: isHighEntropy,
       shortPatterns: isShortPatterns,
@@ -228,8 +228,8 @@ async function analyzePixelCorrelation(rawData, channels, pixelCount) {
   
   return {
     avgPixelDifference: avgDifference,
-    suspicious: avgDifference > 20, // Umbral MUY reducido para BMP y PNG
-    interpretation: avgDifference < 15 ? 'Natural' : avgDifference < 20 ? 'Comprimido' : 'Anómalo'
+    suspicious: avgDifference > 35, // Umbral aumentado - JPEG comprimido puede tener alta diferencia
+    interpretation: avgDifference < 15 ? 'Natural' : avgDifference < 30 ? 'Comprimido (JPEG)' : 'Anómalo'
   };
 }
 
@@ -291,7 +291,9 @@ function analyzeAdvancedLSBPattern(rawData, channels, pixelCount, format) {
   const lsbEntropy = calculateEntropy(Buffer.from(lsbPlane));
   
   // Alta entropía = datos encriptados/comprimidos ocultos (CUALQUIER herramienta)
-  indicators.lsbPlaneNoise = lsbEntropy > 0.92;
+  // JPEG: umbral más alto debido a compresión natural
+  const entropyThreshold = format === 'jpeg' || format === 'jpg' ? 0.97 : 0.92;
+  indicators.lsbPlaneNoise = lsbEntropy > entropyThreshold;
   
   // 2. Detectar patrón secuencial (muchas herramientas escriben secuencialmente)
   let transitions = 0;
@@ -301,10 +303,14 @@ function analyzeAdvancedLSBPattern(rawData, channels, pixelCount, format) {
   const transitionRate = transitions / Math.min(5000, lsbPlane.length);
   
   // Patrón ~50% de transiciones es sospechoso (común en esteganografía)
-  indicators.sequentialPattern = transitionRate > 0.40 && transitionRate < 0.60;
+  // JPEG: rango más estricto
+  const isJpeg = format === 'jpeg' || format === 'jpg';
+  indicators.sequentialPattern = isJpeg 
+    ? (transitionRate > 0.45 && transitionRate < 0.55)
+    : (transitionRate > 0.40 && transitionRate < 0.60);
   
   // 3. Detectar patrón completamente aleatorio (alta entropía + transiciones uniformes)
-  indicators.randomPattern = lsbEntropy > 0.98 && Math.abs(transitionRate - 0.5) < 0.05;
+  indicators.randomPattern = lsbEntropy > 0.99 && Math.abs(transitionRate - 0.5) < 0.03;
   
   // 4. Analizar diferencia entre canales RGB
   if (channels >= 3) {
@@ -334,8 +340,12 @@ function analyzeAdvancedLSBPattern(rawData, channels, pixelCount, format) {
     indicators.channelImbalance
   ].filter(Boolean).length;
   
-  // Más flexible: 2+ indicadores O (1+ indicador en formato lossless)
-  indicators.suspicious = (suspiciousCount >= 2) || (suspiciousCount >= 1 && isLosslessFormat && lsbEntropy > 0.90);
+  // JPEG: requiere más evidencia (3+ indicadores o firmas conocidas)
+  // Formatos sin pérdida: más sensible (2+ indicadores)
+  const isJpegFormat = format === 'jpeg' || format === 'jpg';
+  indicators.suspicious = isJpegFormat 
+    ? (suspiciousCount >= 3) 
+    : ((suspiciousCount >= 2) || (suspiciousCount >= 1 && isLosslessFormat && lsbEntropy > 0.90));
   indicators.format = format;
   indicators.lsbEntropy = lsbEntropy;
   indicators.transitionRate = transitionRate;
@@ -383,13 +393,14 @@ async function analyzeImage(buffer) {
     const metadataSize = JSON.stringify(metadata).length;
     const suspiciousMetadata = metadataSize > 5000;
     
-    // Umbral adaptativo por formato (reducido para mayor sensibilidad)
+    // Umbral adaptativo por formato - JPEG naturalmente tiene alta entropía por compresión
     const entropyThresholds = {
-      'jpeg': 7.2,
-      'png': 6.8,
-      'bmp': 6.5,  // BMP: MUY bajo (sin compresión = ideal para esteganografía)
-      'gif': 7.5,
-      'webp': 7.0
+      'jpeg': 7.85,  // JPEG comprimido tiene naturalmente alta entropía (7.5-7.8)
+      'jpg': 7.85,
+      'png': 7.3,
+      'bmp': 6.5,  // BMP: sin compresión = ideal para esteganografía
+      'gif': 7.6,
+      'webp': 7.4
     };
     const threshold = entropyThresholds[metadata.format] || 7.5;
     
@@ -421,19 +432,19 @@ async function analyzeImage(buffer) {
  */
 function determineConfidenceThreshold(mimeType, fileSize) {
   const baseThresholds = {
-    'image/jpeg': 0.55,
-    'image/jpg': 0.55,
-    'image/png': 0.50,
+    'image/jpeg': 0.70,  // JPEG: umbral ALTO - compresión natural genera alta entropía
+    'image/jpg': 0.70,
+    'image/png': 0.60,
     'image/bmp': 0.45,  // BMP: MUY bajo (formato muy común para esteganografía)
     'image/x-ms-bmp': 0.45,
     'image/x-bmp': 0.45,
-    'image/gif': 0.60,
-    'image/webp': 0.53,
-    'application/pdf': 0.65,
-    'video/mp4': 0.70,
-    'video/webm': 0.70,
-    'audio/mpeg': 0.60,
-    'audio/wav': 0.55
+    'image/gif': 0.65,
+    'image/webp': 0.62,
+    'application/pdf': 0.70,
+    'video/mp4': 0.75,
+    'video/webm': 0.75,
+    'audio/mpeg': 0.65,
+    'audio/wav': 0.60
   };
   
   let threshold = baseThresholds[mimeType] || 0.70;
@@ -533,12 +544,14 @@ async function analyzeSteganography(fileBuffer, mimeType, fileName) {
       checks: {}
     };
     
-    // 1. Análisis de entropía global
+    // 1. Análisis de entropía global - umbral adaptativo por tipo
     const globalEntropy = calculateEntropy(fileBuffer);
+    const isJpeg = mimeType === 'image/jpeg' || mimeType === 'image/jpg';
+    const entropyThreshold = isJpeg ? 7.95 : 7.85; // JPEG tiene naturalmente alta entropía
     results.checks.entropy = {
       value: globalEntropy,
-      suspicious: globalEntropy > 7.8,
-      threshold: 7.8
+      suspicious: globalEntropy > entropyThreshold,
+      threshold: entropyThreshold
     };
     
     const entropyBlocks = analyzeEntropyByBlocks(fileBuffer);

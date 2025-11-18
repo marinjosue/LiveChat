@@ -277,7 +277,7 @@ Se obtuvo el siguiente resultado:
 ![](imagenes/pruebasU.png)
 
 ### Pruebas de Cobertura
-![](imagenes/pruebasC.png)
+![](imagenes/cober.png)
 
 
 

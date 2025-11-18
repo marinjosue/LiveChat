@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { Toast } from 'primereact/toast';
-import { Dialog } from 'primereact/dialog';
 import { confirmDialog, ConfirmDialog } from 'primereact/confirmdialog';
 import CreateRoom from './CreateRoom';
 import RoomManagement from './RoomManagement';
@@ -17,7 +16,7 @@ function AdminDashboard({ admin, onLogout, theme, toggleTheme }) {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'logs' | 'security' | 'createRoom' | 'rooms' | 'management' | 'settings'
+  const [activeTab, setActiveTab] = useState('overview'); 
   const [qrCode, setQrCode] = useState(null);
   const [secret2FA, setSecret2FA] = useState(null);
   const [verificationCode, setVerificationCode] = useState('');

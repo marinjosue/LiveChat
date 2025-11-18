@@ -7,7 +7,6 @@ import 'primereact/resources/primereact.min.css';
 import 'primeicons/primeicons.css';
 import '../styles/JoinRoom.css';
 import '../styles/CustomToast.css';
-import { getClientIp } from '../utils/networkUtils';
 import { saveCurrentRoom, getDeviceId } from '../utils/deviceManager';
 import Validators from '../utils/validators';
 

@@ -1,0 +1,460 @@
+/* ==================== CUSTOM TOAST STYLES ==================== */
+
+/* Override PrimeReact Toast styles */
+.p-toast {
+  opacity: 1 !important;
+  z-index: 9999 !important;
+}
+
+.p-toast .p-toast-message {
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  margin: 0 0 1rem 0;
+  padding: 1.25rem;
+  animation: slideInRight 0.3s ease-out;
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* Success Toast */
+.p-toast .p-toast-message.p-toast-message-success {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+}
+
+.p-toast .p-toast-message.p-toast-message-success .p-toast-message-icon {
+  color: white;
+}
+
+.p-toast .p-toast-message.p-toast-message-success .p-toast-icon-close {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.p-toast .p-toast-message.p-toast-message-success .p-toast-icon-close:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Error Toast */
+.p-toast .p-toast-message.p-toast-message-error {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+}
+
+.p-toast .p-toast-message.p-toast-message-error .p-toast-message-icon {
+  color: white;
+}
+
+.p-toast .p-toast-message.p-toast-message-error .p-toast-icon-close {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.p-toast .p-toast-message.p-toast-message-error .p-toast-icon-close:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Warning Toast */
+.p-toast .p-toast-message.p-toast-message-warn {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: white;
+}
+
+.p-toast .p-toast-message.p-toast-message-warn .p-toast-message-icon {
+  color: white;
+}
+
+.p-toast .p-toast-message.p-toast-message-warn .p-toast-icon-close {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.p-toast .p-toast-message.p-toast-message-warn .p-toast-icon-close:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Info Toast */
+.p-toast .p-toast-message.p-toast-message-info {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: white;
+}
+
+.p-toast .p-toast-message.p-toast-message-info .p-toast-message-icon {
+  color: white;
+}
+
+.p-toast .p-toast-message.p-toast-message-info .p-toast-icon-close {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.p-toast .p-toast-message.p-toast-message-info .p-toast-icon-close:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Toast Content */
+.p-toast .p-toast-message-content {
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.p-toast .p-toast-message-icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.p-toast .p-toast-message-text {
+  flex: 1;
+}
+
+.p-toast .p-toast-summary {
+  font-weight: 700;
+  font-size: 1rem;
+  margin-bottom: 0.25rem;
+  color: white;
+}
+
+.p-toast .p-toast-detail {
+  font-size: 0.875rem;
+  opacity: 0.95;
+  color: rgba(255, 255, 255, 0.95);
+  line-height: 1.4;
+}
+
+/* Close Button */
+.p-toast .p-toast-icon-close {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.p-toast .p-toast-icon-close:hover {
+  transform: scale(1.1);
+}
+
+/* Special Device Blocking Toast */
+.p-toast .p-toast-message.p-toast-message-warn {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: white;
+  min-width: 400px;
+  border-left: 4px solid #fbbf24;
+}
+
+.p-toast .p-toast-message.p-toast-message-warn .p-toast-summary {
+  font-size: 1.1rem;
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.p-toast .p-toast-message.p-toast-message-warn .p-toast-detail {
+  font-size: 0.95rem;
+  line-height: 1.5;
+  white-space: pre-line;
+  color: rgba(255, 255, 255, 0.98);
+}
+
+.p-toast .p-toast-message.p-toast-message-warn[data-sticky="true"] {
+  animation: pulseWarning 2s infinite;
+}
+
+@keyframes pulseWarning {
+  0%, 100% { 
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3); 
+  }
+  50% { 
+    box-shadow: 0 10px 40px rgba(245, 158, 11, 0.4), 0 0 20px rgba(245, 158, 11, 0.3); 
+  }
+}
+
+/* ==================== STEGANOGRAPHY ALERT TOAST ==================== */
+
+/* Critical Steganography Alert - High Visibility Red */
+.p-toast .p-toast-message.p-toast-message-error[data-steganography="true"] {
+  background: linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%) !important;
+  border: 3px solid #dc2626 !important;
+  border-left: 6px solid #ef4444 !important;
+  min-width: 450px;
+  box-shadow: 0 10px 40px rgba(220, 38, 38, 0.5), 0 0 30px rgba(239, 68, 68, 0.3) !important;
+  animation: pulseDanger 2s infinite !important;
+}
+
+@keyframes pulseDanger {
+  0%, 100% { 
+    box-shadow: 0 10px 40px rgba(220, 38, 38, 0.5), 0 0 30px rgba(239, 68, 68, 0.3);
+    transform: scale(1);
+  }
+  50% { 
+    box-shadow: 0 15px 50px rgba(220, 38, 38, 0.7), 0 0 40px rgba(239, 68, 68, 0.5);
+    transform: scale(1.02);
+  }
+}
+
+.p-toast .p-toast-message.p-toast-message-error[data-steganography="true"] .p-toast-summary {
+  color: #ffffff !important;
+  font-weight: 900 !important;
+  font-size: 1.2rem !important;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  letter-spacing: 0.5px;
+  margin-bottom: 0.75rem !important;
+}
+
+.p-toast .p-toast-message.p-toast-message-error[data-steganography="true"] .p-toast-detail {
+  color: #ffffff !important;
+  font-size: 1rem !important;
+  line-height: 1.6 !important;
+  white-space: pre-line;
+  font-weight: 600 !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.p-toast .p-toast-message.p-toast-message-error[data-steganography="true"] .p-toast-message-icon {
+  color: #ffffff !important;
+  font-size: 2rem !important;
+  animation: shake 0.5s ease-in-out infinite alternate;
+}
+
+@keyframes shake {
+  0% { transform: rotate(-5deg); }
+  100% { transform: rotate(5deg); }
+}
+
+.p-toast .p-toast-message.p-toast-message-error[data-steganography="true"] .p-toast-icon-close {
+  color: #ffffff !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  font-weight: bold !important;
+}
+
+.p-toast .p-toast-message.p-toast-message-error[data-steganography="true"] .p-toast-icon-close:hover {
+  background: rgba(255, 255, 255, 0.25) !important;
+  transform: scale(1.15) !important;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .p-toast {
+    width: calc(100% - 2rem) !important;
+    right: 1rem !important;
+    left: 1rem !important;
+  }
+  
+  .p-toast .p-toast-message {
+    padding: 1rem;
+    min-width: unset;
+  }
+  
+  .p-toast .p-toast-message-icon {
+    font-size: 1.25rem;
+  }
+  
+  .p-toast .p-toast-summary {
+    font-size: 0.875rem;
+  }
+  
+  .p-toast .p-toast-detail {
+    font-size: 0.8125rem;
+  }
+}
+
+/* ==================== CUSTOM CONFIRM DIALOG STYLES ==================== */
+
+/* Dialog Overlay */
+.p-dialog-mask {
+  background: rgba(0, 0, 0, 0.6) !important;
+  backdrop-filter: blur(4px);
+  z-index: 9998 !important;
+}
+
+/* Dialog Container */
+.p-confirm-dialog {
+  border-radius: 16px !important;
+  border: none !important;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4) !important;
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%) !important;
+  color: white !important;
+  max-width: 450px !important;
+  animation: dialogFadeIn 0.3s ease-out !important;
+}
+
+@keyframes dialogFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9) translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Dialog Header */
+.p-confirm-dialog .p-dialog-header {
+  background: transparent !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+  padding: 1.5rem !important;
+  color: white !important;
+}
+
+.p-confirm-dialog .p-dialog-title {
+  font-size: 1.25rem !important;
+  font-weight: 700 !important;
+  color: white !important;
+}
+
+.p-confirm-dialog .p-dialog-header-icon {
+  color: rgba(255, 255, 255, 0.8) !important;
+  width: 2rem !important;
+  height: 2rem !important;
+  border-radius: 50% !important;
+  transition: all 0.2s ease !important;
+}
+
+.p-confirm-dialog .p-dialog-header-icon:hover {
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: white !important;
+}
+
+/* Dialog Content */
+.p-confirm-dialog .p-dialog-content {
+  background: transparent !important;
+  padding: 1.5rem !important;
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+
+.p-confirm-dialog .p-confirm-dialog-message {
+  display: flex !important;
+  align-items: center !important;
+  gap: 1rem !important;
+  color: rgba(255, 255, 255, 0.9) !important;
+  font-size: 1rem !important;
+  line-height: 1.5 !important;
+}
+
+.p-confirm-dialog .p-confirm-dialog-icon {
+  color: #f59e0b !important;
+  font-size: 2rem !important;
+  flex-shrink: 0 !important;
+}
+
+/* Dialog Footer */
+.p-confirm-dialog .p-dialog-footer {
+  background: transparent !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+  padding: 1rem 1.5rem !important;
+  display: flex !important;
+  gap: 0.75rem !important;
+  justify-content: flex-end !important;
+}
+
+/* Buttons */
+.p-confirm-dialog .p-button {
+  padding: 0.75rem 1.5rem !important;
+  border-radius: 8px !important;
+  font-weight: 600 !important;
+  font-size: 0.9375rem !important;
+  border: none !important;
+  transition: all 0.2s ease !important;
+  cursor: pointer !important;
+}
+
+.p-confirm-dialog .p-button:focus {
+  box-shadow: none !important;
+}
+
+/* Accept Button (Sí, salir) */
+.p-confirm-dialog .p-confirm-dialog-accept {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%) !important;
+  color: white !important;
+}
+
+.p-confirm-dialog .p-confirm-dialog-accept:hover {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%) !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4) !important;
+}
+
+.p-confirm-dialog .p-confirm-dialog-accept:active {
+  transform: translateY(0) !important;
+}
+
+/* Reject Button (Cancelar) */
+.p-confirm-dialog .p-confirm-dialog-reject {
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: white !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+}
+
+.p-confirm-dialog .p-confirm-dialog-reject:hover {
+  background: rgba(255, 255, 255, 0.15) !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 12px rgba(255, 255, 255, 0.1) !important;
+}
+
+.p-confirm-dialog .p-confirm-dialog-reject:active {
+  transform: translateY(0) !important;
+}
+
+/* Button Labels */
+.p-confirm-dialog .p-button-label {
+  font-weight: 600 !important;
+}
+
+/* Responsive Dialog */
+@media (max-width: 768px) {
+  .p-confirm-dialog {
+    max-width: calc(100% - 2rem) !important;
+    margin: 1rem !important;
+  }
+  
+  .p-confirm-dialog .p-dialog-header,
+  .p-confirm-dialog .p-dialog-content,
+  .p-confirm-dialog .p-dialog-footer {
+    padding: 1.25rem !important;
+  }
+  
+  .p-confirm-dialog .p-dialog-title {
+    font-size: 1.125rem !important;
+  }
+  
+  .p-confirm-dialog .p-confirm-dialog-message {
+    font-size: 0.9375rem !important;
+  }
+  
+  .p-confirm-dialog .p-button {
+    padding: 0.625rem 1.25rem !important;
+    font-size: 0.875rem !important;
+  }
+}
+
+/* Accessibility */
+.p-confirm-dialog .p-button:focus-visible {
+  outline: 2px solid #3b82f6 !important;
+  outline-offset: 2px !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .p-confirm-dialog {
+    animation: none !important;
+  }
+  
+  .p-confirm-dialog .p-button {
+    transition: none !important;
+  }
+  
+  .p-confirm-dialog .p-button:hover {
+    transform: none !important;
+  }
+}
+

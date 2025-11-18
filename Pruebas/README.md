@@ -512,7 +512,7 @@ net start MongoDB
 
 ```
 LiveChat/
-├── cliente/                    # Frontend React
+├── client/                    # Frontend React
 │   ├── src/
 │   │   ├── components/        # Componentes React
 │   │   │   ├── ChatRoom.js
@@ -528,7 +528,7 @@ LiveChat/
 │   │   ├── AdminApp.js        # App de administración
 │   │   └── App.js
 │   └── package.json
-├── servidor/                    # Backend Node.js
+├── server/                    # Backend Node.js
 │   ├── controllers/           # Lógica de negocio
 │   │   ├── DeviceSessionController.js
 │   │   ├── RoomController.js

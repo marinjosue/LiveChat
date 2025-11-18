@@ -9,6 +9,7 @@ import '../styles/JoinRoom.css';
 import '../styles/CustomToast.css';
 import { getClientIp } from '../utils/networkUtils';
 import { saveCurrentRoom, getDeviceId } from '../utils/deviceManager';
+import Validators from '../utils/validators';
 
 const JoinRoom = ({ onRoomJoined, initialPin }) => {
   const [, setMessages] = useState([]);
@@ -23,11 +24,62 @@ const JoinRoom = ({ onRoomJoined, initialPin }) => {
     }
   }, [initialPin]);
 
-  const handleJoinRoom = async () => {
-    if (!nickname.trim() || pin.length !== 6) {
-      toast.current.show({ severity: 'error', summary: 'Error', detail: 'Completa los campos correctamente', life: 3000 });
-      return;
+  // Maneja cambios en el nickname: permite solo letras y alerta si hay caracteres inválidos
+  const handleNicknameChange = (e) => {
+  const raw = e.target.value.slice(0, 12);
+
+  // Aplica la validación
+  const sanitized = Validators.sanitizeUsername(raw).slice(0, 12);
+
+  // Si no coincide → intentó poner algo inválido
+  if (raw !== sanitized) {
+    if (toast.current) {
+      toast.current.show({
+        severity: 'warn',
+        summary: 'Formato inválido',
+        detail: 'Solo se permiten letras y un espacio',
+        life: 2000
+      });
     }
+  }
+
+  setNickname(sanitized);
+};
+
+
+  const handleJoinRoom = async () => {
+
+  if (!nickname.trim()) {
+    toast.current.show({
+      severity: 'error',
+      summary: 'Nickname inválido',
+      detail: 'El nickname no puede estar vacío.',
+      life: 3000
+    });
+    return;
+  }
+
+  if (!/^[A-Za-zÁÉÍÓÚáéíóúÑñ]+(?: [A-Za-zÁÉÍÓÚáéíóúÑñ]+)?$/.test(nickname)) {
+    toast.current.show({
+      severity: 'error',
+      summary: 'Formato incorrecto',
+      detail: 'El nickname solo puede contener letras y un solo espacio.',
+      life: 3000
+    });
+    return;
+  }
+
+  if (pin.length !== 6) {
+    toast.current.show({
+      severity: 'error',
+      summary: 'PIN inválido',
+      detail: 'El PIN debe tener 6 números.',
+      life: 3000
+    });
+    return;
+  }
+
+
 
     // Usar el deviceId real del dispositivo (no la IP)
     const deviceId = getDeviceId();
@@ -92,7 +144,7 @@ const JoinRoom = ({ onRoomJoined, initialPin }) => {
               type="text"
               placeholder="Tu nombre (máx. 12 caracteres)"
               value={nickname}
-              onChange={(e) => setNickname(e.target.value.slice(0, 12))}
+              onChange={handleNicknameChange}
               maxLength={12}
               required
             />
@@ -107,9 +159,10 @@ const JoinRoom = ({ onRoomJoined, initialPin }) => {
               maxLength={6}
             />
           </div>
-          <button onClick={handleJoinRoom}>
-            Unirse a la Sala
-          </button>
+          <button className="btn-create" onClick={handleJoinRoom}>
+  Unirse a la Sala
+</button>
+
         </div>
       </div>
     </>

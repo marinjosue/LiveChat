@@ -1,6 +1,6 @@
 /* ==================== VARIABLES CSS ==================== */
 :root {
-  --create-room-primary: #3b82f6;
+  --create-room-primary: #160442;
   --create-room-primary-hover: #2563eb;
   --create-room-primary-light: #60a5fa;
   --create-room-bg-dark: #1e293b;
@@ -32,12 +32,51 @@
 }
 
 .card-header {
-  background: linear-gradient(135deg, var(--create-room-primary) 0%, var(--create-room-primary-hover) 100%);
+  
+
+  
   padding: 28px 24px;
   text-align: center;
   color: white;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
+/* ============ FIX LIGHT THEME PARA .card-header ============ */
+
+.admin-app.light-theme .card-header,
+.app-container.light-theme .card-header {
+  background: linear-gradient(135deg, #e2e8f0 0%, #f8fafc 100%);
+  color: #1e293b; /* texto oscuro */
+  border-bottom: 1px solid #cbd5e1;
+}
+
+.admin-app.light-theme .card-header .card-icon,
+.app-container.light-theme .card-header .card-icon {
+  color: var(--create-room-primary);  /* azul primario */
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+}
+
+.admin-app.light-theme .card-header h2,
+.app-container.light-theme .card-header h2 {
+  color: #1e293b;
+}
+
+.admin-app.light-theme .card-subtitle,
+.app-container.light-theme .card-subtitle {
+  color: #475569; /* gris más suave para subtítulos */
+}
+
+.admin-app.light-theme .card-body,
+.app-container.light-theme .card-body {
+  background: #ffffff; /* Fondo blanco */
+  color: #1e293b;      /* Texto oscuro */
+  border-color: #e2e8f0;
+}
+
+.admin-app.light-theme .card-body hr,
+.app-container.light-theme .card-body hr {
+  border-color: #cbd5e1; /* Separadores más suaves */
+}
+
 
 .card-header .card-icon {
   color: white;
@@ -163,12 +202,12 @@
 }
 
 .type-option.active {
-  background: rgba(59, 130, 246, 0.15);
-  border-color: var(--create-room-primary);
-  border-width: 2px;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12), 0 4px 16px rgba(59, 130, 246, 0.25);
-  transform: scale(1.02);
+  background: rgba(121, 80, 242, 0.25);
+  border-color: #7b57ff;
+  box-shadow: 0 0 12px rgba(121, 80, 242, 0.4);
+  transform: scale(1.03);
 }
+
 
 .type-option.active::before {
   content: '✓';
@@ -225,9 +264,7 @@
   transition: all 0.15s ease;
 }
 
-.type-option.active .type-info p {
-  color: var(--create-room-primary-light);
-}
+
 
 /* Participant Slider */
 .participant-slider {
@@ -299,9 +336,9 @@
   text-align: center;
   font-size: 15px;
   font-weight: 600;
-  color: var(--create-room-primary);
+  color: white;
   padding: 8px;
-  background: rgba(59, 130, 246, 0.1);
+  background: rgba(255, 255, 255, 0.1);
   border-radius: 8px;
   border: 1px solid rgba(59, 130, 246, 0.2);
 }
@@ -381,7 +418,10 @@
   padding: 14px 20px;
   border: none;
   border-radius: 8px;
-  background: linear-gradient(135deg, var(--create-room-primary) 0%, var(--create-room-primary-hover) 100%);
+background: linear-gradient(
+  135deg,
+  color-mix(in srgb, var(--create-room-primary) 70%, black 0%) 0%
+);
   color: white;
   font-size: 15px;
   font-weight: 600;
@@ -394,8 +434,8 @@
 
 .btn-create:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
-  background: linear-gradient(135deg, var(--create-room-primary-hover) 0%, #1d4ed8 100%);
+  box-shadow: 0 6px 20px rgba(17, 37, 70, 0.4);
+  background: linear-gradient(135deg, var(--create-room-primary-hover) 0%, #2b1f17 100%);
 }
 
 .btn-create:active:not(:disabled) {
@@ -420,8 +460,8 @@
   right: 20px;
   width: 18px;
   height: 18px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top-color: white;
+  border: 2px solid rgba(18, 18, 46, 0.3);
+  border-top-color: rgba(255, 255, 255, 0.836);
   border-radius: 50%;
   animation: button-loading-spinner 0.8s linear infinite;
 }
@@ -476,7 +516,7 @@
 
 .admin-app.light-theme .type-option.active,
 .app-container.light-theme .type-option.active {
-  background: rgba(59, 130, 246, 0.1);
+  background: rgba(37, 85, 161, 0.1);
   border-color: var(--create-room-primary);
 }
 

@@ -561,33 +561,11 @@ async function analyzeSteganography(fileBuffer, mimeType, fileName) {
     // 4. Análisis de distribución de bytes
     const distribution = analyzeByteDistribution(fileBuffer);
     results.checks.distribution = distribution;
-    console.log(`📈 [WORKER] Chi-cuadrado: ${distribution.chiSquare.toFixed(1)} (sospechoso: ${distribution.suspicious ? '⚠️ SÍ' : '✓ NO'})`);
     
     // 5. Análisis específico para imágenes
     if (mimeType.startsWith('image/')) {
-      console.log(`🖼️ [WORKER] Analizando como imagen...`);
       const imageAnalysis = await analyzeImage(fileBuffer);
       results.checks.image = imageAnalysis;
-      
-      if (imageAnalysis.error) {
-        console.log(`❌ [WORKER] Error en análisis de imagen: ${imageAnalysis.error}`);
-      } else {
-        console.log(`🖼️ [WORKER] Formato: ${imageAnalysis.format}, ${imageAnalysis.width}x${imageAnalysis.height}`);
-        console.log(`🖼️ [WORKER] Entropía promedio canales: ${imageAnalysis.avgEntropy.toFixed(3)}`);
-        if (imageAnalysis.pixelCorrelation) {
-          console.log(`🖼️ [WORKER] Correlación píxeles: ${imageAnalysis.pixelCorrelation.avgPixelDifference.toFixed(1)} (${imageAnalysis.pixelCorrelation.interpretation})`);
-          console.log(`🖼️ [WORKER] Píxeles sospechosos: ${imageAnalysis.pixelCorrelation.suspicious ? '⚠️ SÍ' : '✓ NO'}`);
-        }
-        if (imageAnalysis.advancedLSBAnalysis) {
-          console.log('  🔍 [WORKER] Análisis LSB Avanzado:');
-          console.log(`    LSB Plane Entropy: ${imageAnalysis.advancedLSBAnalysis.lsbEntropy?.toFixed(3)}`);
-          console.log(`    LSB Plane Noise: ${imageAnalysis.advancedLSBAnalysis.lsbPlaneNoise ? '⚠️ SÍ' : '✓ NO'}`);
-          console.log(`    Random Pattern: ${imageAnalysis.advancedLSBAnalysis.randomPattern ? '⚠️ SÍ' : '✓ NO'}`);
-          console.log(`    Sequential Pattern: ${imageAnalysis.advancedLSBAnalysis.sequentialPattern ? '⚠️ SÍ' : '✓ NO'}`);
-          console.log(`    Channel Imbalance: ${imageAnalysis.advancedLSBAnalysis.channelImbalance ? '⚠️ SÍ' : '✓ NO'}`);
-          console.log(`🔍 [WORKER] Patrón LSB sospechoso: ${imageAnalysis.advancedLSBAnalysis.suspicious ? '🚨 SÍ' : '✓ NO'}`);
-        }
-      }
     }
     
     // 6. Verificación de integridad del archivo
@@ -627,16 +605,16 @@ async function analyzeSteganography(fileBuffer, mimeType, fileName) {
     
     // Agregar razones específicas (ordenadas por gravedad)
     if (results.checks.signatures?.suspicious) {
-      results.verdict.reasons.push(`🚨 CRÍTICO: Firmas de herramientas detectadas: ${results.checks.signatures.detected.join(', ')}`);
+      results.verdict.reasons.push(`CRÍTICO: Firmas de herramientas detectadas: ${results.checks.signatures.detected.join(', ')}`);
     }
     if (results.checks.entropyBlocks?.suspicious) {
-      results.verdict.reasons.push(`⚠️ Alta entropía localizada (${(results.checks.entropyBlocks.anomalyScore * 100).toFixed(1)}% bloques anómalos)`);
+      results.verdict.reasons.push(`Alta entropía localizada (${(results.checks.entropyBlocks.anomalyScore * 100).toFixed(1)}% bloques anómalos)`);
     }
     if (results.checks.lsb?.suspicious) {
       results.verdict.reasons.push(`Patrón sospechoso en bits menos significativos (entropía LSB: ${results.checks.lsb.lsbEntropy.toFixed(3)})`);
     }
     if (results.checks.image?.pixelCorrelation?.suspicious) {
-      results.verdict.reasons.push(`⚠️ Correlación de píxeles anómala (diferencia: ${results.checks.image.pixelCorrelation.avgPixelDifference.toFixed(1)})`);
+      results.verdict.reasons.push(`Correlación de píxeles anómala (diferencia: ${results.checks.image.pixelCorrelation.avgPixelDifference.toFixed(1)})`);
     }
     if (results.checks.distribution?.suspicious) {
       results.verdict.reasons.push(`Distribución anómala de bytes (chi²: ${results.checks.distribution.chiSquare.toFixed(1)})`);

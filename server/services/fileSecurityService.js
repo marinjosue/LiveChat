@@ -22,7 +22,7 @@ class FileSecurityService {
     try {
       const startTime = Date.now();
       
-      console.log(`[STEGO] 🔍 Analizando: ${fileName} (${mimeType}, ${(fileBuffer.length / 1024).toFixed(1)}KB)`);
+      console.log(`[STEGO] Analizando: ${fileName} (${mimeType}, ${(fileBuffer.length / 1024).toFixed(1)}KB)`);
       
       // Ejecutar análisis en worker thread
       const result = await steganographyWorkerPool.runTask({
@@ -35,19 +35,19 @@ class FileSecurityService {
       
       if (result.success) {
         const verdict = result.results.verdict;
-        console.log(`[STEGO] ✅ Análisis completado en ${duration}ms`);
-        console.log(`[STEGO] 📊 Confidence: ${(verdict.confidence * 100).toFixed(1)}% (threshold: ${(verdict.adaptiveThreshold * 100).toFixed(1)}%)`);
-        console.log(`[STEGO] 🎯 Checks sospechosos: ${verdict.suspiciousChecksCount}`);
+        console.log(`[STEGO] Analisis completado en ${duration}ms`);
+        console.log(`[STEGO] Confidence: ${(verdict.confidence * 100).toFixed(1)}% (threshold: ${(verdict.adaptiveThreshold * 100).toFixed(1)}%)`);
+        console.log(`[STEGO] Checks sospechosos: ${verdict.suspiciousChecksCount}`);
         
         if (verdict.isSuspicious) {
-          console.warn(`[STEGO] 🚨 ARCHIVO SOSPECHOSO: ${fileName}`);
-          console.warn(`[STEGO] 📋 Razones:`);
+          console.warn(`[STEGO] ARCHIVO SOSPECHOSO: ${fileName}`);
+          console.warn(`[STEGO] Razones:`);
           verdict.reasons.forEach(r => console.warn(`[STEGO]    - ${r}`));
         } else {
-          console.log(`[STEGO] ✓ Archivo limpio`);
+          console.log(`[STEGO] Archivo limpio`);
         }
       } else {
-        console.error(`[STEGO] ❌ Error en análisis: ${result.error}`);
+        console.error(`[STEGO] Error en analisis: ${result.error}`);
       }
       
       return {

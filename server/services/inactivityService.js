@@ -10,12 +10,12 @@ const mongoose = require('mongoose');
 
 // Configuración de timeouts
 const INACTIVITY_CONFIG = {
-  // Tiempo máximo de inactividad antes de desconectar (30 segundos)
-  MAX_INACTIVITY_TIME: 30 * 1000,
-  // Advertencia de inactividad antes de desconectar (15 segundos)
+  // Tiempo máximo de inactividad antes de desconectar (75 segundos = 1min 15seg)
+  MAX_INACTIVITY_TIME: 75 * 1000,
+  // Advertencia de inactividad antes de desconectar (15 segundos antes del límite)
   INACTIVITY_WARNING_TIME: 15 * 1000,
-  // Intervalo de verificación de inactividad (cada 5 segundos)
-  CHECK_INTERVAL: 5 * 1000,
+  // Intervalo de verificación de inactividad (cada 10 segundos)
+  CHECK_INTERVAL: 10 * 1000,
   // Tiempo de gracia para reconexión después de cerrar navegador (60 segundos)
   RECONNECTION_GRACE_PERIOD: 60 * 1000,
   // Tiempo para limpiar sesiones huérfanas (5 minutos)

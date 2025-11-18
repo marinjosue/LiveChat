@@ -362,7 +362,7 @@ function RoomController(io) {
           
           if (membership) {
             // Recrear sesión desde el membership
-            console.log(`⚙️ Recreando sesión desde membership para ${membership.nickname}`);
+            console.log(`Recreando sesion desde membership para ${membership.nickname}`);
             await registerSession(deviceId, clientIp, pin, membership.nickname);
             session = await getSessionByIp(clientIp, pin);
           }
@@ -587,7 +587,7 @@ function RoomController(io) {
           return;
         }
         
-        console.log(`📤 [SOCKET] Recibiendo archivo: ${fileName} (${fileType}, ${fileSize} bytes) en sala ${pin}`);
+        console.log(`[SOCKET] Recibiendo archivo: ${fileName} (${fileType}, ${fileSize} bytes) en sala ${pin}`);
         
         const room = rooms[pin];
         if (!room) {
@@ -629,7 +629,7 @@ function RoomController(io) {
         try {
           const base64String = fileData.split(',')[1];
           fileBuffer = Buffer.from(base64String, 'base64');
-          console.log(`✓ Buffer creado: ${fileBuffer.length} bytes`);
+          console.log(`Buffer creado: ${fileBuffer.length} bytes`);
         } catch (error) {
           console.error('Error al convertir base64 a buffer:', error);
           socket.emit('fileError', { message: 'Error al procesar el archivo', tempId });
@@ -769,7 +769,7 @@ function RoomController(io) {
             analysisTimestamp: new Date()
           }
         });
-        console.log('✓ Mensaje guardado en BD con info de seguridad');
+        console.log('Mensaje guardado en BD con info de seguridad');
 
         // ===== 10. EMITIR A TODOS EN LA SALA =====
         console.log(`Emitiendo fileMessage a sala ${pin}`);

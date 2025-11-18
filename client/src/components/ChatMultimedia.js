@@ -1218,152 +1218,89 @@ const confirmExit = async () => {
         visible={steganographyModal.isOpen} 
         onHide={() => setSteganographyModal({ ...steganographyModal, isOpen: false })}
         header={
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <i className="pi pi-ban" style={{ fontSize: '24px', color: '#d32f2f' }}></i>
-            <span style={{ fontSize: '20px', fontWeight: '600', color: '#333' }}>Archivo Bloqueado</span>
+          <div style={{ textAlign: 'center', width: '100%', padding: '16px 0' }}>
+            <i className="pi pi-ban" style={{ fontSize: '32px', color: '#dc2626' }}></i>
+            <span style={{ display: 'block', marginTop: '16px', fontSize: '19px', fontWeight: '700', color: '#1f2937' }}>Archivo Bloqueado</span>
           </div>
         }
-        style={{ width: '90vw', maxWidth: '550px' }}
+        style={{ width: '90vw', maxWidth: '420px' }}
         draggable={false}
         resizable={false}
         modal
+        contentStyle={{ 
+          padding: window.innerWidth <= 480 ? '24px 20px' : '36px 28px', 
+          textAlign: 'center' 
+        }}
       >
-        <div style={{ padding: '0' }}>
-          {/* Nombre del archivo */}
-          <div style={{ 
-            background: 'linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%)', 
-            padding: '16px', 
-            borderRadius: '10px', 
-            marginBottom: '20px',
-            border: '1px solid #ef9a9a',
-            boxShadow: '0 2px 4px rgba(211,47,47,0.1)'
-          }}>
-            <p style={{ margin: '0 0 8px 0', fontSize: '13px', color: '#666', fontWeight: '500' }}>Archivo rechazado</p>
-            <p style={{ 
-              margin: 0, 
-              fontSize: '17px', 
-              fontWeight: 'bold', 
-              color: '#c62828',
-              wordBreak: 'break-word'
-            }}>
-              {steganographyModal.fileName}
-            </p>
-          </div>
-
-          {/* Razones críticas */}
+        <div style={{ marginTop: '8px' }}>
+          {/* Razón principal */}
           {steganographyModal.criticalReasons.length > 0 && (
-            <div style={{ marginBottom: '16px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-                <i className="pi pi-exclamation-triangle" style={{ color: '#d32f2f', fontSize: '16px' }}></i>
-                <p style={{ 
-                  fontWeight: '600', 
-                  color: '#d32f2f', 
-                  margin: 0,
-                  fontSize: '15px'
-                }}>
-                  Detección crítica
-                </p>
-              </div>
-              {steganographyModal.criticalReasons.map((reason, idx) => (
-                <div key={idx} style={{ 
-                  background: '#ffebee', 
-                  padding: '12px 14px', 
-                  borderRadius: '8px',
-                  marginBottom: '6px',
-                  fontSize: '14px',
-                  borderLeft: '4px solid #d32f2f',
-                  color: '#444',
-                  lineHeight: '1.5'
-                }}>
-                  {reason.replace('CRÍTICO: ', '').replace('ALTA SOSPECHA: ', '')}
-                </div>
-              ))}
+            <div style={{ 
+              background: '#fee2e2',
+              padding: window.innerWidth <= 480 ? '16px 18px' : '20px 24px',
+              borderRadius: '10px',
+              border: '2px solid #fca5a5',
+              marginBottom: window.innerWidth <= 480 ? '20px' : '28px'
+            }}>
+              <p style={{ 
+                margin: 0,
+                fontSize: window.innerWidth <= 480 ? '14px' : '15px',
+                color: '#991b1b',
+                lineHeight: '1.6',
+                fontWeight: '500'
+              }}>
+                {steganographyModal.criticalReasons[0]
+                  .replace('CRÍTICO: ', '')
+                  .replace('ALTA SOSPECHA: ', '')
+                  .replace('Firmas de herramientas detectadas:', 'Contiene herramientas de ocultamiento')
+                  .replace('Patrón LSB sospechoso detectado - posible esteganografía', 'Se detectaron patrones sospechosos')
+                  .split(':')[0]
+                }
+              </p>
             </div>
           )}
 
-          {/* Razones de advertencia */}
-          {steganographyModal.warningReasons.length > 0 && (
-            <div style={{ marginBottom: '16px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-                <i className="pi pi-info-circle" style={{ color: '#f57c00', fontSize: '16px' }}></i>
-                <p style={{ 
-                  fontWeight: '600', 
-                  color: '#f57c00', 
-                  margin: 0,
-                  fontSize: '15px'
-                }}>
-                  Indicadores adicionales
-                </p>
-              </div>
-              {steganographyModal.warningReasons.slice(0, 2).map((reason, idx) => (
-                <div key={idx} style={{ 
-                  background: '#fff3e0', 
-                  padding: '10px 12px', 
-                  borderRadius: '8px',
-                  marginBottom: '6px',
-                  fontSize: '13px',
-                  borderLeft: '4px solid #f57c00',
-                  color: '#555',
-                  lineHeight: '1.4'
-                }}>
-                  {reason}
-                </div>
-              ))}
-              {steganographyModal.warningReasons.length > 2 && (
-                <p style={{ 
-                  fontSize: '12px', 
-                  color: '#888', 
-                  margin: '8px 0 0 4px',
-                  fontStyle: 'italic'
-                }}>
-                  +{steganographyModal.warningReasons.length - 2} indicador(es) más detectado(s)
-                </p>
-              )}
-            </div>
-          )}
-
-          {/* Nivel de confianza */}
+          {/* Nivel de detección */}
           <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'space-between',
-            background: 'linear-gradient(135deg, #f5f5f5 0%, #eeeeee 100%)',
-            padding: '14px 16px',
-            borderRadius: '8px',
-            marginTop: '20px',
-            border: '1px solid #e0e0e0'
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '10px',
+            padding: window.innerWidth <= 480 ? '12px 20px' : '14px 24px',
+            borderRadius: '10px',
+            background: '#fee2e2',
+            border: '2px solid #fca5a5',
+            marginBottom: window.innerWidth <= 480 ? '20px' : '28px'
           }}>
-            <span style={{ fontSize: '14px', color: '#555', fontWeight: '500' }}>Nivel de confianza</span>
             <span style={{ 
-              fontSize: '22px', 
-              fontWeight: 'bold', 
-              color: steganographyModal.confidence >= 70 ? '#d32f2f' : '#f57c00'
+              fontSize: window.innerWidth <= 480 ? '13px' : '14px', 
+              color: '#991b1b', 
+              fontWeight: '600' 
+            }}>Detección:</span>
+            <span style={{ 
+              fontSize: window.innerWidth <= 480 ? '18px' : '20px', 
+              fontWeight: '700', 
+              color: '#dc2626'
             }}>
               {steganographyModal.confidence}%
             </span>
           </div>
 
-          {/* Mensaje informativo */}
+          {/* Mensaje de seguridad */}
           <div style={{ 
-            marginTop: '20px', 
-            padding: '14px', 
-            background: 'linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%)', 
-            borderRadius: '8px',
-            borderLeft: '4px solid #1976d2',
-            border: '1px solid #90caf9'
+            padding: window.innerWidth <= 480 ? '14px 18px' : '16px 20px', 
+            background: '#eff6ff', 
+            borderRadius: '10px',
+            border: '2px solid #bfdbfe'
           }}>
-            <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
-              <i className="pi pi-shield" style={{ color: '#1565c0', fontSize: '18px', marginTop: '2px' }}></i>
-              <p style={{ 
-                margin: 0, 
-                fontSize: '13px', 
-                color: '#0d47a1',
-                lineHeight: '1.6',
-                flex: 1
-              }}>
-                <strong>Protección activa:</strong> Este archivo contiene patrones sospechosos de esteganografía. Por seguridad, no se permite su envío.
-              </p>
-            </div>
+            <p style={{ 
+              margin: 0, 
+              fontSize: window.innerWidth <= 480 ? '13px' : '14px', 
+              color: '#1e40af',
+              lineHeight: '1.6',
+              fontWeight: '500'
+            }}>
+              Por su seguridad, este archivo no será enviado.
+            </p>
           </div>
         </div>
       </Dialog>

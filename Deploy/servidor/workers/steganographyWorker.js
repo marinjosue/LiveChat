@@ -63,7 +63,7 @@ function analyzeEntropyByBlocks(buffer) {
     highEntropyBlocks,
     totalBlocks: entropies.length,
     anomalyScore,
-    suspicious: anomalyScore > 0.25 // > 25% bloques con alta entropía (reducir falsos positivos)
+    suspicious: anomalyScore > 0.25 
   };
 }
 
@@ -160,16 +160,28 @@ function checkKnownSignatures(buffer) {
     const entropy = calculateEntropy(lastKB);
     
     // OpenStego tiende a dejar alta entropía al final
-    if (entropy > 7.9) {
+    if (entropy > 7.7) {
       // Verificar patrón de bytes con alta aleatoriedad
       let consecutiveHighBytes = 0;
       for (let i = lastKB.length - 100; i < lastKB.length; i++) {
         if (lastKB[i] > 200) consecutiveHighBytes++;
       }
       
-      if (consecutiveHighBytes > 30) { // Más del 30% son bytes altos
+      if (consecutiveHighBytes > 20) { // Más del 20% son bytes altos - MÁS SENSIBLE
         detected.push('OpenStego-Pattern');
       }
+    }
+    
+    // Detección adicional: OpenStego en PNG usa LSB en canales de color
+    // Verificar primeros y últimos 512 bytes para patrones característicos
+    const firstBlock = buffer.slice(0, 512);
+    const lastBlock = buffer.slice(-512);
+    const firstEntropy = calculateEntropy(firstBlock);
+    const lastEntropy = calculateEntropy(lastBlock);
+    
+    // OpenStego PNG: entropía asimétrica entre inicio y final
+    if (Math.abs(firstEntropy - lastEntropy) > 1.2 && lastEntropy > 7.5) {
+      detected.push('OpenStego-Asymmetric');
     }
   }
   
@@ -434,7 +446,7 @@ function determineConfidenceThreshold(mimeType, fileSize) {
   const baseThresholds = {
     'image/jpeg': 0.70,  // JPEG: umbral ALTO - compresión natural genera alta entropía
     'image/jpg': 0.70,
-    'image/png': 0.60,
+    'image/png': 0.50,   // PNG: MÁS BAJO para detectar OpenStego - AJUSTADO
     'image/bmp': 0.45,  // BMP: MUY bajo (formato muy común para esteganografía)
     'image/x-ms-bmp': 0.45,
     'image/x-bmp': 0.45,
@@ -467,12 +479,12 @@ function determineConfidenceThreshold(mimeType, fileSize) {
 function calculateWeightedConfidence(checks, mimeType) {
   // Pesos según confiabilidad de cada técnica - BALANCEADO PARA DETECTAR TODO TIPO DE ESTEGANOGRAFÍA
   const weights = {
-    'signatures': 0.30,        // 30% - Firmas conocidas (Steghide, OpenStego, OutGuess, F5, etc.)
+    'signatures': 0.40,        // 40% - Firmas conocidas (Steghide, OpenStego, OutGuess, F5, etc.) - AUMENTADO
     'lsbAdvanced': 0.25,       // 25% - Análisis LSB avanzado (detecta TODAS las técnicas LSB)
-    'entropyBlocks': 0.20,     // 20% - Anomalías de entropía localizada
-    'pixelCorrelation': 0.12,  // 12% - Correlación de píxeles (imágenes)
-    'distribution': 0.08,      // 8% - Distribución estadística de bytes
-    'exif': 0.05               // 5% - Metadatos anómalos
+    'entropyBlocks': 0.15,     // 15% - Anomalías de entropía localizada
+    'pixelCorrelation': 0.10,  // 10% - Correlación de píxeles (imágenes)
+    'distribution': 0.07,      // 7% - Distribución estadística de bytes
+    'exif': 0.03               // 3% - Metadatos anómalos
   };
   
   let weightedScore = 0;

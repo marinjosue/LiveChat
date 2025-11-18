@@ -104,10 +104,10 @@ function analyzeLSB(buffer) {
   const ratioDeviation = Math.abs(onesRatio - 0.5);
   
   // OpenStego tiende a crear patrones con:
-  // 1. Alta entropía en LSB (>0.95)
+  // 1. Alta entropía en LSB (>0.88)
   // 2. Patrones muy cortos (maxConsecutive < 4)
   // 3. Ratio desbalanceado (lejos de 0.5)
-  const isHighEntropy = lsbEntropy > 0.95;
+  const isHighEntropy = lsbEntropy > 0.88;
   const isShortPatterns = maxConsecutive < 4;
   const isUnbalanced = ratioDeviation > 0.20;
   
@@ -116,7 +116,7 @@ function analyzeLSB(buffer) {
     onesRatio,
     ratioDeviation,
     maxConsecutiveSame: maxConsecutive,
-    suspicious: (isHighEntropy && isShortPatterns) || (isHighEntropy && isUnbalanced) || (isShortPatterns && isUnbalanced && lsbEntropy > 0.90),
+    suspicious: (isHighEntropy && isShortPatterns) || (isHighEntropy && isUnbalanced) || (isShortPatterns && isUnbalanced && lsbEntropy > 0.85),
     indicators: {
       highEntropy: isHighEntropy,
       shortPatterns: isShortPatterns,
@@ -160,14 +160,14 @@ function checkKnownSignatures(buffer) {
     const entropy = calculateEntropy(lastKB);
     
     // OpenStego tiende a dejar alta entropía al final
-    if (entropy > 7.7) {
+    if (entropy > 7.5) {
       // Verificar patrón de bytes con alta aleatoriedad
       let consecutiveHighBytes = 0;
       for (let i = lastKB.length - 100; i < lastKB.length; i++) {
         if (lastKB[i] > 200) consecutiveHighBytes++;
       }
       
-      if (consecutiveHighBytes > 20) { // Más del 20% son bytes altos - MÁS SENSIBLE
+      if (consecutiveHighBytes > 15) { // Más del 15% son bytes altos - MUY SENSIBLE
         detected.push('OpenStego-Pattern');
       }
     }
@@ -180,8 +180,17 @@ function checkKnownSignatures(buffer) {
     const lastEntropy = calculateEntropy(lastBlock);
     
     // OpenStego PNG: entropía asimétrica entre inicio y final
-    if (Math.abs(firstEntropy - lastEntropy) > 1.2 && lastEntropy > 7.5) {
+    if (Math.abs(firstEntropy - lastEntropy) > 1.0 && lastEntropy > 7.3) {
       detected.push('OpenStego-Asymmetric');
+    }
+    
+    // Detección adicional: verificar alta entropía en medio del archivo
+    if (buffer.length > 2048) {
+      const midBlock = buffer.slice(Math.floor(buffer.length / 2) - 512, Math.floor(buffer.length / 2) + 512);
+      const midEntropy = calculateEntropy(midBlock);
+      if (midEntropy > 7.6) {
+        detected.push('OpenStego-HighMiddleEntropy');
+      }
     }
   }
   
@@ -409,7 +418,7 @@ async function analyzeImage(buffer) {
     const entropyThresholds = {
       'jpeg': 7.85,  // JPEG comprimido tiene naturalmente alta entropía (7.5-7.8)
       'jpg': 7.85,
-      'png': 7.3,
+      'png': 7.0,    // PNG: umbral bajo para detectar OpenStego
       'bmp': 6.5,  // BMP: sin compresión = ideal para esteganografía
       'gif': 7.6,
       'webp': 7.4
@@ -446,7 +455,7 @@ function determineConfidenceThreshold(mimeType, fileSize) {
   const baseThresholds = {
     'image/jpeg': 0.70,  // JPEG: umbral ALTO - compresión natural genera alta entropía
     'image/jpg': 0.70,
-    'image/png': 0.50,   // PNG: MÁS BAJO para detectar OpenStego - AJUSTADO
+    'image/png': 0.45,   // PNG: IGUAL QUE BMP - OpenStego muy común en PNG
     'image/bmp': 0.45,  // BMP: MUY bajo (formato muy común para esteganografía)
     'image/x-ms-bmp': 0.45,
     'image/x-bmp': 0.45,
@@ -580,7 +589,7 @@ async function analyzeSteganography(fileBuffer, mimeType, fileName) {
       suspicious: knownSignatures.length > 0
     };
     if (knownSignatures.length > 0) {
-      console.log(`[WORKER] Firmas detectadas: ${knownSignatures.join(', ')}`);
+      console.log(`[WORKER] ⚠️ FIRMAS DETECTADAS en ${fileName}: ${knownSignatures.join(', ')}`);
     }
     
     // 4. Análisis de distribución de bytes
@@ -614,7 +623,16 @@ async function analyzeSteganography(fileBuffer, mimeType, fileName) {
       results.checks.image?.advancedLSBAnalysis?.suspicious
     ].filter(Boolean);
     
-    console.log(`[WORKER] ${isSuspicious ? 'SOSPECHOSO' : 'LIMPIO'} - Confianza: ${(weightedConfidence * 100).toFixed(0)}% (${suspiciousChecks.length}/7 checks)`);
+    console.log(`[WORKER] ${isSuspicious ? '🚨 SOSPECHOSO' : '✅ LIMPIO'} - Confianza: ${(weightedConfidence * 100).toFixed(0)}% vs Umbral: ${(adaptiveThreshold * 100).toFixed(0)}% (${suspiciousChecks.length}/7 checks)`);
+    
+    // Debug detallado para PNG
+    if (mimeType === 'image/png') {
+      console.log(`[WORKER PNG DEBUG]:`);
+      console.log(`  - Firmas: ${results.checks.signatures?.detected.join(', ') || 'ninguna'}`);
+      console.log(`  - LSB suspicious: ${results.checks.lsb?.suspicious ? 'SÍ' : 'NO'} (entropy: ${results.checks.lsb?.lsbEntropy?.toFixed(3)})`);
+      console.log(`  - Entropy blocks: ${results.checks.entropyBlocks?.suspicious ? 'SÍ' : 'NO'}`);
+      console.log(`  - Advanced LSB: ${results.checks.image?.advancedLSBAnalysis?.suspicious ? 'SÍ' : 'NO'}`);
+    }
     
     results.verdict = {
       isSuspicious,

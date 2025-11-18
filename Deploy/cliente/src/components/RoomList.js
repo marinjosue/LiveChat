@@ -154,6 +154,9 @@ function RoomList({ onRoomSelected }) {
           {rooms.map((room) => (
             <div key={room.pin} className="room-card">
               <div className="room-card-header">
+                <div className="room-title">
+                  <h3 className="room-name">{room.name || room.roomName || `Sala ${room.pin}`}</h3>
+                </div>
                 <div className="room-pin">
                   <Lock size={16} />
                   <span>PIN: {room.pin}</span>

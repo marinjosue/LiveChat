@@ -1,4 +1,4 @@
-/* ParticipantsList.css */
+/* ==================== PARTICIPANTS LIST - TEMA OSCURO Y CLARO ==================== */
 
 .participants-panel {
   position: fixed;
@@ -6,13 +6,23 @@
   top: 0;
   width: 280px;
   height: 100vh;
-  background: linear-gradient(135deg, #f5f7fa 0%, #e8eef5 100%);
-  border-right: 1px solid #d1dbe6;
+  background: linear-gradient(135deg, var(--dark-surface) 0%, var(--dark-surface-elevated) 100%);
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
   flex-direction: column;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.05);
+  box-shadow: 2px 0 20px rgba(0, 0, 0, 0.4), inset 1px 0 0 rgba(255, 255, 255, 0.05);
   z-index: 100;
+  backdrop-filter: blur(10px);
+}
+
+/* Tema claro */
+body.light-theme .participants-panel,
+.admin-app.light-theme .participants-panel,
+.app-container.light-theme .participants-panel {
+  background: linear-gradient(135deg, var(--light-surface) 0%, rgba(255, 255, 255, 0.95) 100%);
+  border-right-color: var(--light-border);
+  box-shadow: 2px 0 20px rgba(0, 0, 0, 0.08), inset 1px 0 0 rgba(0, 0, 0, 0.02);
 }
 
 .participants-panel.hidden {
@@ -80,11 +90,17 @@
   gap: 10px;
   margin-bottom: 15px;
   padding-bottom: 15px;
-  border-bottom: 2px solid #d1dbe6;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+body.light-theme .participants-header,
+.admin-app.light-theme .participants-header,
+.app-container.light-theme .participants-header {
+  border-bottom-color: var(--light-border);
 }
 
 .participants-header svg {
-  color: var(--primary-color, #4a90e2);
+  color: var(--primary);
   flex-shrink: 0;
 }
 
@@ -92,18 +108,25 @@
   margin: 0;
   font-size: 1.1rem;
   font-weight: 600;
-  color: #2c3e50;
+  color: var(--text-primary-dark);
   flex: 1;
 }
 
+body.light-theme .participants-header h3,
+.admin-app.light-theme .participants-header h3,
+.app-container.light-theme .participants-header h3 {
+  color: var(--text-primary-light);
+}
+
 .participant-count {
-  background: var(--primary-color, #4a90e2);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
   color: white;
-  padding: 4px 10px;
+  padding: 6px 12px;
   border-radius: 12px;
   font-size: 0.85rem;
   font-weight: 600;
   white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
 }
 
 .participants-info {
@@ -112,15 +135,23 @@
 
 .privacy-notice {
   font-size: 0.8rem;
-  color: #7f8c8d;
-  background: #fff9e6;
-  padding: 8px 12px;
+  color: rgba(255, 255, 255, 0.7);
+  background: rgba(245, 158, 11, 0.1);
+  padding: 10px 12px;
   border-radius: 8px;
   margin: 0;
-  border-left: 3px solid #f39c12;
+  border-left: 3px solid var(--warning);
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+body.light-theme .privacy-notice,
+.admin-app.light-theme .privacy-notice,
+.app-container.light-theme .privacy-notice {
+  color: #7f8c8d;
+  background: #fff9e6;
+  border-left-color: #f39c12;
 }
 
 .participants-list {
@@ -135,17 +166,35 @@
 }
 
 .participants-list::-webkit-scrollbar-track {
-  background: #ecf0f1;
+  background: rgba(255, 255, 255, 0.05);
   border-radius: 10px;
 }
 
 .participants-list::-webkit-scrollbar-thumb {
-  background: #bdc3c7;
+  background: rgba(255, 255, 255, 0.15);
   border-radius: 10px;
 }
 
 .participants-list::-webkit-scrollbar-thumb:hover {
-  background: #95a5a6;
+  background: rgba(255, 255, 255, 0.25);
+}
+
+body.light-theme .participants-list::-webkit-scrollbar-track,
+.admin-app.light-theme .participants-list::-webkit-scrollbar-track,
+.app-container.light-theme .participants-list::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+body.light-theme .participants-list::-webkit-scrollbar-thumb,
+.admin-app.light-theme .participants-list::-webkit-scrollbar-thumb,
+.app-container.light-theme .participants-list::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+}
+
+body.light-theme .participants-list::-webkit-scrollbar-thumb:hover,
+.admin-app.light-theme .participants-list::-webkit-scrollbar-thumb:hover,
+.app-container.light-theme .participants-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
 }
 
 .no-participants {

@@ -9,7 +9,6 @@ const deviceSessionSchema = new mongoose.Schema({
   ipAddress: {
     type: String,
     required: true
-    // Ya no es único - un dispositivo puede tener múltiples IPs
   },
   pin: {
     type: String,

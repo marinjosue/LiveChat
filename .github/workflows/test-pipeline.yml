@@ -129,220 +129,72 @@ jobs:
           
           exit 1
 
-  create-pr-to-main:
-    name: 🚀 Create PR to Main
+  auto-merge-to-main:
+    name: 🚀 Auto Merge to Main
     needs: [run-tests]
     runs-on: ubuntu-latest
     if: success()
     
-    steps:
-      - name: 📥 Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      
-      - name: 🔍 Verificar si ya existe PR
-        id: check-pr
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const { data: pulls } = await github.rest.pulls.list({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              state: 'open',
-              head: `${context.repo.owner}:test`,
-              base: 'main'
-            });
-            
-            if (pulls.length > 0) {
-              console.log('✅ Ya existe un PR abierto:', pulls[0].html_url);
-              core.setOutput('pr_exists', 'true');
-              core.setOutput('pr_number', pulls[0].number);
-              core.setOutput('pr_url', pulls[0].html_url);
-            } else {
-              console.log('📝 No existe PR, se creará uno nuevo');
-              core.setOutput('pr_exists', 'false');
-            }
-      
-      - name: 📝 Crear PR a main
-        if: steps.check-pr.outputs.pr_exists == 'false'
-        id: create-pr
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const { data: pr } = await github.rest.pulls.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: '🚀 Deploy to Production',
-              head: 'test',
-              base: 'main',
-              body: `## 🚀 Despliegue a Producción
-              
-              Este PR ha sido creado automáticamente después de pasar todas las validaciones:
-              
-              ✅ **Análisis de Seguridad ML:** APROBADO
-              ✅ **Tests Automáticos:** TODOS PASARON
-              
-              ### 📊 Validaciones Completadas
-              
-              1. **Seguridad (ML):**
-                 - Detector de Vulnerabilidades (79% accuracy)
-                 - Clasificador CWE (87% accuracy)
-                 - Resultado: Sin vulnerabilidades detectadas
-              
-              2. **Tests Automáticos:**
-                 - Tests del servidor: ✅ Pasados
-                 - Tests del cliente: ✅ Pasados
-                 - Cobertura de código: Disponible en artifacts
-              
-              ### 🔄 Flujo Completado
-              
-              \`\`\`
-              dev → test (✅ Seguro) → main (✅ Tests Pasados) → Production
-              \`\`\`
-              
-              ### ⚠️ Importante
-              
-              Este código está listo para producción. Revisar y aprobar para desplegar.
-              
-              ---
-              
-              🤖 *Creado automáticamente por el Pipeline CI/CD*
-              📅 *Fecha: ${new Date().toISOString()}*
-              🔗 *Workflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}*
-              `
-            });
-            
-            console.log('✅ PR creado:', pr.html_url);
-            core.setOutput('pr_number', pr.number);
-            core.setOutput('pr_url', pr.html_url);
-            
-            // Agregar label
-            await github.rest.issues.addLabels({
-              issue_number: pr.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              labels: ['ready-for-production', 'automated']
-            });
-      
-      - name: 📱 Notificar creación de PR
-        run: |
-          if [ "${{ steps.check-pr.outputs.pr_exists }}" == "true" ]; then
-            PR_URL="${{ steps.check-pr.outputs.pr_url }}"
-            PR_NUM="${{ steps.check-pr.outputs.pr_number }}"
-          else
-            PR_URL="${{ steps.create-pr.outputs.pr_url }}"
-            PR_NUM="${{ steps.create-pr.outputs.pr_number }}"
-          fi
-          
-          MESSAGE="🚀 <b>LISTO PARA PRODUCCIÓN</b>%0A%0A"
-          MESSAGE+="📦 <b>Repositorio:</b> ${{ github.repository }}%0A"
-          MESSAGE+="🔀 <b>PR:</b> #${PR_NUM}%0A"
-          MESSAGE+="🌿 <b>Rama:</b> test → main%0A%0A"
-          MESSAGE+="✅ <b>Análisis ML:</b> APROBADO%0A"
-          MESSAGE+="✅ <b>Tests Automáticos:</b> TODOS PASADOS%0A%0A"
-          MESSAGE+="🚀 <b>El código se mergeará automáticamente a main</b>%0A%0A"
-          MESSAGE+="🔗 <a href='${PR_URL}'>Ver Pull Request</a>"
-          
-          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
-            -d "chat_id=${TELEGRAM_CHAT_ID}" \
-            -d "text=${MESSAGE}" \
-            -d "parse_mode=HTML"
-  
-  auto-merge-to-main:
-    name: 🔀 Auto Merge to Main
-    needs: [run-tests, create-pr-to-main]
-    runs-on: ubuntu-latest
-    if: success()
-    permissions:
-      contents: write
-      pull-requests: write
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
     
     steps:
-      - name: 📥 Checkout
+      - name: 📥 Checkout test branch
         uses: actions/checkout@v4
         with:
+          ref: test
           fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
       
-      - name: 🔍 Obtener número de PR
-        id: get-pr
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const { data: pulls } = await github.rest.pulls.list({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              state: 'open',
-              head: `${context.repo.owner}:test`,
-              base: 'main'
-            });
-            
-            if (pulls.length > 0) {
-              console.log('✅ PR encontrado:', pulls[0].number);
-              core.setOutput('pr_number', pulls[0].number);
-              core.setOutput('pr_url', pulls[0].html_url);
-              return pulls[0].number;
-            } else {
-              core.setFailed('No se encontró PR abierto de test a main');
-            }
-      
-      - name: 🔀 Merge automático del PR
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const prNumber = ${{ steps.get-pr.outputs.pr_number }};
-            
-            try {
-              // Hacer merge automático
-              await github.rest.pulls.merge({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                pull_number: prNumber,
-                commit_title: `🚀 Auto-merge: Tests passed - Ready for production`,
-                commit_message: `✅ Todas las validaciones pasaron:\n\n` +
-                  `- Análisis ML de seguridad: APROBADO\n` +
-                  `- Tests automáticos: TODOS PASADOS\n` +
-                  `- Código listo para producción\n\n` +
-                  `Workflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}`,
-                merge_method: 'merge'
-              });
-              
-              console.log('✅ PR mergeado exitosamente a main');
-              
-              // Agregar comentario de éxito
-              await github.rest.issues.createComment({
-                issue_number: prNumber,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: '🤖 **Merge automático completado**\n\n' +
-                  '✅ El código ha sido desplegado a la rama `main`\n' +
-                  '🚀 Vercel desplegará automáticamente los cambios\n\n' +
-                  '---\n' +
-                  '📊 **Validaciones completadas:**\n' +
-                  '- ✅ Seguridad ML\n' +
-                  '- ✅ Tests automáticos\n' +
-                  '- ✅ Merge a producción'
-              });
-              
-            } catch (error) {
-              console.error('❌ Error en merge automático:', error.message);
-              core.setFailed('Error en merge automático: ' + error.message);
-            }
+      - name: 🔀 Merge test → main
+        id: merge
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          
+          # Fetch main branch
+          git fetch origin main
+          
+          # Checkout main
+          git checkout main
+          
+          # Merge test into main
+          if git merge origin/test --no-ff -m "🚀 Auto-merge: Tests passed - Ready for production
+
+          ✅ Todas las validaciones pasaron:
+          
+          - Análisis ML de seguridad: APROBADO
+          - Tests automáticos: TODOS PASADOS
+          - Código listo para producción
+          
+          Workflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"; then
+            echo "merge_status=success" >> $GITHUB_OUTPUT
+            git push origin main
+            echo "✅ Merge exitoso: test → main"
+          else
+            echo "merge_status=failed" >> $GITHUB_OUTPUT
+            echo "❌ Error: Conflictos de merge detectados"
+            exit 1
+          fi
       
       - name: 📱 Notificar merge exitoso
-        if: success()
+        if: steps.merge.outputs.merge_status == 'success'
         run: |
+          COMMIT_SHA=$(git rev-parse HEAD)
+          COMMIT_SHORT=${COMMIT_SHA:0:7}
+          
           MESSAGE="🎉 <b>DESPLEGADO A PRODUCCIÓN</b>%0A%0A"
           MESSAGE+="📦 <b>Repositorio:</b> ${{ github.repository }}%0A"
-          MESSAGE+="🔀 <b>PR:</b> #${{ steps.get-pr.outputs.pr_number }}%0A"
-          MESSAGE+="🌿 <b>Merge:</b> test → main%0A%0A"
+          MESSAGE+="🔀 <b>Merge:</b> test → main%0A"
+          MESSAGE+="📝 <b>Commit:</b> ${COMMIT_SHORT}%0A%0A"
           MESSAGE+="✅ <b>Pipeline Completo:</b>%0A"
           MESSAGE+="  1️⃣ dev → Análisis ML ✅%0A"
           MESSAGE+="  2️⃣ test → Tests automáticos ✅%0A"
           MESSAGE+="  3️⃣ main → Merge automático ✅%0A"
           MESSAGE+="  4️⃣ Vercel → Desplegando...%0A%0A"
           MESSAGE+="🚀 <b>La aplicación se está desplegando</b>%0A%0A"
-          MESSAGE+="🔗 <a href='${{ steps.get-pr.outputs.pr_url }}'>Ver PR Mergeado</a>"
+          MESSAGE+="🔗 <a href='${{ github.server_url }}/${{ github.repository }}/commit/${COMMIT_SHA}'>Ver Commit</a>"
           
           curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
             -d "chat_id=${TELEGRAM_CHAT_ID}" \
@@ -354,13 +206,12 @@ jobs:
         run: |
           MESSAGE="❌ <b>ERROR EN MERGE AUTOMÁTICO</b>%0A%0A"
           MESSAGE+="📦 <b>Repositorio:</b> ${{ github.repository }}%0A"
-          MESSAGE+="🔀 <b>PR:</b> #${{ steps.get-pr.outputs.pr_number }}%0A"
-          MESSAGE+="🌿 <b>Rama:</b> test → main%0A%0A"
+          MESSAGE+="🔀 <b>Intento:</b> test → main%0A%0A"
           MESSAGE+="⚠️ No se pudo completar el merge automático%0A"
           MESSAGE+="🔍 Posibles causas:%0A"
           MESSAGE+="  • Conflictos de merge%0A"
-          MESSAGE+="  • Permisos insuficientes%0A"
-          MESSAGE+="  • PR ya cerrado%0A%0A"
+          MESSAGE+="  • Cambios divergentes%0A"
+          MESSAGE+="  • Protección de rama%0A%0A"
           MESSAGE+="📝 <b>Acción requerida:</b> Merge manual%0A%0A"
           MESSAGE+="🔗 <a href='${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'>Ver Logs</a>"
           
@@ -374,6 +225,10 @@ jobs:
     needs: [run-tests]
     runs-on: ubuntu-latest
     if: failure()
+    
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
     
     steps:
       - name: 📱 Notificar fallo en tests

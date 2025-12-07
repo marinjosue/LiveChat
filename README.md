@@ -48,7 +48,26 @@ Este proyecto fomenta el aprendizaje en programación concurrente, WebSockets pa
 
 ## Arquitectura
 
-![](documentacion/img/Ingresa%20a%20la%20sala.png)
+```
+┌─────────────────────────────────────────────┐
+│              LIVECHAT APP                   │
+├─────────────────────────────────────────────┤
+│                                             │
+│  ┌──────────────┐      ┌──────────────┐   │
+│  │   CLIENT     │◄────►│   SERVER     │   │
+│  │              │      │              │   │
+│  │ React + Nginx│      │ Node.js +    │   │
+│  │   (Port 80)  │      │  Socket.IO   │   │
+│  │              │      │  (Port 3001) │   │
+│  └──────────────┘      └───────┬──────┘   │
+│                                │           │
+│                                ▼           │
+│                        ┌──────────────┐   │
+│                        │   MongoDB    │   │
+│                        │ (Port 27017) │   │
+│                        └──────────────┘   │
+└─────────────────────────────────────────────┘
+```
 
 ---
 
@@ -493,7 +512,7 @@ net start MongoDB
 
 ```
 LiveChat/
-├── cliente/                    # Frontend React
+├── client/                    # Frontend React
 │   ├── src/
 │   │   ├── components/        # Componentes React
 │   │   │   ├── ChatRoom.js
@@ -509,7 +528,7 @@ LiveChat/
 │   │   ├── AdminApp.js        # App de administración
 │   │   └── App.js
 │   └── package.json
-├── servidor/                    # Backend Node.js
+├── server/                    # Backend Node.js
 │   ├── controllers/           # Lógica de negocio
 │   │   ├── DeviceSessionController.js
 │   │   ├── RoomController.js
@@ -886,7 +905,7 @@ const isValid = await auditLog.verifyIntegrity();
 
 ## Documentación Adicional
 
-- **[Pruebas del Sistema](./PRUEBAS.md)** - Guía detallada de implementación de seguridad
+- **[SECURITY_IMPLEMENTATION.md](./SECURITY_IMPLEMENTATION.md)** - Guía detallada de implementación de seguridad
 - **Logs de Auditoría**: Ver `server/logs/` para archivos de log
 - **Ejemplos de API**: Importar colección de Postman (crear según necesidad)
 
@@ -909,8 +928,5 @@ Este proyecto está desarrollado por **Autepim**.
 
 ---
 
+**Desarrollado con ❤️ por Autepim**
 
-**Desarrollado con  por Autepim**
-
-/ /   T e s t   p i p e l i n e  
- 

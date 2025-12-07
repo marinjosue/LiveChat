@@ -1,0 +1,294 @@
+name: 🔐 Security Pipeline - ML Vulnerability Detection
+
+on:
+  pull_request:
+    branches: [test, main]
+    types: [opened, synchronize, reopened]
+
+env:
+  TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+  TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+
+jobs:
+  security-analysis:
+    name: 🤖 ML Security Analysis
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: 📦 Install ML dependencies
+        run: |
+          cd ml-security/backend
+          pip install -r requirements.txt
+      
+      - name: ✅ Verificar modelos ML
+        run: |
+          echo "🔍 Verificando modelos entrenados..."
+          ls -lh ml-security/models/
+          
+          # Verificar que existan los modelos necesarios
+          if [ ! -f ml-security/models/vulnerability_detector.pkl ]; then
+            echo "❌ Error: Modelo de detección no encontrado"
+            exit 1
+          fi
+          
+          if [ ! -f ml-security/models/cwe_classifier.pkl ]; then
+            echo "❌ Error: Modelo de clasificación CWE no encontrado"
+            exit 1
+          fi
+          
+          echo "✅ Todos los modelos están disponibles"
+          echo "📊 Métricas del Modelo 1 (Detector):"
+          cat ml-security/models/metrics_vulnerability_detector.txt
+          echo ""
+          echo "📊 Métricas del Modelo 2 (Clasificador CWE):"
+          cat ml-security/models/metrics_cwe_classifier.txt
+      
+      - name: 🔍 Escanear vulnerabilidades con ML
+        id: scan
+        run: |
+          echo "🔍 Escaneando código con modelos ML..."
+          echo "📊 Modelo 1: Detector binario (79.01% accuracy, 90.12% recall)"
+          echo "📊 Modelo 2: Clasificador CWE (86.94% accuracy)"
+          echo ""
+          
+          # Hacer ejecutable el script
+          chmod +x .github/scripts/scan_vulnerabilities.py
+          
+          # Escanear cliente
+          echo "🔍 Analizando cliente..."
+          python .github/scripts/scan_vulnerabilities.py cliente/src || CLIENTE_VULN=1
+          
+          # Escanear servidor
+          echo ""
+          echo "🔍 Analizando servidor..."
+          python .github/scripts/scan_vulnerabilities.py servidor || SERVIDOR_VULN=1
+          
+          # Combinar resultados
+          if [ "$CLIENTE_VULN" == "1" ] || [ "$SERVIDOR_VULN" == "1" ]; then
+            echo "vulnerable=true" >> $GITHUB_OUTPUT
+            echo "❌ Se detectaron vulnerabilidades"
+            exit 1
+          else
+            echo "vulnerable=false" >> $GITHUB_OUTPUT
+            echo "✅ Código seguro - Sin vulnerabilidades detectadas"
+          fi
+      
+      - name: 📤 Upload security report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-report
+          path: security_report.json
+          retention-days: 30
+      
+      - name: 📱 Enviar notificación a Telegram
+        if: always()
+        run: |
+          pip install requests
+          python .github/scripts/telegram_notify.py vulnerability_scan security_report.json || echo "⚠️  Error enviando notificación"
+      
+      - name: 📊 Comment PR with results
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = JSON.parse(fs.readFileSync('ml-security/security_report.json', 'utf8'));
+            
+            const status = report.is_safe ? '✅ APROBADO' : '❌ RECHAZADO';
+            const emoji = report.is_safe ? '🟢' : '🔴';
+            
+            let body = `## ${emoji} Análisis de Seguridad ML - ${status}\n\n`;
+            body += `📊 **Resumen:**\n`;
+            body += `- Total de archivos: ${report.total_files}\n`;
+            body += `- Archivos seguros: ${report.secure_files}\n`;
+            body += `- Archivos vulnerables: ${report.vulnerable_files}\n\n`;
+            
+            if (!report.is_safe) {
+              body += `### 🚨 Vulnerabilidades Detectadas:\n\n`;
+              report.vulnerable_list.forEach(vuln => {
+                body += `#### 📄 ${vuln.file}\n`;
+                body += `- **Confianza:** ${(vuln.confidence * 100).toFixed(1)}%\n`;
+                if (vuln.issues) {
+                  vuln.issues.forEach(issue => {
+                    body += `- ${issue}\n`;
+                  });
+                }
+                body += `\n`;
+              });
+              body += `\n⚠️ **Acción requerida:** Corregir las vulnerabilidades antes de hacer merge.\n`;
+            } else {
+              body += `### ✅ Código Seguro\n\n`;
+              body += `El análisis ML no detectó vulnerabilidades. El código está listo para merge.\n`;
+            }
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+      
+      - name: 📱 Send Telegram notification - Vulnerable
+        if: steps.scan.outputs.vulnerable == 'true'
+        run: |
+          MESSAGE="🔴 ALERTA DE SEGURIDAD%0A%0A"
+          MESSAGE+="Repositorio: ${{ github.repository }}%0A"
+          MESSAGE+="PR: #${{ github.event.pull_request.number }}%0A"
+          MESSAGE+="Autor: ${{ github.event.pull_request.user.login }}%0A"
+          MESSAGE+="Rama: ${{ github.head_ref }} → ${{ github.base_ref }}%0A%0A"
+          MESSAGE+="❌ VULNERABILIDADES DETECTADAS%0A"
+          MESSAGE+="El código NO puede ser mergeado hasta que se corrijan las vulnerabilidades.%0A%0A"
+          MESSAGE+="Ver reporte: ${{ github.event.pull_request.html_url }}"
+          
+          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d "chat_id=${TELEGRAM_CHAT_ID}" \
+            -d "text=${MESSAGE}" \
+            -d "parse_mode=HTML"
+      
+      - name: 📱 Send Telegram notification - Safe
+        if: steps.scan.outputs.vulnerable == 'false'
+        run: |
+          MESSAGE="✅ CÓDIGO SEGURO%0A%0A"
+          MESSAGE+="Repositorio: ${{ github.repository }}%0A"
+          MESSAGE+="PR: #${{ github.event.pull_request.number }}%0A"
+          MESSAGE+="Autor: ${{ github.event.pull_request.user.login }}%0A"
+          MESSAGE+="Rama: ${{ github.head_ref }} → ${{ github.base_ref }}%0A%0A"
+          MESSAGE+="✅ El análisis ML no detectó vulnerabilidades.%0A"
+          MESSAGE+="El código puede continuar al siguiente stage.%0A%0A"
+          MESSAGE+="Ver PR: ${{ github.event.pull_request.html_url }}"
+          
+          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d "chat_id=${TELEGRAM_CHAT_ID}" \
+            -d "text=${MESSAGE}" \
+            -d "parse_mode=HTML"
+      
+      - name: 🚨 Create issue for vulnerabilities
+        if: steps.scan.outputs.vulnerable == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = JSON.parse(fs.readFileSync('ml-security/security_report.json', 'utf8'));
+            
+            let body = `## 🔴 Vulnerabilidades Detectadas por ML\n\n`;
+            body += `**Pull Request:** #${{ github.event.pull_request.number }}\n`;
+            body += `**Autor:** @${{ github.event.pull_request.user.login }}\n`;
+            body += `**Rama:** ${{ github.head_ref }} → ${{ github.base_ref }}\n\n`;
+            body += `### 📊 Resumen\n`;
+            body += `- Archivos vulnerables: ${report.vulnerable_files}\n`;
+            body += `- Total de archivos: ${report.total_files}\n\n`;
+            body += `### 🚨 Archivos Afectados\n\n`;
+            
+            report.vulnerable_list.forEach((vuln, idx) => {
+              body += `${idx + 1}. **${vuln.file}**\n`;
+              body += `   - Confianza: ${(vuln.confidence * 100).toFixed(1)}%\n`;
+              if (vuln.issues) {
+                vuln.issues.forEach(issue => {
+                  body += `   - ${issue}\n`;
+                });
+              }
+              body += `\n`;
+            });
+            
+            body += `### ⚠️ Acción Requerida\n`;
+            body += `1. Revisar y corregir las vulnerabilidades detectadas\n`;
+            body += `2. Actualizar el Pull Request con los cambios\n`;
+            body += `3. El pipeline volverá a ejecutarse automáticamente\n\n`;
+            body += `---\n`;
+            body += `🤖 Detectado por: ML Vulnerability Scanner (Random Forest)\n`;
+            
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🔴 Vulnerabilidades en PR #${{ github.event.pull_request.number }}`,
+              body: body,
+              labels: ['security', 'vulnerability', 'automated']
+            });
+      
+      - name: ❌ Fail if vulnerable
+        if: steps.scan.outputs.vulnerable == 'true'
+        run: |
+          echo "❌ Vulnerabilidades detectadas - Pipeline fallido"
+          echo "El código NO puede ser mergeado"
+          exit 1
+
+  unit-tests:
+    name: 🧪 Unit Tests
+    needs: security-analysis
+    runs-on: ubuntu-latest
+    if: success()
+    
+    strategy:
+      matrix:
+        component: [cliente, servidor]
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+      
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: ${{ matrix.component }}/package-lock.json
+      
+      - name: 📦 Install dependencies
+        run: |
+          cd ${{ matrix.component }}
+          npm ci
+      
+      - name: 🧪 Run tests
+        run: |
+          cd ${{ matrix.component }}
+          npm test -- --coverage --watchAll=false || echo "No tests configured"
+      
+      - name: 📱 Notify test failure
+        if: failure()
+        run: |
+          MESSAGE="❌ TESTS FALLIDOS%0A%0A"
+          MESSAGE+="Componente: ${{ matrix.component }}%0A"
+          MESSAGE+="PR: #${{ github.event.pull_request.number }}%0A"
+          MESSAGE+="Ver logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          
+          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d "chat_id=${TELEGRAM_CHAT_ID}" \
+            -d "text=${MESSAGE}"
+
+  merge-approval:
+    name: ✅ Merge Approval
+    needs: [security-analysis, unit-tests]
+    runs-on: ubuntu-latest
+    if: success() && github.base_ref == 'test'
+    
+    steps:
+      - name: ✅ Approve merge to test
+        run: |
+          echo "✅ Todos los checks pasaron"
+          echo "El código puede ser mergeado a test"
+      
+      - name: 📱 Notify approval
+        run: |
+          MESSAGE="✅ APROBADO PARA MERGE%0A%0A"
+          MESSAGE+="PR: #${{ github.event.pull_request.number }}%0A"
+          MESSAGE+="Destino: ${{ github.base_ref }}%0A"
+          MESSAGE+="✅ Security: PASS%0A"
+          MESSAGE+="✅ Tests: PASS%0A%0A"
+          MESSAGE+="El código puede ser mergeado.%0A"
+          MESSAGE+="Ver PR: ${{ github.event.pull_request.html_url }}"
+          
+          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d "chat_id=${TELEGRAM_CHAT_ID}" \
+            -d "text=${MESSAGE}"

@@ -912,5 +912,3 @@ Este proyecto está desarrollado por **Autepim**.
 
 **Desarrollado con  por Autepim**
 
-/ /   T e s t   p i p e l i n e  
- 

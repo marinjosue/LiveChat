@@ -1,0 +1,128 @@
+[
+  {
+    "nombre": "Concatenacion de SQL",
+    "lenguaje": "python",
+    "exitoso": true,
+    "tipo": "SQL Injection",
+    "vulnerable": true
+  },
+  {
+    "nombre": "Format string SQL",
+    "lenguaje": "python",
+    "exitoso": true,
+    "tipo": "Improper Input Validation",
+    "vulnerable": true
+  },
+  {
+    "nombre": "Response sin escape",
+    "lenguaje": "python",
+    "exitoso": true,
+    "tipo": "Code Injection",
+    "vulnerable": true
+  },
+  {
+    "nombre": "HTML sin escapar",
+    "lenguaje": "javascript",
+    "exitoso": true,
+    "tipo": "Improper Input Validation",
+    "vulnerable": true
+  },
+  {
+    "nombre": "OS system",
+    "lenguaje": "python",
+    "exitoso": true,
+    "tipo": "Improper Input Validation",
+    "vulnerable": true
+  },
+  {
+    "nombre": "Subprocess shell",
+    "lenguaje": "python",
+    "exitoso": false,
+    "tipo": null,
+    "vulnerable": false
+  },
+  {
+    "nombre": "File read con entrada",
+    "lenguaje": "python",
+    "exitoso": true,
+    "tipo": "Improper Input Validation",
+    "vulnerable": true
+  },
+  {
+    "nombre": "Directory access",
+    "lenguaje": "javascript",
+    "exitoso": true,
+    "tipo": "Improper Input Validation",
+    "vulnerable": true
+  },
+  {
+    "nombre": "strcpy fixed",
+    "lenguaje": "c++",
+    "exitoso": true,
+    "tipo": "Buffer Overflow",
+    "vulnerable": true
+  },
+  {
+    "nombre": "Array bounds",
+    "lenguaje": "c++",
+    "exitoso": true,
+    "tipo": "Buffer Overflow",
+    "vulnerable": true
+  },
+  {
+    "nombre": "MD5 hash",
+    "lenguaje": "python",
+    "exitoso": true,
+    "tipo": "Improper Input Validation",
+    "vulnerable": true
+  },
+  {
+    "nombre": "DES encryption",
+    "lenguaje": "python",
+    "exitoso": true,
+    "tipo": "Improper Input Validation",
+    "vulnerable": true
+  },
+  {
+    "nombre": "eval input",
+    "lenguaje": "python",
+    "exitoso": true,
+    "tipo": "Code Injection",
+    "vulnerable": true
+  },
+  {
+    "nombre": "exec code",
+    "lenguaje": "python",
+    "exitoso": true,
+    "tipo": "Improper Input Validation",
+    "vulnerable": true
+  },
+  {
+    "nombre": "Pickle load",
+    "lenguaje": "python",
+    "exitoso": true,
+    "tipo": "Improper Input Validation",
+    "vulnerable": true
+  },
+  {
+    "nombre": "YAML load",
+    "lenguaje": "python",
+    "exitoso": true,
+    "tipo": "Code Injection",
+    "vulnerable": true
+  },
+  {
+    "nombre": "Password literal",
+    "lenguaje": "python",
+    "exitoso": true,
+    "tipo": "Improper Input Validation",
+    "vulnerable": true
+  },
+  {
+    "nombre": "API key literal",
+    "lenguaje": "python",
+    "exitoso": true,
+    "tipo": "Improper Input Validation",
+    "vulnerable": true
+  }
+]

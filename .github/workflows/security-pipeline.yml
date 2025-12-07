@@ -74,8 +74,8 @@ jobs:
           
           # Verificar que existan los modelos
           echo "🔍 Verificando modelos ML..."
-          ls -lh ml-security/models/*.pkl || {
-            echo "❌ No se encontraron modelos ML"
+          ls -lh ml-security/models/*.pkl || { 
+            echo "❌ No se encontraron modelos ML necesarios"
             echo "scan_status=failed" >> $GITHUB_OUTPUT
             echo "vulnerable=unknown" >> $GITHUB_OUTPUT
             exit 1

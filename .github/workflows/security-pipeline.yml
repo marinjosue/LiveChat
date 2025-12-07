@@ -452,7 +452,7 @@ jobs:
               core.setFailed('Error en merge automático: ' + error.message);
             }
       
-      - name: 📱 Notificar merge exitoso
+      - name: 📱 Notificar merge exitoso e inicio de tests
         if: success()
         run: |
           MESSAGE="🔀 <b>MERGE AUTOMÁTICO EXITOSO</b>%0A%0A"
@@ -461,7 +461,11 @@ jobs:
           MESSAGE+="👤 <b>Autor:</b> ${{ github.event.pull_request.user.login }}%0A"
           MESSAGE+="🌿 <b>Rama:</b> ${{ github.head_ref }} → test%0A%0A"
           MESSAGE+="✅ <b>Código aprobado por ML</b>%0A"
-          MESSAGE+="🚀 <b>Siguiente etapa:</b> Pruebas automáticas en test%0A%0A"
+          MESSAGE+="🧪 <b>Siguiente etapa:</b> Iniciando pruebas automáticas...%0A%0A"
+          MESSAGE+="📝 <b>Tests a ejecutar:</b>%0A"
+          MESSAGE+="  • Tests del servidor (Jest)%0A"
+          MESSAGE+="  • Tests del cliente (Jest)%0A%0A"
+          MESSAGE+="⏳ <b>Estado:</b> Ejecutando tests...%0A%0A"
           MESSAGE+="🔗 <a href='${{ github.event.pull_request.html_url }}'>Ver Pull Request</a>"
           
           curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \

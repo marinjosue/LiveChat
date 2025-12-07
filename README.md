@@ -48,7 +48,7 @@ Este proyecto fomenta el aprendizaje en programación concurrente, WebSockets pa
 
 ## Arquitectura
 
-![](imagenes/Ingresa%20a%20la%20sala.png)
+![](documentacion/img/Ingresa%20a%20la%20sala.png)
 
 ---
 

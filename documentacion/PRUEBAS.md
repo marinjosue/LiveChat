@@ -205,7 +205,7 @@ if (process.env.NODE_ENV === 'test') {
 ## Estructura Final de Pruebas
 
 
-![](imagenes/testestructura.png)
+![](documentacion/img/testestructura.png)
 
 ---
 
@@ -274,10 +274,10 @@ Después de crear:
 
 Se obtuvo el siguiente resultado:
 
-![](imagenes/pruebasU.png)
+![](documentacion/img/pruebasU.png)
 
 ### Pruebas de Cobertura
-![](imagenes/cober.png)
+![](documentacion/img/cober.png)
 
 
 

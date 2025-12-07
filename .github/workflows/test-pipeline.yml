@@ -211,8 +211,128 @@ jobs:
           MESSAGE+="🌿 <b>Rama:</b> test → main%0A%0A"
           MESSAGE+="✅ <b>Análisis ML:</b> APROBADO%0A"
           MESSAGE+="✅ <b>Tests Automáticos:</b> TODOS PASADOS%0A%0A"
-          MESSAGE+="🚀 <b>El código está listo para producción</b>%0A%0A"
-          MESSAGE+="🔗 <a href='${PR_URL}'>Revisar y Aprobar PR</a>"
+          MESSAGE+="🚀 <b>El código se mergeará automáticamente a main</b>%0A%0A"
+          MESSAGE+="🔗 <a href='${PR_URL}'>Ver Pull Request</a>"
+          
+          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d "chat_id=${TELEGRAM_CHAT_ID}" \
+            -d "text=${MESSAGE}" \
+            -d "parse_mode=HTML"
+  
+  auto-merge-to-main:
+    name: 🔀 Auto Merge to Main
+    needs: [run-tests, create-pr-to-main]
+    runs-on: ubuntu-latest
+    if: success()
+    permissions:
+      contents: write
+      pull-requests: write
+    
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: 🔍 Obtener número de PR
+        id: get-pr
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: pulls } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              head: `${context.repo.owner}:test`,
+              base: 'main'
+            });
+            
+            if (pulls.length > 0) {
+              console.log('✅ PR encontrado:', pulls[0].number);
+              core.setOutput('pr_number', pulls[0].number);
+              core.setOutput('pr_url', pulls[0].html_url);
+              return pulls[0].number;
+            } else {
+              core.setFailed('No se encontró PR abierto de test a main');
+            }
+      
+      - name: 🔀 Merge automático del PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = ${{ steps.get-pr.outputs.pr_number }};
+            
+            try {
+              // Hacer merge automático
+              await github.rest.pulls.merge({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: prNumber,
+                commit_title: `🚀 Auto-merge: Tests passed - Ready for production`,
+                commit_message: `✅ Todas las validaciones pasaron:\n\n` +
+                  `- Análisis ML de seguridad: APROBADO\n` +
+                  `- Tests automáticos: TODOS PASADOS\n` +
+                  `- Código listo para producción\n\n` +
+                  `Workflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}`,
+                merge_method: 'merge'
+              });
+              
+              console.log('✅ PR mergeado exitosamente a main');
+              
+              // Agregar comentario de éxito
+              await github.rest.issues.createComment({
+                issue_number: prNumber,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: '🤖 **Merge automático completado**\n\n' +
+                  '✅ El código ha sido desplegado a la rama `main`\n' +
+                  '🚀 Vercel desplegará automáticamente los cambios\n\n' +
+                  '---\n' +
+                  '📊 **Validaciones completadas:**\n' +
+                  '- ✅ Seguridad ML\n' +
+                  '- ✅ Tests automáticos\n' +
+                  '- ✅ Merge a producción'
+              });
+              
+            } catch (error) {
+              console.error('❌ Error en merge automático:', error.message);
+              core.setFailed('Error en merge automático: ' + error.message);
+            }
+      
+      - name: 📱 Notificar merge exitoso
+        if: success()
+        run: |
+          MESSAGE="🎉 <b>DESPLEGADO A PRODUCCIÓN</b>%0A%0A"
+          MESSAGE+="📦 <b>Repositorio:</b> ${{ github.repository }}%0A"
+          MESSAGE+="🔀 <b>PR:</b> #${{ steps.get-pr.outputs.pr_number }}%0A"
+          MESSAGE+="🌿 <b>Merge:</b> test → main%0A%0A"
+          MESSAGE+="✅ <b>Pipeline Completo:</b>%0A"
+          MESSAGE+="  1️⃣ dev → Análisis ML ✅%0A"
+          MESSAGE+="  2️⃣ test → Tests automáticos ✅%0A"
+          MESSAGE+="  3️⃣ main → Merge automático ✅%0A"
+          MESSAGE+="  4️⃣ Vercel → Desplegando...%0A%0A"
+          MESSAGE+="🚀 <b>La aplicación se está desplegando</b>%0A%0A"
+          MESSAGE+="🔗 <a href='${{ steps.get-pr.outputs.pr_url }}'>Ver PR Mergeado</a>"
+          
+          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d "chat_id=${TELEGRAM_CHAT_ID}" \
+            -d "text=${MESSAGE}" \
+            -d "parse_mode=HTML"
+      
+      - name: 📱 Notificar error en merge
+        if: failure()
+        run: |
+          MESSAGE="❌ <b>ERROR EN MERGE AUTOMÁTICO</b>%0A%0A"
+          MESSAGE+="📦 <b>Repositorio:</b> ${{ github.repository }}%0A"
+          MESSAGE+="🔀 <b>PR:</b> #${{ steps.get-pr.outputs.pr_number }}%0A"
+          MESSAGE+="🌿 <b>Rama:</b> test → main%0A%0A"
+          MESSAGE+="⚠️ No se pudo completar el merge automático%0A"
+          MESSAGE+="🔍 Posibles causas:%0A"
+          MESSAGE+="  • Conflictos de merge%0A"
+          MESSAGE+="  • Permisos insuficientes%0A"
+          MESSAGE+="  • PR ya cerrado%0A%0A"
+          MESSAGE+="📝 <b>Acción requerida:</b> Merge manual%0A%0A"
+          MESSAGE+="🔗 <a href='${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'>Ver Logs</a>"
           
           curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
             -d "chat_id=${TELEGRAM_CHAT_ID}" \

@@ -2,7 +2,7 @@ name: 🔐 Security Pipeline - ML Vulnerability Detection
 
 on:
   pull_request:
-    branches: [test, main]
+    branches: [test]  # Solo se activa en PR hacia test
     types: [opened, synchronize, reopened]
 
 permissions:
@@ -397,88 +397,83 @@ jobs:
           fi
           exit 1
 
-  unit-tests:
-    name: 🧪 Unit Tests
-    needs: security-analysis
+  auto-merge-to-test:
+    name: 🔀 Auto Merge to Test
+    needs: [security-analysis]
     runs-on: ubuntu-latest
-    if: success()
-    
-    strategy:
-      matrix:
-        component: [cliente, servidor]
+    if: success() && github.base_ref == 'test'
+    permissions:
+      contents: write
+      pull-requests: write
     
     steps:
-      - name: 📥 Checkout code
+      - name: 📥 Checkout
         uses: actions/checkout@v4
-      
-      - name: 📦 Setup Node.js
-        uses: actions/setup-node@v4
         with:
-          node-version: '18'
-          cache: 'npm'
-          cache-dependency-path: ${{ matrix.component }}/package-lock.json
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
       
-      - name: 📦 Install dependencies
-        run: |
-          cd ${{ matrix.component }}
-          npm ci
-      
-      - name: 🧪 Run tests
-        run: |
-          cd ${{ matrix.component }}
-          npm test -- --coverage --watchAll=false || echo "No tests configured"
-      
-      - name: 🏷️ Add label - Tests Failed
-        if: failure()
+      - name: 🔀 Auto merge PR
         uses: actions/github-script@v7
         with:
           script: |
-            await github.rest.issues.addLabels({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              labels: ['tests-failed', 'needs-fix']
-            });
+            const pr = context.payload.pull_request;
+            
+            try {
+              // Intentar hacer merge automático
+              await github.rest.pulls.merge({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pr.number,
+                commit_title: `🔀 Auto-merge: ${pr.title}`,
+                commit_message: `Código aprobado por análisis ML de seguridad.\n\n✅ Sin vulnerabilidades detectadas\n✅ Listo para pruebas en rama test`,
+                merge_method: 'merge'
+              });
+              
+              console.log('✅ PR mergeado automáticamente a test');
+              
+              // Agregar comentario
+              await github.rest.issues.createComment({
+                issue_number: pr.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: '🤖 **Merge automático realizado**\n\n✅ Código aprobado por análisis ML de seguridad\n🚀 Ahora se ejecutarán las pruebas automáticas en la rama `test`'
+              });
+              
+            } catch (error) {
+              console.log('⚠️ No se pudo hacer merge automático:', error.message);
+              core.setFailed('Error en merge automático: ' + error.message);
+            }
       
-      - name: 📱 Notify test failure
-        if: failure()
+      - name: 📱 Notificar merge exitoso
+        if: success()
         run: |
-          MESSAGE="❌ TESTS FALLIDOS%0A%0A"
-          MESSAGE+="Repositorio: ${{ github.repository }}%0A"
-          MESSAGE+="Componente: ${{ matrix.component }}%0A"
-          MESSAGE+="PR: #${{ github.event.pull_request.number }}%0A"
-          MESSAGE+="Autor: ${{ github.event.pull_request.user.login }}%0A%0A"
-          MESSAGE+="⚠️ Los tests unitarios fallaron%0A"
-          MESSAGE+="El código NO puede ser mergeado%0A%0A"
-          MESSAGE+="Ver logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          MESSAGE="🔀 <b>MERGE AUTOMÁTICO EXITOSO</b>%0A%0A"
+          MESSAGE+="📦 <b>Repositorio:</b> ${{ github.repository }}%0A"
+          MESSAGE+="🔀 <b>PR:</b> #${{ github.event.pull_request.number }}%0A"
+          MESSAGE+="👤 <b>Autor:</b> ${{ github.event.pull_request.user.login }}%0A"
+          MESSAGE+="🌿 <b>Rama:</b> ${{ github.head_ref }} → test%0A%0A"
+          MESSAGE+="✅ <b>Código aprobado por ML</b>%0A"
+          MESSAGE+="🚀 <b>Siguiente etapa:</b> Pruebas automáticas en test%0A%0A"
+          MESSAGE+="🔗 <a href='${{ github.event.pull_request.html_url }}'>Ver Pull Request</a>"
           
           curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
             -d "chat_id=${TELEGRAM_CHAT_ID}" \
             -d "text=${MESSAGE}" \
             -d "parse_mode=HTML"
-
-  merge-approval:
-    name: ✅ Merge Approval
-    needs: [security-analysis, unit-tests]
-    runs-on: ubuntu-latest
-    if: success() && github.base_ref == 'test'
-    
-    steps:
-      - name: ✅ Approve merge to test
-        run: |
-          echo "✅ Todos los checks pasaron"
-          echo "El código puede ser mergeado a test"
       
-      - name: 📱 Notify approval
+      - name: 📱 Notificar error en merge
+        if: failure()
         run: |
-          MESSAGE="✅ APROBADO PARA MERGE%0A%0A"
-          MESSAGE+="PR: #${{ github.event.pull_request.number }}%0A"
-          MESSAGE+="Destino: ${{ github.base_ref }}%0A"
-          MESSAGE+="✅ Security: PASS%0A"
-          MESSAGE+="✅ Tests: PASS%0A%0A"
-          MESSAGE+="El código puede ser mergeado.%0A"
-          MESSAGE+="Ver PR: ${{ github.event.pull_request.html_url }}"
+          MESSAGE="❌ <b>ERROR EN MERGE AUTOMÁTICO</b>%0A%0A"
+          MESSAGE+="📦 <b>Repositorio:</b> ${{ github.repository }}%0A"
+          MESSAGE+="🔀 <b>PR:</b> #${{ github.event.pull_request.number }}%0A"
+          MESSAGE+="🌿 <b>Rama:</b> ${{ github.head_ref }} → test%0A%0A"
+          MESSAGE+="⚠️ No se pudo completar el merge automático%0A"
+          MESSAGE+="🔍 Revisar posibles conflictos%0A%0A"
+          MESSAGE+="🔗 <a href='${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'>Ver Logs</a>"
           
           curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
             -d "chat_id=${TELEGRAM_CHAT_ID}" \
-            -d "text=${MESSAGE}"
+            -d "text=${MESSAGE}" \
+            -d "parse_mode=HTML"

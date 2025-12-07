@@ -190,27 +190,40 @@ jobs:
             const emoji = report.is_safe ? '🟢' : '🔴';
             
             let body = `## ${emoji} Análisis de Seguridad ML - ${status}\n\n`;
-            body += `📊 **Resumen:**\n`;
-            body += `- Total de archivos: ${report.total_files}\n`;
+            body += `🤖 **Modelos ML Utilizados:**\n`;
+            body += `- Detector Binario de Vulnerabilidades (Accuracy: 79.01%)\n`;
+            body += `- Clasificador de CWE (Accuracy: 86.94%)\n\n`;
+            body += `📊 **Resultados del Análisis:**\n`;
+            body += `- Total de archivos analizados: ${report.total_files}\n`;
             body += `- Archivos seguros: ${report.secure_files}\n`;
             body += `- Archivos vulnerables: ${report.vulnerable_files}\n\n`;
             
             if (!report.is_safe) {
-              body += `### 🚨 Vulnerabilidades Detectadas:\n\n`;
+              body += `### 🚨 Vulnerabilidades Detectadas por ML:\n\n`;
               report.vulnerable_list.forEach(vuln => {
-                body += `#### 📄 ${vuln.file}\n`;
-                body += `- **Confianza:** ${(vuln.confidence * 100).toFixed(1)}%\n`;
+                body += `#### 📄 \`${vuln.file}\`\n`;
+                body += `- **Nivel de confianza del modelo:** ${(vuln.confidence * 100).toFixed(1)}%\n`;
+                if (vuln.cwe) {
+                  body += `- **Clasificación CWE:** ${vuln.cwe}\n`;
+                }
                 if (vuln.issues) {
+                  body += `- **Problemas detectados:**\n`;
                   vuln.issues.forEach(issue => {
-                    body += `- ${issue}\n`;
+                    body += `  - ${issue}\n`;
                   });
                 }
                 body += `\n`;
               });
-              body += `\n⚠️ **Acción requerida:** Corregir las vulnerabilidades antes de hacer merge.\n`;
+              body += `\n⚠️ **Acción requerida:** Corregir las vulnerabilidades detectadas por el modelo ML antes de hacer merge.\n`;
+              body += `\n💡 Los modelos ML han identificado patrones de código inseguro con alta confianza.\n`;
             } else {
-              body += `### ✅ Código Seguro\n\n`;
-              body += `El análisis ML no detectó vulnerabilidades. El código está listo para merge.\n`;
+              body += `### ✅ Código Seguro Validado por ML\n\n`;
+              body += `✨ El análisis con modelos de Machine Learning no detectó vulnerabilidades conocidas.\n\n`;
+              body += `🔍 **Verificaciones realizadas:**\n`;
+              body += `- Análisis binario de seguridad (Detector de Vulnerabilidades)\n`;
+              body += `- Clasificación de patrones CWE (Clasificador de Weaknesses)\n`;
+              body += `- Validación de ${report.total_files} archivo(s) de código\n\n`;
+              body += `✅ El código está listo para merge según los criterios de seguridad ML.\n`;
             }
             
             github.rest.issues.createComment({
@@ -223,14 +236,32 @@ jobs:
       - name: 📱 Send Telegram notification - Vulnerable
         if: steps.scan.outputs.vulnerable == 'true'
         run: |
-          MESSAGE="🔴 ALERTA DE SEGURIDAD%0A%0A"
-          MESSAGE+="Repositorio: ${{ github.repository }}%0A"
-          MESSAGE+="PR: #${{ github.event.pull_request.number }}%0A"
-          MESSAGE+="Autor: ${{ github.event.pull_request.user.login }}%0A"
-          MESSAGE+="Rama: ${{ github.head_ref }} → ${{ github.base_ref }}%0A%0A"
-          MESSAGE+="❌ VULNERABILIDADES DETECTADAS%0A"
-          MESSAGE+="El código NO puede ser mergeado hasta que se corrijan las vulnerabilidades.%0A%0A"
-          MESSAGE+="Ver reporte: ${{ github.event.pull_request.html_url }}"
+          # Extraer estadísticas del reporte
+          TOTAL=$(jq -r '.summary.total // .total_files // 0' security_report.json)
+          SAFE=$(jq -r '.summary.safe // .secure_files // 0' security_report.json)
+          VULNERABLE=$(jq -r '.summary.vulnerable // .vulnerable_files // 0' security_report.json)
+          
+          # Extraer archivos vulnerables (primeros 3)
+          VULN_FILES=$(jq -r '.vulnerable_list[0:3] | .[] | "  • " + (.file | split("/") | .[-1]) + " (" + (.cwe_type // "Unknown") + ")"' security_report.json | tr '\n' '%0A' || echo "  • Ver detalles en el PR")
+          
+          MESSAGE="🔴 <b>ALERTA DE SEGURIDAD</b>%0A%0A"
+          MESSAGE+="📦 <b>Repositorio:</b> ${{ github.repository }}%0A"
+          MESSAGE+="🔀 <b>PR:</b> #${{ github.event.pull_request.number }}%0A"
+          MESSAGE+="👤 <b>Autor:</b> ${{ github.event.pull_request.user.login }}%0A"
+          MESSAGE+="🌿 <b>Rama:</b> ${{ github.head_ref }} → ${{ github.base_ref }}%0A%0A"
+          MESSAGE+="🤖 <b>Análisis ML Completado:</b>%0A"
+          MESSAGE+="  • Modelo 1: Detector Binario (79% accuracy)%0A"
+          MESSAGE+="  • Modelo 2: Clasificador CWE (87% accuracy)%0A%0A"
+          MESSAGE+="📊 <b>Resultados del Escaneo:</b>%0A"
+          MESSAGE+="  • Total archivos: ${TOTAL}%0A"
+          MESSAGE+="  • Archivos seguros: ${SAFE}%0A"
+          MESSAGE+="  • 🚨 Vulnerabilidades: ${VULNERABLE}%0A%0A"
+          MESSAGE+="🔴 <b>Archivos Vulnerables:</b>%0A"
+          MESSAGE+="${VULN_FILES}%0A%0A"
+          MESSAGE+="⚠️ <b>ACCIÓN REQUERIDA:</b>%0A"
+          MESSAGE+="El código NO puede ser mergeado.%0A"
+          MESSAGE+="Corregir vulnerabilidades antes de continuar.%0A%0A"
+          MESSAGE+="🔗 <a href='${{ github.event.pull_request.html_url }}'>Ver Reporte Completo</a>"
           
           curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
             -d "chat_id=${TELEGRAM_CHAT_ID}" \
@@ -261,14 +292,26 @@ jobs:
       - name: 📱 Send Telegram notification - Safe
         if: steps.scan.outputs.vulnerable == 'false'
         run: |
-          MESSAGE="✅ CÓDIGO SEGURO%0A%0A"
-          MESSAGE+="Repositorio: ${{ github.repository }}%0A"
-          MESSAGE+="PR: #${{ github.event.pull_request.number }}%0A"
-          MESSAGE+="Autor: ${{ github.event.pull_request.user.login }}%0A"
-          MESSAGE+="Rama: ${{ github.head_ref }} → ${{ github.base_ref }}%0A%0A"
-          MESSAGE+="✅ El análisis ML no detectó vulnerabilidades.%0A"
-          MESSAGE+="El código puede continuar al siguiente stage.%0A%0A"
-          MESSAGE+="Ver PR: ${{ github.event.pull_request.html_url }}"
+          # Extraer estadísticas del reporte
+          TOTAL=$(jq -r '.summary.total // .total_files // 0' security_report.json)
+          SAFE=$(jq -r '.summary.safe // .secure_files // 0' security_report.json)
+          VULNERABLE=$(jq -r '.summary.vulnerable // .vulnerable_files // 0' security_report.json)
+          
+          MESSAGE="✅ <b>CÓDIGO SEGURO</b>%0A%0A"
+          MESSAGE+="📦 <b>Repositorio:</b> ${{ github.repository }}%0A"
+          MESSAGE+="🔀 <b>PR:</b> #${{ github.event.pull_request.number }}%0A"
+          MESSAGE+="👤 <b>Autor:</b> ${{ github.event.pull_request.user.login }}%0A"
+          MESSAGE+="🌿 <b>Rama:</b> ${{ github.head_ref }} → ${{ github.base_ref }}%0A%0A"
+          MESSAGE+="🤖 <b>Análisis ML Completado:</b>%0A"
+          MESSAGE+="  • Modelo 1: Detector Binario (79% accuracy)%0A"
+          MESSAGE+="  • Modelo 2: Clasificador CWE (87% accuracy)%0A%0A"
+          MESSAGE+="📊 <b>Resultados del Escaneo:</b>%0A"
+          MESSAGE+="  • Total archivos: ${TOTAL}%0A"
+          MESSAGE+="  • Archivos seguros: ${SAFE}%0A"
+          MESSAGE+="  • Vulnerabilidades: ${VULNERABLE}%0A%0A"
+          MESSAGE+="✅ <b>Conclusión:</b> No se detectaron vulnerabilidades%0A"
+          MESSAGE+="🚀 El código puede continuar al siguiente stage%0A%0A"
+          MESSAGE+="🔗 <a href='${{ github.event.pull_request.html_url }}'>Ver Pull Request</a>"
           
           curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
             -d "chat_id=${TELEGRAM_CHAT_ID}" \

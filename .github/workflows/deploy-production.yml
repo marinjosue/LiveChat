@@ -19,29 +19,14 @@ jobs:
       - name: 📥 Checkout code
         uses: actions/checkout@v4
       
-      - name: 📦 Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-      
-      - name: 🔨 Build Cliente
+      - name: ℹ️ Deployment Info
         run: |
-          cd cliente
-          npm ci
-          npm run build
-      
-      - name: 🔨 Build Servidor
-        run: |
-          cd servidor
-          npm ci
-      
-      - name: 🐳 Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      
-      - name: 🐳 Build Docker images
-        run: |
-          docker build -t livechat-cliente:latest -f Dockerfile.cliente .
-          docker build -t livechat-servidor:latest -f Dockerfile.servidor .
+          echo "📦 Deployment automático por Vercel"
+          echo "🌿 Rama: main"
+          echo "🚀 Vercel detectará los cambios automáticamente"
+          echo ""
+          echo "ℹ️ Este workflow solo notifica el merge exitoso"
+          echo "ℹ️ Vercel se encarga del build y deployment"
       
       - name: 📱 Notify deployment start
         run: |
@@ -60,16 +45,13 @@ jobs:
             -d "text=${MESSAGE}" \
             -d "parse_mode=HTML"
       
-      # Aquí se integraría con el proveedor de deployment (Render, Railway, etc.)
-      # Ejemplo para Railway:
-      # - name: 🚂 Deploy to Railway
-      #   run: |
-      #     npm install -g @railway/cli
-      #     railway up -s livechat-app
-      
-      - name: ✅ Deployment successful
+      - name: ✅ Merge completado
         run: |
-          echo "✅ Despliegue completado"
+          echo "✅ Merge a main completado"
+          echo "🚀 Vercel desplegará automáticamente los cambios"
+          echo ""
+          echo "📊 Verifica el deployment en:"
+          echo "   https://vercel.com/dashboard"
       
       - name: 📱 Notify deployment success
         if: success()

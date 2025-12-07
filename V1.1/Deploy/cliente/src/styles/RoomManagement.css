@@ -1,0 +1,575 @@
+/* ==================== VARIABLES ==================== */
+:root {
+  --room-primary: #6366f1;
+  --room-primary-hover: #4f46e5;
+  --room-success: #059669;
+  --room-success-light: #10b981;
+  --room-warning: #d97706;
+  --room-warning-light: #f59e0b;
+  --room-danger: #dc2626;
+  --room-danger-light: #ef4444;
+  
+  /* Tema oscuro */
+  --room-dark-bg: #0a0b1e;
+  --room-dark-surface: #161829;
+  --room-dark-border: #2d3748;
+  --room-dark-text: #f8fafc;
+  --room-dark-text-secondary: #f6f6f6;
+  
+  /* Tema claro - FONDO CLARO CON TEXTO OSCURO */
+  --room-light-bg: #f9fafb;
+  --room-light-surface: #ffffff;
+  --room-light-border: #e5e7eb;
+  --room-light-text: #111827;
+  --room-light-text-secondary: #fefefe;
+}
+
+/* ==================== CONTENEDOR PRINCIPAL ==================== */
+.room-management {
+  padding: 1.5rem;
+  background: var(--room-dark-bg);
+  min-height: 100vh;
+  color: var(--room-dark-text);
+}
+
+.admin-app.light-theme .room-management {
+  background: var(--room-light-bg);
+  color: var(--room-light-text);
+}
+
+/* ==================== HEADER COMPACTO ==================== */
+.room-management-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  padding: 1rem 1.25rem;
+  background: var(--room-dark-surface);
+  border-radius: 0.75rem;
+  border: 1px solid var(--room-dark-border);
+}
+
+.admin-app.light-theme .room-management-header {
+  background: var(--room-light-surface);
+  border-color: var(--room-light-border);
+}
+
+.header-title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.header-title svg {
+  color: var(--room-primary);
+  flex-shrink: 0;
+}
+
+.header-title h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--room-dark-text);
+}
+
+.admin-app.light-theme .header-title h2 {
+  color: var(--room-light-text);
+}
+
+.subtitle {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--room-dark-text-secondary);
+  font-weight: 400;
+}
+
+.admin-app.light-theme .subtitle {
+  color: var(--room-light-text-secondary);
+}
+
+/* ==================== BOTONES ==================== */
+.btn-refresh {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: var(--room-primary);
+  color: white;
+  border: none;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-refresh:hover:not(:disabled) {
+  background: var(--room-primary-hover);
+  transform: translateY(-1px);
+}
+
+.btn-refresh:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-refresh.spinning svg {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ==================== ESTADÍSTICAS COMPACTAS ==================== */
+.room-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.stat-item {
+  padding: 0.75rem 1rem;
+  background: var(--room-dark-surface);
+  border-radius: 0.5rem;
+  border: 1px solid var(--room-dark-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.admin-app.light-theme .stat-item {
+  background: var(--room-light-surface);
+  border-color: var(--room-light-border);
+}
+
+.stat-label {
+  font-size: 0.875rem;
+  color: var(--room-dark-text-secondary);
+  font-weight: 500;
+}
+
+.admin-app.light-theme .stat-label {
+  color: var(--room-light-text-secondary);
+}
+
+.stat-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--room-dark-text);
+}
+
+.admin-app.light-theme .stat-value {
+  color: var(--room-light-text);
+}
+
+.stat-value.active {
+  color: var(--room-success-light);
+}
+
+.admin-app.light-theme .stat-value.active {
+  color: #53c09d6d;
+}
+
+.stat-value.inactive {
+  color: var(--room-warning-light);
+}
+
+.admin-app.light-theme .stat-value.inactive {
+  color: #d97706;
+}
+
+/* ==================== LISTA DE SALAS COMPACTA ==================== */
+.rooms-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1rem;
+}
+
+.room-card {
+  background: var(--room-dark-surface);
+  border: 1px solid var(--room-dark-border);
+  border-radius: 0.75rem;
+  padding: 1rem;
+  transition: all 0.2s ease;
+}
+
+.admin-app.light-theme .room-card {
+  background: var(--room-light-surface);
+  border-color: var(--room-light-border);
+}
+
+.room-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.room-card.inactive-room {
+  opacity: 0.7;
+}
+
+/* ==================== HEADER DE TARJETA ==================== */
+.room-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--room-dark-border);
+}
+
+.admin-app.light-theme .room-card-header {
+  border-bottom-color: var(--room-light-border);
+}
+
+.room-title-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.room-name {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--room-dark-text);
+}
+
+.admin-app.light-theme .room-name {
+  color: var(--room-light-text);
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.375rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.status-badge.active {
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--room-success-light);
+}
+
+.admin-app.light-theme .status-badge.active {
+  background: rgba(5, 150, 105, 0.15);
+  color: #065f46;
+  border: 1px solid rgba(5, 150, 105, 0.3);
+}
+
+.status-badge.inactive {
+  background: rgba(245, 158, 11, 0.1);
+  color: var(--room-warning-light);
+}
+
+.admin-app.light-theme .status-badge.inactive {
+  background: rgba(217, 119, 6, 0.15);
+  color: #92400e;
+  border: 1px solid rgba(217, 119, 6, 0.3);
+}
+
+.room-pin-display {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.75rem;
+  background: rgba(99, 102, 241, 0.1);
+  border-radius: 0.5rem;
+  border: 1px solid rgba(99, 102, 241, 0.2);
+}
+
+.pin-label {
+  font-size: 0.75rem;
+  color: var(--room-dark-text-secondary);
+  font-weight: 500;
+}
+
+.admin-app.light-theme .pin-label {
+  color: var(--room-light-text-secondary);
+}
+
+.pin-code {
+  font-family: 'Courier New', monospace;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--room-primary);
+}
+
+/* ==================== CUERPO DE TARJETA ==================== */
+.room-card-body {
+  margin-bottom: 0.75rem;
+}
+
+.room-info-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.5rem;
+}
+
+.info-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.info-icon {
+  color: var(--room-primary);
+  flex-shrink: 0;
+}
+
+.info-content {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+}
+
+.info-label {
+  font-size: 0.75rem;
+  color: var(--room-dark-text-secondary);
+  font-weight: 500;
+}
+
+.admin-app.light-theme .info-label {
+  color: var(--room-light-text-secondary);
+}
+
+.info-value {
+  font-size: 0.875rem;
+  color: var(--room-dark-text);
+  font-weight: 600;
+}
+
+.admin-app.light-theme .info-value {
+  color: var(--room-light-text);
+}
+
+.full-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.125rem 0.375rem;
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--room-danger-light);
+  border-radius: 0.25rem;
+  font-size: 0.625rem;
+  font-weight: 600;
+  margin-left: 0.25rem;
+}
+
+.admin-app.light-theme .full-badge {
+  background: rgba(220, 38, 38, 0.15);
+  color: #991b1b;
+  border: 1px solid rgba(220, 38, 38, 0.3);
+}
+
+/* ==================== FOOTER DE TARJETA ==================== */
+.room-card-footer {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.btn-action {
+  flex: 1;
+  min-width: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  padding: 0.5rem 0.75rem;
+  border: none;
+  border-radius: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-action svg {
+  width: 14px;
+  height: 14px;
+}
+
+.btn-success {
+  background: var(--room-success);
+  color: white;
+}
+
+.btn-success:hover {
+  background: #968705;
+  transform: translateY(-1px);
+}
+
+.btn-warning {
+  background: var(--room-warning);
+  color: white;
+}
+
+.btn-warning:hover {
+  background: #d97706;
+  transform: translateY(-1px);
+}
+
+.btn-danger {
+  background: var(--room-danger);
+  color: white;
+}
+
+.btn-danger:hover {
+  background: #dc2626;
+  transform: translateY(-1px);
+}
+
+.btn-danger-outline {
+  background: transparent;
+  border: 1px solid var(--room-danger);
+  color: var(--room-danger);
+}
+
+.btn-danger-outline:hover {
+  background: var(--room-danger);
+  color: white;
+  transform: translateY(-1px);
+}
+
+/* ==================== ESTADOS VACÍOS Y ERRORES ==================== */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1.5rem;
+  text-align: center;
+}
+
+.empty-icon {
+  color: var(--room-dark-text-secondary);
+  margin-bottom: 1rem;
+}
+
+.admin-app.light-theme .empty-icon {
+  color: var(--room-light-text-secondary);
+}
+
+.empty-state h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.125rem;
+  color: var(--room-dark-text);
+}
+
+.admin-app.light-theme .empty-state h3 {
+  color: var(--room-light-text);
+}
+
+.empty-state p {
+  margin: 0;
+  color: var(--room-dark-text-secondary);
+}
+
+.admin-app.light-theme .empty-state p {
+  color: var(--room-light-text-secondary);
+}
+
+.error-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid var(--room-danger);
+  border-radius: 0.5rem;
+  color: var(--room-danger);
+  margin-bottom: 1.5rem;
+  font-size: 0.875rem;
+}
+
+.error-icon {
+  font-size: 1.25rem;
+}
+
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem;
+}
+
+.spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid rgba(99, 102, 241, 0.2);
+  border-top-color: var(--room-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 1rem;
+}
+
+.loading-container p {
+  color: var(--room-dark-text-secondary);
+}
+
+.admin-app.light-theme .loading-container p {
+  color: var(--room-light-text-secondary);
+}
+
+/* ==================== RESPONSIVE ==================== */
+@media (max-width: 768px) {
+  .room-management {
+    padding: 1rem;
+  }
+
+  .room-management-header {
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1rem;
+  }
+
+  .header-title {
+    width: 100%;
+  }
+
+  .btn-refresh {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .rooms-list {
+    grid-template-columns: 1fr;
+  }
+
+  .room-card-footer {
+    flex-direction: column;
+  }
+
+  .btn-action {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .room-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .room-card {
+    padding: 0.75rem;
+  }
+
+  .room-card-header {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .room-pin-display {
+    align-self: flex-start;
+  }
+}

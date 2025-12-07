@@ -192,7 +192,7 @@ jobs:
           MESSAGE+="  1️⃣ dev → Análisis ML ✅%0A"
           MESSAGE+="  2️⃣ test → Tests automáticos ✅%0A"
           MESSAGE+="  3️⃣ main → Merge automático ✅%0A"
-          MESSAGE+="  4️⃣ Vercel → Desplegando...%0A%0A"
+          MESSAGE+="  4️⃣ Render + Vercel → Desplegando...%0A%0A"
           MESSAGE+="🚀 <b>La aplicación se está desplegando</b>%0A%0A"
           MESSAGE+="🔗 <a href='${{ github.server_url }}/${{ github.repository }}/commit/${COMMIT_SHA}'>Ver Commit</a>"
           

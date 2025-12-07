@@ -1,5 +1,3 @@
-const request = require('supertest');
-
 // Mock básico de la app
 const mockApp = {
   get: jest.fn(),

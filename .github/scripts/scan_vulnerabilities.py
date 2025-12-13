@@ -34,6 +34,9 @@ EXT_TO_LANG = {
 }
 
 class VulnerabilityScanner:
+    # Umbral mínimo de confianza para reportar vulnerabilidades
+    CONFIDENCE_THRESHOLD = 0.75
+    
     def __init__(self, models_dir: Path):
         """Inicializar scanner con los modelos ML"""
         self.models_dir = models_dir
@@ -168,8 +171,14 @@ class VulnerabilityScanner:
                 'probabilities': probs
             }
             
-            # Si es vulnerable, clasificar tipo CWE (Modelo 2)
-            if is_vulnerable:
+            # Solo reportar como vulnerable si confianza > CONFIDENCE_THRESHOLD
+            if is_vulnerable and confidence < self.CONFIDENCE_THRESHOLD:
+                # Marcar como falso positivo de baja confianza
+                result['status'] = 'SAFE'
+                result['note'] = f'Low confidence detection ({confidence:.1%}), treated as SAFE'
+                print(f"✅ {file_path.name}: SAFE (low confidence detection {confidence:.1%})")
+            elif is_vulnerable:
+                # Clasificar tipo CWE (Modelo 2) solo si alta confianza
                 cwe_type, cwe_conf = self.classify_cwe(code)
                 result['cwe_type'] = cwe_type
                 result['cwe_confidence'] = cwe_conf
@@ -275,15 +284,18 @@ def main():
     print("="*70)
     
     total = len(all_results)
-    vulnerable = sum(1 for r in all_results if r.get('vulnerable', False))
+    vulnerable = sum(1 for r in all_results if r.get('status') == 'VULNERABLE')
     safe = sum(1 for r in all_results if r.get('status') == 'SAFE')
     errors = sum(1 for r in all_results if r.get('status') == 'error')
     skipped = sum(1 for r in all_results if r.get('status') == 'skipped')
+    low_conf = sum(1 for r in all_results if 'low confidence' in r.get('note', '').lower())
     
     print(f"\n📁 Directorios analizados: {len(target_dirs)}")
     print(f"📊 Total de archivos: {total}")
     print(f"   ✅ Seguros: {safe} ({safe/total*100:.1f}%)" if total > 0 else "   ✅ Seguros: 0")
     print(f"   🚨 Vulnerables: {vulnerable} ({vulnerable/total*100:.1f}%)" if total > 0 else "   🚨 Vulnerables: 0")
+    if low_conf > 0:
+        print(f"   ⚠️  Baja confianza (filtradas): {low_conf}")
     print(f"   ⚠️  Errores: {errors}")
     print(f"   ⏭️  Omitidos: {skipped}")
     
@@ -292,7 +304,7 @@ def main():
         print(f"\n🔴 VULNERABILIDADES DETECTADAS ({vulnerable}):")
         print("-" * 70)
         
-        vuln_files = [r for r in all_results if r.get('vulnerable', False)]
+        vuln_files = [r for r in all_results if r.get('status') == 'VULNERABLE']
         for idx, vuln in enumerate(vuln_files, 1):
             file_name = Path(vuln['file']).name
             print(f"\n{idx}. 📁 {file_name}")
@@ -301,11 +313,14 @@ def main():
             print(f"   Tipo CWE: {vuln.get('cwe_type', 'Desconocido')}")
             print(f"   Confianza Detección: {vuln.get('detection_confidence', 0):.1%}")
             print(f"   Confianza CWE: {vuln.get('cwe_confidence', 0):.1%}")
+    elif low_conf > 0:
+        print(f"\n⚠️  Se detectaron {low_conf} archivos con baja confianza (< {VulnerabilityScanner.CONFIDENCE_THRESHOLD:.0%}), tratados como SEGUROS")
+        print("   Estos pueden requerir revisión manual si es necesario")
     
     # Crear reporte detallado
     vulnerabilities_list = []
     for r in all_results:
-        if r.get('vulnerable', False):
+        if r.get('status') == 'VULNERABLE':
             vulnerabilities_list.append({
                 'file': r['file'],
                 'type': r.get('cwe_type', 'Unknown'),
@@ -321,12 +336,14 @@ def main():
         'directories': target_dirs,
         'models': {
             'detector': 'Vulnerability Detector (79.01% accuracy)',
-            'classifier': 'CWE Classifier (86.94% accuracy)'
+            'classifier': 'CWE Classifier (86.94% accuracy)',
+            'confidence_threshold': f'{VulnerabilityScanner.CONFIDENCE_THRESHOLD:.0%}'
         },
         'summary': {
             'total': total,
             'safe': safe,
             'vulnerable': vulnerable,
+            'low_confidence_filtered': low_conf,
             'errors': errors,
             'skipped': skipped
         },

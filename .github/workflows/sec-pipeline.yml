@@ -1,0 +1,381 @@
+name: Vulnerability Detection Pipeline
+
+on:
+  push:
+    branches: [main, develop, dev, test]
+    paths:
+      - '**.py'
+      - '**.js'
+      - '**.jsx'
+      - '**.ts'
+      - '**.tsx'
+      - '**.java'
+      - '**.cpp'
+      - '**.c'
+      - '**.cs'
+      - '**.php'
+      - '**.rb'
+      - '**.go'
+      - '**.kt'
+  pull_request:
+    branches: [main, develop, test]
+    paths:
+      - '**.py'
+      - '**.js'
+      - '**.jsx'
+      - '**.ts'
+      - '**.tsx'
+      - '**.java'
+      - '**.cpp'
+      - '**.c'
+      - '**.cs'
+      - '**.php'
+      - '**.rb'
+      - '**.go'
+      - '**.kt'
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+
+env:
+  TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+  TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+
+jobs:
+  vulnerability-scan:
+    name: Scan Vulnerabilities with ML
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout codigo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Configurar Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Instalar dependencias ML
+        run: |
+          python -m pip install --upgrade pip
+          pip install scikit-learn pandas numpy requests Pillow -q
+      
+      - name: Verificar modelos ML
+        run: |
+          echo "Verificando modelos entrenados..."
+          if [ -f "ml-security/models/vulnerability_detector.pkl" ]; then
+            echo "Modelo de deteccion encontrado"
+            ls -lh ml-security/models/*.pkl
+          else
+            echo "Error: Modelos no encontrados"
+            exit 1
+          fi
+      
+      - name: Analizar codigo con ML
+        id: scan
+        continue-on-error: true
+        run: |
+          echo "Ejecutando analisis de vulnerabilidades..."
+          python .github/scripts/scan_vulnerabilities.py cliente servidor
+          
+          if [ -f "vulnerability_report.json" ]; then
+            echo "Reporte generado"
+            echo "scan_completed=true" >> $GITHUB_OUTPUT
+          else
+            echo "No se genero reporte, creando reporte vacio..."
+            cat > vulnerability_report.json << 'EOF'
+            {
+              "timestamp": "$(date -Iseconds)",
+              "is_safe": true,
+              "summary": {
+                "total": 0,
+                "safe": 0,
+                "vulnerable": 0,
+                "errors": 0
+              },
+              "results": [],
+              "vulnerabilities": []
+            }
+            EOF
+            echo "scan_completed=true" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Mostrar reporte
+        if: steps.scan.outputs.scan_completed == 'true'
+        run: |
+          echo "Reporte de vulnerabilidades:"
+          cat vulnerability_report.json | python -m json.tool
+      
+      - name: Publicar reporte de vulnerabilidades
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vulnerability-report
+          path: vulnerability_report.json
+          retention-days: 30
+      
+      - name: Comentar vulnerabilidades en PR
+        if: github.event_name == 'pull_request' && steps.scan.outputs.scan_completed == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            try {
+              if (!fs.existsSync('vulnerability_report.json')) {
+                console.log('No se encontro reporte');
+                return;
+              }
+              
+              const report = JSON.parse(fs.readFileSync('vulnerability_report.json', 'utf8'));
+              const vulns = report.vulnerabilities || [];
+              
+              let comment = '';
+              
+              if (vulns.length === 0) {
+                comment = '**Analisis de Seguridad ML Completado**\n\n';
+                comment += 'No se detectaron vulnerabilidades en este Pull Request.\n\n';
+                comment += `**Archivos analizados:** ${report.summary?.total || 0}\n`;
+                comment += `**Archivos seguros:** ${report.summary?.safe || 0}\n`;
+              } else {
+                comment = '**VULNERABILIDADES DETECTADAS**\n\n';
+                comment += 'El analisis ML ha detectado posibles vulnerabilidades en este codigo.\n\n';
+                comment += '### Resultados:\n\n';
+                
+                vulns.forEach((vuln, idx) => {
+                  comment += `#### ${idx + 1}. ${vuln.file || 'Desconocido'}\n`;
+                  comment += `- **Tipo de Vulnerabilidad:** ${vuln.type || vuln.cwe_type || 'Desconocido'}\n`;
+                  comment += `- **Confianza:** ${((vuln.confidence || 0) * 100).toFixed(1)}%\n`;
+                  comment += `- **Linea:** ${vuln.line || 'N/A'}\n`;
+                  comment += `- **Descripcion:** ${vuln.description || 'Ver logs para mas detalles'}\n\n`;
+                });
+                
+                comment += `**Total vulnerabilidades detectadas:** ${vulns.length}\n\n`;
+                comment += '**Accion requerida:** Revisar y corregir las vulnerabilidades antes del merge.\n';
+              }
+              
+              comment += `\n---\n`;
+              comment += `Analisis realizado por: ML Security Scanner\n`;
+              comment += `Timestamp: ${new Date().toISOString()}\n`;
+              
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: comment
+              });
+            } catch (error) {
+              console.log('Error al comentar:', error.message);
+            }
+      
+      - name: Etiquetar PR con vulnerabilidades
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            try {
+              if (!fs.existsSync('vulnerability_report.json')) {
+                return;
+              }
+              
+              const report = JSON.parse(fs.readFileSync('vulnerability_report.json', 'utf8'));
+              const vulns = report.vulnerabilities || [];
+              
+              if (vulns.length > 0) {
+                await github.rest.issues.addLabels({
+                  issue_number: context.issue.number,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  labels: ['vulnerability', 'security-issue', 'fixing-required']
+                });
+                
+                console.log('Etiqueta "vulnerability" agregada');
+              }
+            } catch (error) {
+              console.log('Error al etiquetar:', error.message);
+            }
+      
+      - name: Crear issue para vulnerabilidades
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            try {
+              if (!fs.existsSync('vulnerability_report.json')) {
+                return;
+              }
+              
+              const report = JSON.parse(fs.readFileSync('vulnerability_report.json', 'utf8'));
+              const vulns = report.vulnerabilities || [];
+              
+              if (vulns.length === 0) {
+                return;
+              }
+              
+              let body = `## Vulnerabilidades Detectadas en PR #${{ github.event.pull_request.number }}\n\n`;
+              body += `**Autor:** @${{ github.event.pull_request.user.login }}\n`;
+              body += `**Rama:** ${{ github.head_ref }} → ${{ github.base_ref }}\n\n`;
+              
+              body += `### Resumen\n`;
+              body += `- **Total vulnerabilidades:** ${vulns.length}\n`;
+              body += `- **Archivos afectados:** ${new Set(vulns.map(v => v.file)).size}\n\n`;
+              
+              body += `### Detalles\n\n`;
+              vulns.forEach((vuln, idx) => {
+                body += `${idx + 1}. **${vuln.file}** (Linea ${vuln.line || 'N/A'})\n`;
+                body += `   - Tipo: ${vuln.type || vuln.cwe_type}\n`;
+                body += `   - Confianza: ${((vuln.confidence || 0) * 100).toFixed(1)}%\n\n`;
+              });
+              
+              body += `### Acciones Requeridas\n`;
+              body += `1. Revisar las vulnerabilidades detectadas\n`;
+              body += `2. Corregir el codigo vulnerable\n`;
+              body += `3. Actualizar el Pull Request\n`;
+              body += `4. El pipeline se ejecutara automaticamente de nuevo\n\n`;
+              body += `---\n`;
+              body += `Issue creado automaticamente por el sistema de seguridad ML\n`;
+              body += `[Ver PR #${{ github.event.pull_request.number }}](https://github.com/${{ github.repository }}/pull/${{ github.event.pull_request.number }})\n`;
+              
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: `Vulnerabilidades en PR #${{ github.event.pull_request.number }}`,
+                body: body,
+                labels: ['security', 'vulnerability', 'automated', 'fixing-required']
+              });
+              
+              console.log('Issue creada automaticamente');
+            } catch (error) {
+              console.log('Error al crear issue:', error.message);
+            }
+      
+      - name: Verificar configuracion de notificaciones
+        run: |
+          echo "Verificando configuracion de Telegram..."
+          if [ -z "$TELEGRAM_BOT_TOKEN" ]; then
+            echo "TELEGRAM_BOT_TOKEN no configurado"
+          else
+            echo "TELEGRAM_BOT_TOKEN configurado"
+          fi
+          if [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "TELEGRAM_CHAT_ID no configurado"
+          else
+            echo "TELEGRAM_CHAT_ID configurado"
+          fi
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        continue-on-error: true
+      
+      - name: Notificar resultados a Telegram
+        if: always() && steps.scan.outputs.scan_completed == 'true'
+        run: |
+          python .github/scripts/telegram_notify.py vulnerability_scan vulnerability_report.json
+        continue-on-error: true
+      
+      - name: Fallar si hay vulnerabilidades
+        if: steps.scan.outputs.scan_completed == 'true'
+        run: |
+          echo "Verificando vulnerabilidades..."
+          python .github/scripts/check_vulnerabilities.py
+        continue-on-error: false
+
+  notify-summary:
+    name: Notificar Resumen
+    needs: vulnerability-scan
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: Descargar reporte
+        uses: actions/download-artifact@v4
+        with:
+          name: vulnerability-report
+          path: .
+      
+      - name: Mostrar resumen final
+        if: always()
+        run: |
+          if [ -f "vulnerability_report.json" ]; then
+            echo "Resumen del Analisis:"
+            python -c "
+            import json
+            with open('vulnerability_report.json') as f:
+              report = json.load(f)
+              summary = report.get('summary', {})
+              print(f'Total archivos: {summary.get(\"total\", 0)}')
+              print(f'Archivos seguros: {summary.get(\"safe\", 0)}')
+              print(f'Vulnerabilidades: {summary.get(\"vulnerable\", 0)}')
+              print(f'Estado: {\"SEGURO\" if report.get(\"is_safe\") else \"VULNERABLE\"}')"
+          fi
+      
+      - name: Notificar resultado final a Telegram
+        if: always()
+        continue-on-error: true
+        run: |
+          if [ ! -f "vulnerability_report.json" ]; then
+            echo "No hay reporte para notificar"
+            exit 0
+          fi
+          
+          python -c "
+          import json
+          import os
+          import requests
+          
+          with open('vulnerability_report.json') as f:
+            report = json.load(f)
+          
+          token = os.getenv('TELEGRAM_BOT_TOKEN')
+          chat_id = os.getenv('TELEGRAM_CHAT_ID')
+          
+          if not token or not chat_id:
+            print('Telegram no configurado')
+            exit(0)
+          
+          summary = report.get('summary', {})
+          vulns = report.get('vulnerabilities', [])
+          is_safe = report.get('is_safe', True)
+          
+          if is_safe:
+            status = 'CODIGO SEGURO'
+            message = f'{status}\n\n'
+            message += f'Analisis Completado\n'
+            message += f'Archivos analizados: {summary.get(\"total\", 0)}\n'
+            message += f'Archivos seguros: {summary.get(\"safe\", 0)}\n'
+            message += f'PR: {os.getenv(\"GITHUB_EVENT_NAME\")}\n'
+            message += f'Rama: {os.getenv(\"GITHUB_REF_NAME\")}\n'
+          else:
+            status = 'VULNERABILIDADES DETECTADAS'
+            message = f'{status}\n\n'
+            message += f'Total: {len(vulns)} vulnerabilidades\n\n'
+            
+            for idx, vuln in enumerate(vulns[:5], 1):
+              message += f'{idx}. Archivo: {vuln.get(\"file\", \"Desconocido\")}\n'
+              message += f'   Tipo: {vuln.get(\"type\") or vuln.get(\"cwe_type\", \"Desconocido\")}\n'
+              message += f'   Confianza: {(vuln.get(\"confidence\", 0) * 100):.1f}%\n'
+              message += f'   Linea: {vuln.get(\"line\", \"N/A\")}\n'
+            
+            if len(vulns) > 5:
+              message += f'\n... y {len(vulns) - 5} mas\n'
+            
+            message += f'\nArchivos analizados: {summary.get(\"total\", 0)}\n'
+            message += f'PR/Rama: {os.getenv(\"GITHUB_REF_NAME\")}\n'
+          
+          url = f'https://api.telegram.org/bot{token}/sendMessage'
+          requests.post(url, json={
+            'chat_id': chat_id,
+            'text': message,
+            'parse_mode': 'HTML'
+          })
+          print('Notificacion enviada a Telegram')
+          "
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}

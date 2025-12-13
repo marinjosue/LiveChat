@@ -1,4 +1,4 @@
-name: 🚫 Block Invalid PR Flow
+name: Block Invalid PR Flow
 
 on:
   pull_request:
@@ -15,11 +15,11 @@ env:
 
 jobs:
   validate-pr-flow:
-    name: 🔍 Validate PR Flow
+    name: Validate PR Flow
     runs-on: ubuntu-latest
     
     steps:
-      - name: 🔍 Check source branch
+      - name: Check source branch
         id: check
         run: |
           SOURCE_BRANCH="${{ github.head_ref }}"
@@ -30,16 +30,16 @@ jobs:
           
           if [ "$SOURCE_BRANCH" = "dev" ] && [ "$TARGET_BRANCH" = "main" ]; then
             echo "invalid_flow=true" >> $GITHUB_OUTPUT
-            echo "❌ FLUJO INVÁLIDO: dev → main NO está permitido"
+            echo "FLUJO INVALIDO: dev → main NO esta permitido"
           elif [ "$SOURCE_BRANCH" = "test" ] && [ "$TARGET_BRANCH" = "main" ]; then
             echo "invalid_flow=false" >> $GITHUB_OUTPUT
-            echo "✅ FLUJO VÁLIDO: test → main"
+            echo "FLUJO VALIDO: test → main"
           elif [ "$TARGET_BRANCH" = "main" ]; then
             echo "invalid_flow=true" >> $GITHUB_OUTPUT
-            echo "❌ FLUJO INVÁLIDO: Solo test → main está permitido"
+            echo "FLUJO INVALIDO: Solo test → main esta permitido"
           fi
       
-      - name: 🏷️ Label invalid flow
+      - name: Label invalid flow
         if: steps.check.outputs.invalid_flow == 'true'
         uses: actions/github-script@v7
         with:
@@ -51,50 +51,50 @@ jobs:
               labels: ['invalid-flow', 'blocked']
             });
       
-      - name: 💬 Comment on invalid PR
+      - name: Comment on invalid PR
         if: steps.check.outputs.invalid_flow == 'true'
         uses: actions/github-script@v7
         with:
           script: |
-            const body = `## 🚫 FLUJO DE TRABAJO INVÁLIDO
+            const body = `## FLUJO DE TRABAJO INVALIDO
             
-            ❌ **Este Pull Request no sigue el flujo obligatorio.**
+            Este Pull Request no sigue el flujo obligatorio.
             
-            ### 📋 Flujo Requerido:
+            ### Flujo Requerido:
             
             \`\`\`
             dev → test → main
             \`\`\`
             
-            ### ❌ Tu PR intenta:
+            ### Tu PR intenta:
             \`\`\`
             ${{ github.head_ref }} → ${{ github.base_ref }}
             \`\`\`
             
-            ### ✅ Pasos Correctos:
+            ### Pasos Correctos:
             
-            1. **Cierra este PR** ❌
-            2. **Crea un PR:** \`dev\` → \`test\`
-            3. **Espera validación ML** (automática)
-            4. **Si es seguro:** Merge automático a \`test\`
-            5. **Tests automáticos** se ejecutan en \`test\`
-            6. **Si pasan:** Se crea PR automático \`test\` → \`main\`
-            7. **Mergea ese PR** para desplegar a producción
+            1. Cierra este PR
+            2. Crea un PR: \`dev\` → \`test\`
+            3. Espera validacion ML (automatica)
+            4. Si es seguro: Merge automatico a \`test\`
+            5. Tests automaticos se ejecutan en \`test\`
+            6. Si pasan: Se crea PR automatico \`test\` → \`main\`
+            7. Mergea ese PR para desplegar a produccion
             
-            ### 🔒 ¿Por qué este flujo?
+            ### Por que este flujo?
             
-            - **Seguridad:** Código pasa por análisis ML primero
-            - **Calidad:** Tests se ejecutan en ambiente de staging
-            - **Trazabilidad:** Cada etapa queda documentada
-            - **Automatización:** Merges y PRs se crean automáticamente
+            - Seguridad: Codigo pasa por analisis ML primero
+            - Calidad: Tests se ejecutan en ambiente de staging
+            - Trazabilidad: Cada etapa queda documentada
+            - Automatizacion: Merges y PRs se crean automaticamente
             
-            ### 📚 Documentación
+            ### Documentacion
             
             Lee el flujo completo en: [\`.github/FLUJO_PIPELINE.md\`](https://github.com/${{ github.repository }}/blob/dev/.github/FLUJO_PIPELINE.md)
             
             ---
             
-            🤖 *Este PR será cerrado automáticamente. Por favor sigue el flujo correcto.*`;
+            Este PR sera cerrado automaticamente. Por favor sigue el flujo correcto.*`;
             
             await github.rest.issues.createComment({
               issue_number: context.issue.number,
@@ -103,28 +103,28 @@ jobs:
               body: body
             });
       
-      - name: 📱 Notify invalid flow
+      - name: Notify invalid flow
         if: steps.check.outputs.invalid_flow == 'true'
         run: |
-          MESSAGE="🚫 <b>FLUJO INVÁLIDO DETECTADO</b>%0A%0A"
-          MESSAGE+="❌ <b>PR Bloqueado:</b> #${{ github.event.pull_request.number }}%0A"
-          MESSAGE+="👤 <b>Autor:</b> @${{ github.event.pull_request.user.login }}%0A"
-          MESSAGE+="🔀 <b>Intento:</b> ${{ github.head_ref }} → ${{ github.base_ref }}%0A%0A"
-          MESSAGE+="⚠️ <b>Este flujo NO está permitido</b>%0A%0A"
-          MESSAGE+="✅ <b>Flujo correcto:</b>%0A"
-          MESSAGE+="   1️⃣ dev → test (análisis ML)%0A"
-          MESSAGE+="   2️⃣ test → main (después de tests)%0A%0A"
-          MESSAGE+="📝 <b>Acción requerida:</b>%0A"
-          MESSAGE+="   • Cerrar este PR%0A"
-          MESSAGE+="   • Crear PR: dev → test%0A%0A"
-          MESSAGE+="🔗 <a href='${{ github.event.pull_request.html_url }}'>Ver PR Bloqueado</a>"
+          MESSAGE="FLUJO INVALIDO DETECTADO%0A%0A"
+          MESSAGE+="PR Bloqueado: #${{ github.event.pull_request.number }}%0A"
+          MESSAGE+="Autor: @${{ github.event.pull_request.user.login }}%0A"
+          MESSAGE+="Intento: ${{ github.head_ref }} → ${{ github.base_ref }}%0A%0A"
+          MESSAGE+="Este flujo NO esta permitido%0A%0A"
+          MESSAGE+="Flujo correcto:%0A"
+          MESSAGE+="   1. dev → test (analisis ML)%0A"
+          MESSAGE+="   2. test → main (despues de tests)%0A%0A"
+          MESSAGE+="Accion requerida:%0A"
+          MESSAGE+="   - Cerrar este PR%0A"
+          MESSAGE+="   - Crear PR: dev → test%0A%0A"
+          MESSAGE+="Ver PR Bloqueado: ${{ github.event.pull_request.html_url }}"
           
           curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
             -d "chat_id=${TELEGRAM_CHAT_ID}" \
             -d "text=${MESSAGE}" \
             -d "parse_mode=HTML"
       
-      - name: 🚫 Close invalid PR
+      - name: Close invalid PR
         if: steps.check.outputs.invalid_flow == 'true'
         uses: actions/github-script@v7
         with:
@@ -136,18 +136,18 @@ jobs:
               state: 'closed'
             });
             
-            console.log('❌ PR cerrado por flujo inválido');
+            console.log('PR cerrado por flujo invalido');
       
-      - name: ❌ Fail workflow for invalid flow
+      - name: Fail workflow for invalid flow
         if: steps.check.outputs.invalid_flow == 'true'
         run: |
-          echo "❌ PIPELINE BLOQUEADO"
+          echo "PIPELINE BLOQUEADO"
           echo "Este PR no sigue el flujo obligatorio: dev → test → main"
-          echo "El PR ha sido cerrado automáticamente"
+          echo "El PR ha sido cerrado automaticamente"
           exit 1
       
-      - name: ✅ Valid flow detected
+      - name: Valid flow detected
         if: steps.check.outputs.invalid_flow == 'false'
         run: |
-          echo "✅ Flujo válido detectado: test → main"
-          echo "🚀 Este PR puede continuar normalmente"
+          echo "Flujo valido detectado: test → main"
+          echo "Este PR puede continuar normalmente"

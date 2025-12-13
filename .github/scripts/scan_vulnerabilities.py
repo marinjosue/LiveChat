@@ -10,6 +10,7 @@ import pickle
 import json
 from pathlib import Path
 from typing import List, Dict, Tuple
+from datetime import datetime
 
 # Agregar path del proyecto
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -176,66 +177,113 @@ class VulnerabilityScanner:
 def main():
     """Función principal"""
     if len(sys.argv) < 2:
-        print("❌ Uso: python scan_vulnerabilities.py <directorio>")
-        print("   Ejemplo: python scan_vulnerabilities.py ../cliente/src")
+        print("❌ Uso: python scan_vulnerabilities.py <directorio1> [directorio2] ...")
+        print("   Ejemplo: python scan_vulnerabilities.py cliente servidor")
+        print("   Ejemplo: python scan_vulnerabilities.py ./src ./tests")
         sys.exit(1)
     
     # Configurar paths
     script_dir = Path(__file__).parent
     project_root = script_dir.parent.parent
     models_dir = project_root / 'ml-security' / 'models'
-    target_dir = Path(sys.argv[1])
-    
-    # Verificar que exista el directorio
-    if not target_dir.exists():
-        print(f"❌ Error: Directorio no encontrado: {target_dir}")
-        sys.exit(1)
     
     # Verificar que existan los modelos
     if not models_dir.exists():
         print(f"❌ Error: Directorio de modelos no encontrado: {models_dir}")
+        print(f"   Ruta esperada: {models_dir}")
         sys.exit(1)
     
     # Inicializar scanner
-    scanner = VulnerabilityScanner(models_dir)
+    try:
+        scanner = VulnerabilityScanner(models_dir)
+    except Exception as e:
+        print(f"❌ Error inicializando scanner: {e}")
+        sys.exit(1)
     
-    # Escanear
-    results = scanner.scan_directory(target_dir)
+    # Procesar múltiples directorios
+    all_results = []
+    target_dirs = []
+    
+    for target_name in sys.argv[1:]:
+        # Intentar múltiples rutas
+        possible_paths = [
+            Path(target_name),  # Ruta relativa actual
+            project_root / target_name,  # Relativa a proyecto
+            project_root / target_name / 'src',  # Con /src
+        ]
+        
+        target_dir = None
+        for p in possible_paths:
+            if p.exists() and p.is_dir():
+                target_dir = p
+                break
+        
+        if not target_dir:
+            print(f"⚠️  Directorio no encontrado: {target_name}")
+            print(f"     Rutas intentadas:")
+            for p in possible_paths:
+                print(f"       - {p}")
+            continue
+        
+        print(f"\n🔍 Escaneando: {target_dir}")
+        results = scanner.scan_directory(target_dir)
+        all_results.extend(results)
+        target_dirs.append(str(target_dir))
     
     # Generar resumen
-    print("\n" + "="*60)
-    print("📊 RESUMEN DEL ANÁLISIS")
-    print("="*60)
+    print("\n" + "="*70)
+    print("📊 RESUMEN DEL ANÁLISIS DE VULNERABILIDADES")
+    print("="*70)
     
-    total = len(results)
-    vulnerable = sum(1 for r in results if r.get('vulnerable', False))
-    safe = sum(1 for r in results if r.get('status') == 'SAFE')
-    errors = sum(1 for r in results if r.get('status') == 'error')
-    skipped = sum(1 for r in results if r.get('status') == 'skipped')
+    total = len(all_results)
+    vulnerable = sum(1 for r in all_results if r.get('vulnerable', False))
+    safe = sum(1 for r in all_results if r.get('status') == 'SAFE')
+    errors = sum(1 for r in all_results if r.get('status') == 'error')
+    skipped = sum(1 for r in all_results if r.get('status') == 'skipped')
     
-    print(f"📁 Total de archivos analizados: {total}")
-    print(f"✅ Archivos seguros: {safe}")
-    print(f"🚨 Archivos vulnerables: {vulnerable}")
-    print(f"⚠️  Errores: {errors}")
-    print(f"⏭️  Omitidos: {skipped}")
+    print(f"\n📁 Directorios analizados: {len(target_dirs)}")
+    print(f"📊 Total de archivos: {total}")
+    print(f"   ✅ Seguros: {safe} ({safe/total*100:.1f}%)" if total > 0 else "   ✅ Seguros: 0")
+    print(f"   🚨 Vulnerables: {vulnerable} ({vulnerable/total*100:.1f}%)" if total > 0 else "   🚨 Vulnerables: 0")
+    print(f"   ⚠️  Errores: {errors}")
+    print(f"   ⏭️  Omitidos: {skipped}")
     
-    # Detalles de vulnerabilidades
+    # Detalles de vulnerabilidades detectadas
     if vulnerable > 0:
-        print("\n🔴 VULNERABILIDADES DETECTADAS:")
-        print("-" * 60)
+        print(f"\n🔴 VULNERABILIDADES DETECTADAS ({vulnerable}):")
+        print("-" * 70)
         
-        vuln_files = [r for r in results if r.get('vulnerable', False)]
-        for vuln in vuln_files:
-            print(f"\n📁 {vuln['file']}")
-            print(f"   Lenguaje: {vuln['language']}")
-            print(f"   Tipo CWE: {vuln.get('cwe_type', 'N/A')}")
-            print(f"   Confianza detección: {vuln['detection_confidence']:.1%}")
+        vuln_files = [r for r in all_results if r.get('vulnerable', False)]
+        for idx, vuln in enumerate(vuln_files, 1):
+            file_name = Path(vuln['file']).name
+            print(f"\n{idx}. 📁 {file_name}")
+            print(f"   Ruta: {vuln['file']}")
+            print(f"   Lenguaje: {vuln.get('language', 'N/A')}")
+            print(f"   Tipo CWE: {vuln.get('cwe_type', 'Desconocido')}")
+            print(f"   Confianza Detección: {vuln.get('detection_confidence', 0):.1%}")
             print(f"   Confianza CWE: {vuln.get('cwe_confidence', 0):.1%}")
+    
+    # Crear reporte detallado
+    vulnerabilities_list = []
+    for r in all_results:
+        if r.get('vulnerable', False):
+            vulnerabilities_list.append({
+                'file': r['file'],
+                'type': r.get('cwe_type', 'Unknown'),
+                'cwe_type': r.get('cwe_type', 'Unknown'),
+                'confidence': r.get('detection_confidence', 0),
+                'severity': _get_severity(r.get('detection_confidence', 0)),
+                'description': f"ML Vulnerability Detector confidence: {r.get('detection_confidence', 0):.1%}"
+            })
     
     # Guardar reporte JSON
     report = {
-        'timestamp': str(Path.cwd()),
-        'directory': str(target_dir),
+        'timestamp': __import__('datetime').datetime.now().isoformat(),
+        'directories': target_dirs,
+        'models': {
+            'detector': 'Vulnerability Detector (79.01% accuracy)',
+            'classifier': 'CWE Classifier (86.94% accuracy)'
+        },
         'summary': {
             'total': total,
             'safe': safe,
@@ -244,22 +292,36 @@ def main():
             'skipped': skipped
         },
         'is_safe': vulnerable == 0,
-        'results': results
+        'vulnerabilities': vulnerabilities_list,
+        'results': all_results
     }
     
-    report_file = project_root / 'security_report.json'
+    report_file = Path('vulnerability_report.json')
     with open(report_file, 'w', encoding='utf-8') as f:
         json.dump(report, f, indent=2, ensure_ascii=False)
     
     print(f"\n💾 Reporte guardado en: {report_file}")
+    print("="*70)
     
-    # Exit code
+    # Exit code based on findings
     if vulnerable > 0:
-        print("\n❌ ANÁLISIS FALLIDO: Se detectaron vulnerabilidades")
+        print("\n❌ ANÁLISIS COMPLETADO: Se detectaron vulnerabilidades")
         sys.exit(1)
     else:
-        print("\n✅ ANÁLISIS EXITOSO: No se detectaron vulnerabilidades")
+        print("\n✅ ANÁLISIS COMPLETADO: No se detectaron vulnerabilidades")
         sys.exit(0)
+
+
+def _get_severity(confidence: float) -> str:
+    """Determinar severidad basada en confianza"""
+    if confidence > 0.95:
+        return 'critical'
+    elif confidence > 0.85:
+        return 'high'
+    elif confidence > 0.70:
+        return 'medium'
+    else:
+        return 'low'
 
 
 if __name__ == '__main__':

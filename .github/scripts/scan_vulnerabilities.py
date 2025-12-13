@@ -77,12 +77,13 @@ class VulnerabilityScanner:
         """
         features = self.vectorizer.transform([code]).toarray()
         
-        # Ajustar features a 1200 para compatibilidad
-        if features.shape[1] < 1200:
-            padding = np.zeros((features.shape[0], 1200 - features.shape[1]))
+        # El detector espera exactamente 1001 features
+        target_features = 1001
+        if features.shape[1] < target_features:
+            padding = np.zeros((features.shape[0], target_features - features.shape[1]))
             features = np.hstack([features, padding])
-        elif features.shape[1] > 1200:
-            features = features[:, :1200]
+        elif features.shape[1] > target_features:
+            features = features[:, :target_features]
         
         is_vulnerable = self.detector.predict(features)[0]
         probabilities = self.detector.predict_proba(features)[0]
@@ -103,12 +104,13 @@ class VulnerabilityScanner:
         """
         features_cwe = self.vectorizer_cwe.transform([code]).toarray()
         
-        # Ajustar features a 1200 para compatibilidad
-        if features_cwe.shape[1] < 1200:
-            padding = np.zeros((features_cwe.shape[0], 1200 - features_cwe.shape[1]))
+        # El clasificador CWE también espera 1001 features (mismo que detector)
+        target_features = 1001
+        if features_cwe.shape[1] < target_features:
+            padding = np.zeros((features_cwe.shape[0], target_features - features_cwe.shape[1]))
             features_cwe = np.hstack([features_cwe, padding])
-        elif features_cwe.shape[1] > 1200:
-            features_cwe = features_cwe[:, :1200]
+        elif features_cwe.shape[1] > target_features:
+            features_cwe = features_cwe[:, :target_features]
         
         cwe_type_idx = self.cwe_classifier.predict(features_cwe)[0]
         cwe_type = self.cwe_encoder.inverse_transform([cwe_type_idx])[0]

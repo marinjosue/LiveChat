@@ -8,6 +8,7 @@ import sys
 import os
 import pickle
 import json
+import numpy as np
 from pathlib import Path
 from typing import List, Dict, Tuple
 from datetime import datetime
@@ -74,7 +75,16 @@ class VulnerabilityScanner:
         Detectar si el código es vulnerable (Modelo 1)
         Returns: (is_vulnerable, confidence, probabilities)
         """
-        features = self.vectorizer.transform([code])
+        import numpy as np
+        features = self.vectorizer.transform([code]).toarray()
+        
+        # Ajustar features a 1001 si es necesario (agregar feature adicional de longitud)
+        if features.shape[1] < 1001:
+            code_length = np.array([[len(code)]])
+            features = np.hstack([features, code_length])
+        elif features.shape[1] > 1001:
+            features = features[:, :1001]
+        
         is_vulnerable = self.detector.predict(features)[0]
         probabilities = self.detector.predict_proba(features)[0]
         
@@ -92,7 +102,16 @@ class VulnerabilityScanner:
         Clasificar tipo de vulnerabilidad CWE (Modelo 2)
         Returns: (cwe_type, confidence)
         """
-        features_cwe = self.vectorizer_cwe.transform([code])
+        import numpy as np
+        features_cwe = self.vectorizer_cwe.transform([code]).toarray()
+        
+        # Ajustar features si es necesario
+        if features_cwe.shape[1] < 1001:
+            code_length = np.array([[len(code)]])
+            features_cwe = np.hstack([features_cwe, code_length])
+        elif features_cwe.shape[1] > 1001:
+            features_cwe = features_cwe[:, :1001]
+        
         cwe_type_idx = self.cwe_classifier.predict(features_cwe)[0]
         cwe_type = self.cwe_encoder.inverse_transform([cwe_type_idx])[0]
         cwe_confidence = self.cwe_classifier.predict_proba(features_cwe)[0][cwe_type_idx]

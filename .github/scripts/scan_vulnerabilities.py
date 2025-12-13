@@ -70,6 +70,22 @@ class VulnerabilityScanner:
             print(f"❌ Error cargando modelos: {e}")
             sys.exit(1)
     
+    def _pad_features(self, features: np.ndarray, target_size: int) -> np.ndarray:
+        """
+        Ajustar número de features al tamaño esperado por padding o truncado
+        """
+        current_size = features.shape[1]
+        
+        if current_size == target_size:
+            return features
+        elif current_size < target_size:
+            # Padding con ceros
+            padding = np.zeros((features.shape[0], target_size - current_size))
+            return np.hstack([features, padding])
+        else:
+            # Truncar al tamaño objetivo
+            return features[:, :target_size]
+    
     def detect_vulnerability(self, code: str) -> Tuple[bool, float, Dict]:
         """
         Detectar si el código es vulnerable (Modelo 1)
@@ -77,37 +93,27 @@ class VulnerabilityScanner:
         """
         features = self.vectorizer.transform([code]).toarray()
         
-        # Intentar primero con 1001 features, si falla intentar con 1200
-        target_features = 1001
-        if features.shape[1] < target_features:
-            padding = np.zeros((features.shape[0], target_features - features.shape[1]))
-            features = np.hstack([features, padding])
-        elif features.shape[1] > target_features:
-            features = features[:, :target_features]
+        # Intentar ambas dimensiones con manejo robusto
+        for target_features in [1001, 1200]:
+            try:
+                features_padded = self._pad_features(features, target_features)
+                is_vulnerable = self.detector.predict(features_padded)[0]
+                probabilities = self.detector.predict_proba(features_padded)[0]
+                
+                return (
+                    bool(is_vulnerable),
+                    float(probabilities[is_vulnerable]),
+                    {
+                        'seguro': float(probabilities[0]),
+                        'vulnerable': float(probabilities[1])
+                    }
+                )
+            except Exception:
+                # Continuar al siguiente intento
+                continue
         
-        try:
-            is_vulnerable = self.detector.predict(features)[0]
-            probabilities = self.detector.predict_proba(features)[0]
-        except Exception:
-            # Si falla con 1001, intentar con 1200
-            target_features = 1200
-            if features.shape[1] < target_features:
-                padding = np.zeros((features.shape[0], target_features - features.shape[1]))
-                features = np.hstack([features, padding])
-            elif features.shape[1] > target_features:
-                features = features[:, :target_features]
-            
-            is_vulnerable = self.detector.predict(features)[0]
-            probabilities = self.detector.predict_proba(features)[0]
-        
-        return (
-            bool(is_vulnerable),
-            float(probabilities[is_vulnerable]),
-            {
-                'seguro': float(probabilities[0]),
-                'vulnerable': float(probabilities[1])
-            }
-        )
+        # Si ambos fallan, retornar seguro por defecto
+        return (False, 0.0, {'seguro': 1.0, 'vulnerable': 0.0})
     
     def classify_cwe(self, code: str) -> Tuple[str, float]:
         """
@@ -116,31 +122,21 @@ class VulnerabilityScanner:
         """
         features_cwe = self.vectorizer_cwe.transform([code]).toarray()
         
-        # Intentar primero con 1200 features, si falla intentar con 1001
-        target_features = 1200
-        if features_cwe.shape[1] < target_features:
-            padding = np.zeros((features_cwe.shape[0], target_features - features_cwe.shape[1]))
-            features_cwe = np.hstack([features_cwe, padding])
-        elif features_cwe.shape[1] > target_features:
-            features_cwe = features_cwe[:, :target_features]
+        # Intentar ambas dimensiones con manejo robusto
+        for target_features in [1200, 1001]:
+            try:
+                features_padded = self._pad_features(features_cwe, target_features)
+                cwe_type_idx = self.cwe_classifier.predict(features_padded)[0]
+                cwe_confidence = self.cwe_classifier.predict_proba(features_padded)[0][cwe_type_idx]
+                cwe_type = self.cwe_encoder.inverse_transform([cwe_type_idx])[0]
+                
+                return str(cwe_type), float(cwe_confidence)
+            except Exception:
+                # Continuar al siguiente intento
+                continue
         
-        try:
-            cwe_type_idx = self.cwe_classifier.predict(features_cwe)[0]
-            cwe_confidence = self.cwe_classifier.predict_proba(features_cwe)[0][cwe_type_idx]
-        except Exception:
-            # Si falla con 1200, intentar con 1001
-            target_features = 1001
-            if features_cwe.shape[1] < target_features:
-                padding = np.zeros((features_cwe.shape[0], target_features - features_cwe.shape[1]))
-                features_cwe = np.hstack([features_cwe, padding])
-            elif features_cwe.shape[1] > target_features:
-                features_cwe = features_cwe[:, :target_features]
-            
-            cwe_type_idx = self.cwe_classifier.predict(features_cwe)[0]
-            cwe_confidence = self.cwe_classifier.predict_proba(features_cwe)[0][cwe_type_idx]
-        
-        cwe_type = self.cwe_encoder.inverse_transform([cwe_type_idx])[0]
-        return str(cwe_type), float(cwe_confidence)
+        # Si ambos fallan, retornar tipo desconocido
+        return 'Unknown', 0.0
     
     def scan_file(self, file_path: Path) -> Dict:
         """Escanear un archivo individual"""

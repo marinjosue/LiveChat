@@ -54,6 +54,33 @@ jobs:
         with:
           fetch-depth: 0
       
+      - name: Detectar archivos modificados
+        id: files
+        run: |
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            # Para PR: comparar con rama base
+            git fetch origin ${{ github.base_ref }}
+            CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -E '\.(py|js|jsx|ts|tsx|java|cpp|c|cs|php|rb|go|kt)$' | tr '\n' ' ')
+          else
+            # Para push: comparar con commit anterior
+            if [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
+              CHANGED_FILES=$(git diff --name-only ${{ github.event.before }}..HEAD | grep -E '\.(py|js|jsx|ts|tsx|java|cpp|c|cs|php|rb|go|kt)$' | tr '\n' ' ')
+            else
+              # Primer commit del branch
+              CHANGED_FILES=$(git diff --name-only HEAD~1..HEAD | grep -E '\.(py|js|jsx|ts|tsx|java|cpp|c|cs|php|rb|go|kt)$' | tr '\n' ' ')
+            fi
+          fi
+          
+          if [ -z "$CHANGED_FILES" ]; then
+            echo "⚠️  No hay archivos modificados para escanear"
+            CHANGED_FILES="cliente servidor"  # Fallback: escanea directorios por defecto
+          else
+            echo "📝 Archivos modificados a escanear:"
+            echo "$CHANGED_FILES"
+          fi
+          
+          echo "changed_files=$CHANGED_FILES" >> $GITHUB_OUTPUT
+      
       - name: Configurar Python 3.11
         uses: actions/setup-python@v4
         with:
@@ -81,7 +108,9 @@ jobs:
         continue-on-error: true
         run: |
           echo "Ejecutando analisis de vulnerabilidades..."
-          python .github/scripts/scan_vulnerabilities.py cliente servidor
+          # Usar archivos modificados o directorios por defecto
+          FILES="${{ steps.files.outputs.changed_files }}"
+          python .github/scripts/scan_vulnerabilities.py $FILES
           
           if [ -f "vulnerability_report.json" ]; then
             echo "Reporte generado"

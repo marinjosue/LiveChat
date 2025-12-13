@@ -225,9 +225,10 @@ class VulnerabilityScanner:
 def main():
     """Función principal"""
     if len(sys.argv) < 2:
-        print("❌ Uso: python scan_vulnerabilities.py <directorio1> [directorio2] ...")
-        print("   Ejemplo: python scan_vulnerabilities.py cliente servidor")
-        print("   Ejemplo: python scan_vulnerabilities.py ./src ./tests")
+        print("❌ Uso: python scan_vulnerabilities.py <directorio|archivo> [directorio|archivo] ...")
+        print("   Ejemplo (directorios): python scan_vulnerabilities.py cliente servidor")
+        print("   Ejemplo (archivos): python scan_vulnerabilities.py cliente/src/App.js servidor/server.js")
+        print("   Ejemplo (mixto): python scan_vulnerabilities.py cliente/src servidor/models/Room.js")
         sys.exit(1)
     
     # Configurar paths
@@ -248,35 +249,34 @@ def main():
         print(f"❌ Error inicializando scanner: {e}")
         sys.exit(1)
     
-    # Procesar múltiples directorios
+    # Procesar múltiples directorios y/o archivos
     all_results = []
     target_dirs = []
     
     for target_name in sys.argv[1:]:
-        # Intentar múltiples rutas
-        possible_paths = [
-            Path(target_name),  # Ruta relativa actual
-            project_root / target_name,  # Relativa a proyecto
-            project_root / target_name / 'src',  # Con /src
-        ]
+        target_path = Path(target_name)
         
-        target_dir = None
-        for p in possible_paths:
-            if p.exists() and p.is_dir():
-                target_dir = p
-                break
+        # Intentar rutas relativas si no existe
+        if not target_path.exists():
+            target_path = project_root / target_name
         
-        if not target_dir:
-            print(f"⚠️  Directorio no encontrado: {target_name}")
-            print(f"     Rutas intentadas:")
-            for p in possible_paths:
-                print(f"       - {p}")
+        if not target_path.exists():
+            print(f"⚠️  Ruta no encontrada: {target_name}")
             continue
         
-        print(f"\n🔍 Escaneando: {target_dir}")
-        results = scanner.scan_directory(target_dir)
-        all_results.extend(results)
-        target_dirs.append(str(target_dir))
+        if target_path.is_file():
+            # Si es archivo, escanear directamente
+            print(f"\n📄 Escaneando archivo: {target_path}")
+            result = scanner.scan_file(target_path)
+            all_results.append(result)
+            target_dirs.append(str(target_path))
+            
+        elif target_path.is_dir():
+            # Si es directorio, escanear recursivamente
+            print(f"\n🔍 Escaneando: {target_path}")
+            results = scanner.scan_directory(target_path)
+            all_results.extend(results)
+            target_dirs.append(str(target_path))
     
     # Generar resumen
     print("\n" + "="*70)

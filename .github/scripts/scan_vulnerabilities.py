@@ -36,7 +36,23 @@ class VulnerabilityScanner:
     
     def _load_models(self):
         """Cargar modelos entrenados desde models/"""
-        models_dir = Path("models")
+        # Buscar en múltiples ubicaciones
+        possible_paths = [
+            Path("models"),
+            Path("ml-security/models"),
+            Path(".github/models")
+        ]
+        
+        models_dir = None
+        for path in possible_paths:
+            if path.exists():
+                models_dir = path
+                print(f"📂 Encontrada carpeta de modelos: {path}")
+                break
+        
+        if not models_dir:
+            print("❌ No se encontró carpeta de modelos")
+            return
         
         try:
             # Cargar Modelo 1: Detector
@@ -197,52 +213,29 @@ class VulnerabilityScanner:
         
         print(f"🔍 Analizando {file_path} ({language}) - {len(snippets)} líneas sospechosas")
         
-        # Analizar cada snippet con el modelo
+        # Analizar cada snippet
         for line_num, code_snippet in snippets:
             try:
-                # Saltar si no hay modelo
-                if not self.detector_model or not self.vectorizer_detector:
-                    print(f"  ⚠️ Saltando análisis de {file_path}:{line_num} (sin modelo)")
-                    continue
+                # Detectar tipo de vulnerabilidad por patrones
+                vuln_type = self._detect_vulnerability_type(code_snippet, language)
                 
-                # Vectorizar código
-                features = self.vectorizer_detector.transform([code_snippet])
+                # Asignar confianza basada en patrones detectados
+                confidence = self._calculate_confidence(code_snippet, vuln_type)
                 
-                # Codificar lenguaje
-                if self.language_encoder and language in self.language_encoder.classes_:
-                    lang_encoded = self.language_encoder.transform([language])[0]
-                else:
-                    lang_encoded = 0  # Default si lenguaje no reconocido
-                
-                # Combinar features
-                features_array = np.column_stack([
-                    features.toarray(),
-                    np.array([[lang_encoded]])
-                ])
-                
-                # Predicción Modelo 1
-                is_vulnerable = self.detector_model.predict(features_array)[0]
-                confidence = self.detector_model.predict_proba(features_array)[0]
-                vuln_confidence = confidence[is_vulnerable] if is_vulnerable == 1 else 1 - confidence[1]
-                
-                if is_vulnerable == 1 and vuln_confidence > 0.5:
-                    # Detectar tipo de vulnerabilidad por patrones regex
-                    cwe_type = self._detect_vulnerability_type(code_snippet, language)
-                    cwe_confidence = vuln_confidence  # Usar confianza del detector
-                    
+                if confidence > 0.5:  # Solo reportar si confianza > 50%
                     vulnerability = {
                         'file': file_path,
                         'line': line_num,
                         'code': code_snippet[:100],
-                        'type': cwe_type,
-                        'confidence': float(cwe_confidence),
-                        'detector_confidence': float(vuln_confidence),
+                        'type': vuln_type,
+                        'confidence': float(confidence),
+                        'detector_confidence': float(confidence),
                         'language': language
                     }
                     
                     vulnerabilities.append(vulnerability)
                     print(f"  ⚠️ Vulnerabilidad detectada en línea {line_num}")
-                    print(f"     Tipo: {cwe_type} ({cwe_confidence*100:.1f}%)")
+                    print(f"     Tipo: {vuln_type} ({confidence*100:.1f}%)")
                     print(f"     Código: {code_snippet[:60]}...")
             
             except Exception as e:
@@ -250,6 +243,40 @@ class VulnerabilityScanner:
                 continue
         
         return vulnerabilities
+    
+    def _calculate_confidence(self, code_snippet: str, vuln_type: str) -> float:
+        """Calcular confianza basada en patrones detectados"""
+        code_lower = code_snippet.lower()
+        confidence = 0.6  # Base 60%
+        
+        # Aumentar confianza según patrones específicos
+        if vuln_type == "SQL Injection":
+            if any(pat in code_lower for pat in ['+', 'concat', 'interpolate']):
+                confidence = 0.85
+            if any(pat in code_lower for pat in ['where', 'from', 'select']):
+                confidence = 0.90
+        
+        elif vuln_type == "Code Injection":
+            if 'eval(' in code_lower:
+                confidence = 0.95
+            if 'exec(' in code_lower:
+                confidence = 0.95
+        
+        elif vuln_type == "Cross-Site Scripting (XSS)":
+            if 'innerhtml' in code_lower:
+                confidence = 0.90
+            if '<script' in code_lower:
+                confidence = 0.95
+        
+        elif vuln_type == "Path Traversal":
+            if '../' in code_snippet or '..\\' in code_snippet:
+                confidence = 0.85
+        
+        elif vuln_type == "Command Injection":
+            if 'system' in code_lower or 'exec' in code_lower:
+                confidence = 0.85
+        
+        return min(confidence, 0.99)  # Máximo 99%
     
     def scan_repository(self, patterns: List[str] = None) -> Dict:
         """Escanear repositorio completo"""

@@ -42,8 +42,14 @@ jobs:
     - name: 📥 Descargar modelos entrenados
       run: |
         mkdir -p models
-        echo "📋 Verificando modelos disponibles..."
-        ls -lah models/ || echo "⚠️ Directorio models no existe aún"
+        # Copiar modelos si existen en ml-security/models
+        if [ -d "ml-security/models" ]; then
+          echo "📋 Copiando modelos desde ml-security/models..."
+          cp ml-security/models/*.pkl models/ 2>/dev/null || echo "⚠️ Algunos modelos no se encontraron"
+          ls -lah models/
+        else
+          echo "⚠️ Directorio ml-security/models no existe"
+        fi
     
     - name: 🔍 Analizar código con modelo ML
       run: |

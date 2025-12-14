@@ -4,9 +4,12 @@ function getUserById(userId) {
 }
 
 function evaluateCode(input) {
-    return eval(input);
+    const result = eval(input);
+    return result;
 }
 
+
+// test
 function renderComment(comment) {
     document.getElementById('comments').innerHTML = "<p>" + comment + "</p>";
 }

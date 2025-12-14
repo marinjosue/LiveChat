@@ -59,51 +59,112 @@ class TelegramNotifier:
             summary = report['summary']
             is_safe = report['is_safe']
             
-            # Construir mensaje
+            # ============================================================
+            # ENCABEZADO DEL REPORTE
+            # ============================================================
             if is_safe:
-                emoji = "✅"
-                status = "CÓDIGO SEGURO"
+                message = "╔════════════════════════════════════════╗\n"
+                message += "║  ✅ ANÁLISIS DE SEGURIDAD EXITOSO      ║\n"
+                message += "╚════════════════════════════════════════╝\n\n"
+                message += "🟢 *El código ha sido aprobado*\n"
+                message += "✨ No se detectaron vulnerabilidades\n"
             else:
-                emoji = "🚨"
-                status = "VULNERABILIDADES DETECTADAS"
+                message = "╔════════════════════════════════════════╗\n"
+                message += "║  🚨 ALERTA DE SEGURIDAD               ║\n"
+                message += "║  VULNERABILIDADES DETECTADAS           ║\n"
+                message += "╚════════════════════════════════════════╝\n\n"
+                message += "🔴 *El código contiene vulnerabilidades*\n"
+                message += "⚠️  Requiere correcciones antes del merge\n"
             
-            message = f"{emoji} *{status}*\n\n"
-            message += f"📊 *Resumen del Análisis ML:*\n"
-            message += f"• Total archivos: {summary['total']}\n"
-            message += f"• Seguros: {summary['safe']}\n"
-            message += f"• Vulnerables: {summary['vulnerable']}\n"
+            # ============================================================
+            # ESTADÍSTICAS GENERALES
+            # ============================================================
+            message += "\n┌─ *📊 ESTADÍSTICAS DEL ANÁLISIS* ─┐\n"
+            message += f"│ 📁 Total archivos: `{summary['total']}`\n"
+            message += f"│ ✅ Seguros: `{summary['safe']}`\n"
+            message += f"│ 🚨 Vulnerables: `{summary['vulnerable']}`\n"
             
             if summary['errors'] > 0:
-                message += f"• Errores: {summary['errors']}\n"
+                message += f"│ ⚠️  Errores: `{summary['errors']}`\n"
             
-            # Detalles de vulnerabilidades
+            if summary.get('skipped', 0) > 0:
+                message += f"│ ⏭️  Omitidos: `{summary['skipped']}`\n"
+            
+            message += "└────────────────────────────────────┘\n"
+            
+            # ============================================================
+            # DETALLES DE VULNERABILIDADES
+            # ============================================================
             if not is_safe:
-                message += f"\n🔴 *Vulnerabilidades encontradas:*\n"
-                
                 vuln_results = [r for r in report['results'] if r.get('vulnerable', False)]
+                message += "\n┌─ *🔴 VULNERABILIDADES DETECTADAS* ─┐\n"
                 
-                for vuln in vuln_results[:5]:  # Limitar a 5 primeras
+                for idx, vuln in enumerate(vuln_results[:5], 1):  # Limitar a 5
                     file_name = Path(vuln['file']).name
-                    cwe_type = vuln.get('cwe_type', 'Desconocido')
-                    confidence = vuln.get('detection_confidence', 0) * 100
+                    file_path = vuln.get('file', 'N/A')
+                    language = vuln.get('language', 'Unknown')
+                    cwe_type = vuln.get('cwe_type', 'Unknown')
+                    cwe_confidence = vuln.get('cwe_confidence', 0)
+                    detection_conf = vuln.get('detection_confidence', 0)
                     
-                    message += f"\n📁 `{file_name}`\n"
-                    message += f"   Tipo: {cwe_type}\n"
-                    message += f"   Confianza: {confidence:.0f}%\n"
+                    # Formatear el tipo de CWE
+                    if cwe_type == 'Unknown' or not cwe_type:
+                        cwe_display = "🔍 No clasificado"
+                        severity = "⚠️  MEDIA"
+                    else:
+                        cwe_display = cwe_type
+                        # Asignar severidad según confianza
+                        if detection_conf > 0.85:
+                            severity = "🔴 ALTA"
+                        elif detection_conf > 0.70:
+                            severity = "🟠 MEDIA"
+                        else:
+                            severity = "🟡 BAJA"
+                    
+                    message += f"\n│\n│ *#{idx} - {file_name}*\n"
+                    message += f"│ 📍 Ruta: `{file_path}`\n"
+                    message += f"│ 💻 Lenguaje: `{language}`\n"
+                    message += f"│ 🏷️  Tipo CWE: {cwe_display}\n"
+                    message += f"│ 📈 Severidad: {severity}\n"
+                    message += f"│ 🎯 Confianza detección: `{detection_conf*100:.1f}%`\n"
+                    
+                    if cwe_confidence > 0:
+                        message += f"│ 🔬 Confianza clasificación: `{cwe_confidence*100:.1f}%`\n"
+                
+                message += f"│\n"
                 
                 if len(vuln_results) > 5:
-                    message += f"\n... y {len(vuln_results) - 5} más\n"
+                    message += f"│ ... y `{len(vuln_results) - 5}` más vulnerabilidades\n"
+                
+                message += "└────────────────────────────────────┘\n"
             
-            # Agregar contexto de GitHub
-            repo = os.getenv('GITHUB_REPOSITORY', 'N/A')
-            branch = os.getenv('GITHUB_REF_NAME', 'N/A')
-            actor = os.getenv('GITHUB_ACTOR', 'N/A')
-            sha = os.getenv('GITHUB_SHA', 'N/A')[:7]
+            # ============================================================
+            # INFORMACIÓN DEL REPOSITORIO
+            # ============================================================
+            repo = os.getenv('GITHUB_REPOSITORY', 'marinjosue/LiveChat')
+            branch = os.getenv('GITHUB_REF_NAME', 'dev')
+            actor = os.getenv('GITHUB_ACTOR', 'usuario')
+            sha = os.getenv('GITHUB_SHA', '0000000')[:7]
             
-            message += f"\n📦 Repo: `{repo}`\n"
-            message += f"🌿 Branch: `{branch}`\n"
-            message += f"👤 Actor: @{actor}\n"
-            message += f"💾 Commit: `{sha}`\n"
+            message += "\n┌─ *📦 INFORMACIÓN DEL REPOSITORIO* ─┐\n"
+            message += f"│ 🏢 Repositorio: `{repo}`\n"
+            message += f"│ 🌿 Rama: `{branch}`\n"
+            message += f"│ 👤 Autor: `@{actor}`\n"
+            message += f"│ 💾 Commit: `{sha}`\n"
+            message += "└────────────────────────────────────┘\n"
+            
+            # ============================================================
+            # LLAMADA A LA ACCIÓN
+            # ============================================================
+            if is_safe:
+                message += "\n✅ *Estado: APROBADO PARA MERGE*\n"
+                message += "🚀 El código está listo para producción\n"
+            else:
+                message += "\n❌ *Estado: RECHAZADO - REQUIERE CORRECCIONES*\n"
+                message += "🔧 Por favor, corrige las vulnerabilidades detectadas\n"
+                message += "📚 Revisa la documentación de OWASP para referencias\n"
+            
+            message += "\n" + "═"*40
             
             return self.send_message(message)
             
@@ -116,18 +177,37 @@ class TelegramNotifier:
         emoji = "✅" if success else "❌"
         status = "EXITOSO" if success else "FALLIDO"
         
-        msg = f"{emoji} *Tests {status}*\n\n"
-        msg += f"📦 Componente: `{component}`\n"
+        msg = f"╔════════════════════════════════════════╗\n"
+        msg += f"║  {emoji} RESULTADO DE TESTS              ║\n"
+        msg += f"╚════════════════════════════════════════╝\n\n"
+        msg += f"*Estado:* {'🟢 EXITOSO' if success else '🔴 FALLIDO'}\n\n"
+        
+        msg += f"┌─ *📋 DETALLES DEL TEST* ─┐\n"
+        msg += f"│ 📦 Componente: `{component}`\n"
+        msg += f"│ 🧪 Estado: `{status}`\n"
         
         if message:
-            msg += f"📝 {message}\n"
+            msg += f"│ 📝 Mensaje: {message}\n"
         
-        # Contexto
-        branch = os.getenv('GITHUB_REF_NAME', 'N/A')
-        actor = os.getenv('GITHUB_ACTOR', 'N/A')
+        msg += "└───────────────────────────┘\n"
         
-        msg += f"\n🌿 Branch: `{branch}`\n"
-        msg += f"👤 Actor: @{actor}\n"
+        # Contexto de GitHub
+        branch = os.getenv('GITHUB_REF_NAME', 'dev')
+        actor = os.getenv('GITHUB_ACTOR', 'usuario')
+        repo = os.getenv('GITHUB_REPOSITORY', 'marinjosue/LiveChat')
+        
+        msg += f"\n┌─ *🔗 INFORMACIÓN* ─┐\n"
+        msg += f"│ 📦 Repo: `{repo}`\n"
+        msg += f"│ 🌿 Rama: `{branch}`\n"
+        msg += f"│ 👤 Actor: `@{actor}`\n"
+        msg += "└────────────────────┘\n"
+        
+        if not success:
+            msg += "\n🔧 Por favor, revisa los logs para más detalles\n"
+        else:
+            msg += "\n✨ ¡Todos los tests pasaron correctamente!\n"
+        
+        msg += "═"*40
         
         return self.send_message(msg)
     
@@ -136,22 +216,36 @@ class TelegramNotifier:
         emoji = "🚀" if success else "❌"
         status = "EXITOSO" if success else "FALLIDO"
         
-        msg = f"{emoji} *Deploy {status}*\n\n"
-        msg += f"🌍 Ambiente: `{environment}`\n"
+        msg = f"╔════════════════════════════════════════╗\n"
+        msg += f"║  {emoji} DESPLIEGUE {status:^22} ║\n"
+        msg += f"╚════════════════════════════════════════╝\n\n"
+        msg += f"*Estado:* {'🟢 DESPLEGADO' if success else '🔴 ERROR'}\n\n"
         
         # Contexto
-        repo = os.getenv('GITHUB_REPOSITORY', 'N/A')
-        branch = os.getenv('GITHUB_REF_NAME', 'N/A')
-        actor = os.getenv('GITHUB_ACTOR', 'N/A')
-        sha = os.getenv('GITHUB_SHA', 'N/A')[:7]
+        repo = os.getenv('GITHUB_REPOSITORY', 'marinjosue/LiveChat')
+        branch = os.getenv('GITHUB_REF_NAME', 'main')
+        actor = os.getenv('GITHUB_ACTOR', 'usuario')
+        sha = os.getenv('GITHUB_SHA', '0000000')[:7]
         
-        msg += f"📦 Repo: `{repo}`\n"
-        msg += f"🌿 Branch: `{branch}`\n"
-        msg += f"👤 Actor: @{actor}\n"
-        msg += f"💾 Commit: `{sha}`\n"
+        msg += f"┌─ *🌍 INFORMACIÓN DE DESPLIEGUE* ─┐\n"
+        msg += f"│ 🌐 Ambiente: `{environment.upper()}`\n"
+        msg += f"│ 📦 Repositorio: `{repo}`\n"
+        msg += f"│ 🌿 Rama: `{branch}`\n"
+        msg += f"│ 👤 Autor: `@{actor}`\n"
+        msg += f"│ 💾 Commit: `{sha}`\n"
+        msg += "└────────────────────────────────────┘\n"
         
         if success:
-            msg += f"\n✨ Aplicación desplegada correctamente"
+            msg += "\n✨ *Despliegue Completado Exitosamente*\n"
+            msg += "🟢 La aplicación está en línea\n"
+            msg += "📊 Monitoreando la salud de la aplicación...\n"
+        else:
+            msg += "\n🚨 *El despliegue ha fallado*\n"
+            msg += "❌ La aplicación NO se ha desplegado\n"
+            msg += "🔧 Revisa los logs inmediatamente\n"
+            msg += "📞 Contacta al equipo de DevOps\n"
+        
+        msg += "\n" + "═"*40
         
         return self.send_message(msg)
 

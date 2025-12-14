@@ -44,7 +44,10 @@ class EffectivenessTest:
             print(f"   Esperado: {estado_esperado}")
             print(f"   Detectado: {estado_actual}")
             if tipo:
-                print(f"   Tipo: {tipo}")
+                if tipo == 'Unknown':
+                    print(f"   Tipo: 🔍 No clasificado")
+                else:
+                    print(f"   Tipo: {tipo}")
             print(f"   Confianza: {confianza_det:.2%}")
             
             if test_exitoso:

@@ -91,12 +91,20 @@ class VulnerabilityScanner:
         Clasificar tipo de vulnerabilidad CWE (Modelo 2)
         Returns: (cwe_type, confidence)
         """
-        features_cwe = self.vectorizer_cwe.transform([code])
-        cwe_type_idx = self.cwe_classifier.predict(features_cwe)[0]
-        cwe_type = self.cwe_encoder.inverse_transform([cwe_type_idx])[0]
-        cwe_confidence = self.cwe_classifier.predict_proba(features_cwe)[0][cwe_type_idx]
-        
-        return str(cwe_type), float(cwe_confidence)
+        try:
+            features_cwe = self.vectorizer_cwe.transform([code])
+            cwe_type_idx = self.cwe_classifier.predict(features_cwe)[0]
+            cwe_type = self.cwe_encoder.inverse_transform([cwe_type_idx])[0]
+            cwe_confidence = self.cwe_classifier.predict_proba(features_cwe)[0][cwe_type_idx]
+            
+            # Validar que el tipo no sea None o vacío
+            if not cwe_type or cwe_type.strip() == '':
+                return 'Unknown', float(cwe_confidence)
+            
+            return str(cwe_type), float(cwe_confidence)
+        except Exception as e:
+            print(f"⚠️  Error clasificando CWE: {e}")
+            return 'Unknown', 0.0
     
     def scan_file(self, file_path: Path) -> Dict:
         """Escanear un archivo individual"""
@@ -226,11 +234,21 @@ def main():
         
         vuln_files = [r for r in results if r.get('vulnerable', False)]
         for vuln in vuln_files:
+            cwe_type = vuln.get('cwe_type', 'Unknown')
+            cwe_confidence = vuln.get('cwe_confidence', 0)
+            
+            # Validar el tipo CWE
+            if cwe_type == 'Unknown' or not cwe_type:
+                cwe_display = "🔍 Unknown (No clasificado)"
+            else:
+                cwe_display = cwe_type
+            
             print(f"\n📁 {vuln['file']}")
             print(f"   Lenguaje: {vuln['language']}")
-            print(f"   Tipo CWE: {vuln.get('cwe_type', 'N/A')}")
+            print(f"   Tipo: {cwe_display}")
             print(f"   Confianza detección: {vuln['detection_confidence']:.1%}")
-            print(f"   Confianza CWE: {vuln.get('cwe_confidence', 0):.1%}")
+            if cwe_confidence > 0:
+                print(f"   Confianza clasificación: {cwe_confidence:.1%}")
     
     # Guardar reporte JSON
     report = {

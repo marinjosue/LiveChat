@@ -1,6 +1,8 @@
 name: 🔐 Security Pipeline - ML Vulnerability Detection
 
 on:
+  push:
+    branches: [dev]
   pull_request:
     types: [opened, synchronize, reopened]
 

@@ -40,21 +40,24 @@ def send_telegram_notification():
             message = "🚨 <b>VULNERABILIDADES DETECTADAS</b> 🚨\n\n"
             message += "📊 <b>Resumen:</b>\n"
             message += f"• Total: {len(vulnerabilities)} vulnerabilidades\n"
-            message += f"• Críticas: {summary.get('critical', 0)}\n"
-            message += f"• Altas: {summary.get('high', 0)}\n"
-            message += f"• Medias: {summary.get('medium', 0)}\n\n"
-            message += "🔍 <b>Top 5 vulnerabilidades:</b>\n"
+            message += f"• Críticas (>85%): {summary.get('critical', 0)}\n"
+            message += f"• Altas (70-85%): {summary.get('high', 0)}\n"
+            message += f"• Medias (50-70%): {summary.get('medium', 0)}\n\n"
+            message += "🔍 <b>TODAS LAS VULNERABILIDADES DETECTADAS:</b>\n\n"
             
-            for i, vuln in enumerate(vulnerabilities[:5], 1):
-                file_path = vuln.get('file', 'unknown').split('/')[-1]
+            for i, vuln in enumerate(vulnerabilities, 1):
+                file_path = vuln.get('file', 'unknown')
                 line = vuln.get('line', '?')
                 vuln_type = vuln.get('type', 'Unknown')
                 confidence = vuln.get('confidence', 0)
+                code = vuln.get('code', '')[:80]
                 
-                message += f"\n{i}. <b>{vuln_type}</b> ({confidence*100:.0f}%)\n"
-                message += f"   📄 <code>{file_path}:{line}</code>"
+                message += f"<b>{i}. {vuln_type}</b>\n"
+                message += f"   📄 <code>{file_path}</code>\n"
+                message += f"   📍 <b>Línea:</b> {line}\n"
+                message += f"   🎯 <b>Confianza:</b> {confidence*100:.1f}%\n"
+                message += f"   💻 <b>Código:</b> <code>{code}...</code>\n\n"
             
-            message += "\n\n"
             message += f"👤 Usuario: <code>{commit_author}</code>\n"
             message += f"💬 Commit: <code>{commit_message}</code>\n"
             message += f"⏰ Hora: <code>{readable_time}</code>\n"

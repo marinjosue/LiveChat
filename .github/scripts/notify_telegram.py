@@ -50,20 +50,23 @@ def send_telegram_notification():
             message += f"• Críticas (>85%): {summary.get('critical', 0)}\n"
             message += f"• Altas (70-85%): {summary.get('high', 0)}\n"
             message += f"• Medias (50-70%): {summary.get('medium', 0)}\n\n"
-            message += "🔍 <b>TODAS LAS VULNERABILIDADES DETECTADAS:</b>\n\n"
+            message += "🔍 <b>PRIMERAS 10 VULNERABILIDADES:</b>\n\n"
             
-            for i, vuln in enumerate(vulnerabilities, 1):
+            for i, vuln in enumerate(vulnerabilities[:10], 1):  # Solo primeras 10
                 file_path = vuln.get('file', 'unknown')
                 line = vuln.get('line', '?')
                 vuln_type = vuln.get('type', 'Unknown')
                 confidence = vuln.get('confidence', 0)
-                code = escape_html(vuln.get('code', '')[:60])
+                code = escape_html(vuln.get('code', '')[:50])
                 
                 message += f"<b>{i}. {escape_html(vuln_type)}</b>\n"
                 message += f"Archivo: {escape_html(file_path)}\n"
                 message += f"Línea: {line}\n"
                 message += f"Confianza: {confidence*100:.1f}%\n"
                 message += f"Código: <code>{code}</code>\n\n"
+            
+            if len(vulnerabilities) > 10:
+                message += f"... y {len(vulnerabilities) - 10} más vulnerabilidades\n\n"
             
             message += f"👤 Usuario: {escape_html(commit_author)}\n"
             message += f"💬 Commit: {escape_html(commit_message)}\n"

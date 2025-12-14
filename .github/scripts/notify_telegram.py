@@ -5,6 +5,13 @@ import os
 import sys
 import requests
 from datetime import datetime
+import html
+
+def escape_html(text):
+    """Escapar caracteres HTML especiales"""
+    if not text:
+        return ""
+    return html.escape(str(text))
 
 def send_telegram_notification():
     """Read vulnerability report and send Telegram notification"""
@@ -50,28 +57,28 @@ def send_telegram_notification():
                 line = vuln.get('line', '?')
                 vuln_type = vuln.get('type', 'Unknown')
                 confidence = vuln.get('confidence', 0)
-                code = vuln.get('code', '')[:80]
+                code = escape_html(vuln.get('code', '')[:60])
                 
-                message += f"<b>{i}. {vuln_type}</b>\n"
-                message += f"   📄 <code>{file_path}</code>\n"
-                message += f"   📍 <b>Línea:</b> {line}\n"
-                message += f"   🎯 <b>Confianza:</b> {confidence*100:.1f}%\n"
-                message += f"   💻 <b>Código:</b> <code>{code}...</code>\n\n"
+                message += f"<b>{i}. {escape_html(vuln_type)}</b>\n"
+                message += f"Archivo: {escape_html(file_path)}\n"
+                message += f"Línea: {line}\n"
+                message += f"Confianza: {confidence*100:.1f}%\n"
+                message += f"Código: <code>{code}</code>\n\n"
             
-            message += f"👤 Usuario: <code>{commit_author}</code>\n"
-            message += f"💬 Commit: <code>{commit_message}</code>\n"
-            message += f"⏰ Hora: <code>{readable_time}</code>\n"
-            message += "🔗 Repo: <code>LiveChat</code>"
+            message += f"👤 Usuario: {escape_html(commit_author)}\n"
+            message += f"💬 Commit: {escape_html(commit_message)}\n"
+            message += f"⏰ Hora: {readable_time}\n"
+            message += "🔗 Repo: LiveChat"
         else:
             # Message when no vulnerabilities found
             message = "✅ <b>SIN VULNERABILIDADES DETECTADAS</b> ✅\n\n"
             message += "📊 <b>Análisis completado exitosamente</b>\n\n"
             message += f"Archivos escaneados: {report.get('files_scanned', 0)}\n"
             message += "Vulnerabilidades encontradas: 0\n\n"
-            message += f"👤 Usuario: <code>{commit_author}</code>\n"
-            message += f"💬 Commit: <code>{commit_message}</code>\n"
-            message += f"⏰ Hora: <code>{readable_time}</code>\n"
-            message += "🔗 Repo: <code>LiveChat</code>"
+            message += f"👤 Usuario: {escape_html(commit_author)}\n"
+            message += f"💬 Commit: {escape_html(commit_message)}\n"
+            message += f"⏰ Hora: {readable_time}\n"
+            message += "🔗 Repo: LiveChat"
         
         # Send to Telegram
         url = f"https://api.telegram.org/bot{bot_token}/sendMessage"

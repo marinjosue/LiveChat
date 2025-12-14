@@ -118,6 +118,12 @@ def classify():
         tipo_cwe = models['cwe_encoder'].inverse_transform([prediccion])[0]
         confianza = float(max(probabilidades))
         
+        # Validar que el tipo no sea None o vacío
+        if not tipo_cwe or str(tipo_cwe).strip() == '':
+            tipo_cwe = 'Unknown'
+        else:
+            tipo_cwe = str(tipo_cwe)
+        
         return jsonify({
             'tipo_vulnerabilidad': tipo_cwe,
             'confianza': confianza
@@ -125,7 +131,11 @@ def classify():
         
     except Exception as e:
         logger.error(f"Error en clasificacion: {e}")
-        return jsonify({'error': 'Error interno'}), 500
+        return jsonify({
+            'error': 'Error interno',
+            'tipo_vulnerabilidad': 'Unknown',
+            'confianza': 0.0
+        }), 500
 
 
 @app.route('/analyze', methods=['POST'])
@@ -168,6 +178,13 @@ def analyze():
             prob_cwe = models['cwe_classifier'].predict_proba(X_cwe)[0]
             
             tipo_cwe = models['cwe_encoder'].inverse_transform([prediccion_cwe])[0]
+            
+            # Validar que el tipo no sea None o vacío
+            if not tipo_cwe or str(tipo_cwe).strip() == '':
+                tipo_cwe = 'Unknown'
+            else:
+                tipo_cwe = str(tipo_cwe)
+            
             resultado['tipo_vulnerabilidad'] = tipo_cwe
             resultado['confianza_clasificacion'] = float(max(prob_cwe))
         

@@ -39,7 +39,10 @@ class VulnerabilityTests:
             print(f"    Estado: {'VULNERABLE' if es_vulnerable else 'SEGURO'}")
             
             if tipo:
-                print(f"    Tipo: {tipo}")
+                if tipo == 'Unknown':
+                    print(f"    Tipo: 🔍 No clasificado")
+                else:
+                    print(f"    Tipo: {tipo}")
             
             if test_exitoso:
                 self.passed += 1

@@ -2,7 +2,6 @@ name: 🔐 Security Pipeline - ML Vulnerability Detection
 
 on:
   pull_request:
-    branches: [test]  # Solo se activa en PR hacia test
     types: [opened, synchronize, reopened]
 
 permissions:

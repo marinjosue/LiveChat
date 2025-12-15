@@ -132,6 +132,7 @@ jobs:
     permissions:
       contents: write
       actions: write
+      workflows: write
     
     env:
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}

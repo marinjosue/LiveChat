@@ -121,6 +121,7 @@ jobs:
             echo "✅ Reporte generado exitosamente"
             
             # Copiar a ubicación esperada
+            cp security_report.json vulnerability_report.json
             cp security_report.json ml-security/security_report.json || true
             
             # Mostrar contenido del reporte

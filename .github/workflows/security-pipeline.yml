@@ -56,44 +56,7 @@ jobs:
         path: vulnerability_report.json
         retention-days: 30
     
-    - name: 💬 Comentar en PR
-      if: github.event_name == 'pull_request' && always()
-      uses: actions/github-script@v6
-      with:
-        script: |
-          const fs = require('fs');
-          try {
-            const report = JSON.parse(fs.readFileSync('vulnerability_report.json', 'utf8'));
-            
-            if (report.vulnerabilities.length > 0) {
-              let comment = '## ⚠️ Vulnerabilidades Detectadas\n\n';
-              report.vulnerabilities.forEach((vuln, idx) => {
-                comment += `### ${idx + 1}. ${vuln.file}\n`;
-                comment += `- **Tipo**: ${vuln.type}\n`;
-                comment += `- **Confianza**: ${(vuln.confidence * 100).toFixed(1)}%\n`;
-                comment += `- **Línea**: ${vuln.line || 'N/A'}\n\n`;
-              });
-              comment += `**Total vulnerabilidades detectadas**: ${report.vulnerabilities.length}`;
-              
-              github.rest.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: comment
-              });
-            } else {
-              github.rest.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: '✅ No se detectaron vulnerabilidades en este PR'
-              });
-            }
-          } catch (error) {
-            console.log('⚠️ No se pudo procesar el reporte:', error);
-          }
-    
-    - name: 🔍 Verificar configuración de Telegram
+    - name:  Verificar configuración de Telegram
       run: |
         if [ -z "$TELEGRAM_BOT_TOKEN" ]; then
           echo "❌ TELEGRAM_BOT_TOKEN no configurado"

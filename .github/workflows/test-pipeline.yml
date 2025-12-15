@@ -3,6 +3,11 @@ name: 🧪 Test Pipeline - Automated Testing
 on:
   push:
     branches: [test]
+  workflow_run:
+    workflows: ["🔐 Security Pipeline - ML Vulnerability Detection"]
+    types:
+      - completed
+    branches: [test]
   workflow_dispatch:
 
 permissions:

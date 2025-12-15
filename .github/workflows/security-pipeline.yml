@@ -121,7 +121,6 @@ jobs:
             echo "✅ Reporte generado exitosamente"
             
             # Copiar a ubicación esperada
-            cp security_report.json vulnerability_report.json
             cp security_report.json ml-security/security_report.json || true
             
             # Mostrar contenido del reporte
@@ -151,20 +150,15 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: vulnerability-report
-          path: vulnerability_report.json
+          name: security-report
+          path: security_report.json
           retention-days: 30
       
       - name: 📱 Enviar notificación a Telegram
         if: always()
         run: |
           pip install requests
-          python .github/scripts/notify_telegram.py
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          GITHUB_COMMIT_MESSAGE: ${{ github.event.pull_request.title || 'Unknown' }}
-          GITHUB_ACTOR: ${{ github.actor }}
+          python .github/scripts/telegram_notify.py vulnerability_scan security_report.json || echo "⚠️  Error enviando notificación"
       
       - name: 📊 Comment PR with results
         if: always() && steps.scan.outputs.scan_status == 'completed'
@@ -418,7 +412,6 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-      actions: write
     
     steps:
       - name: 📥 Checkout
@@ -479,19 +472,6 @@ jobs:
             -d "chat_id=${TELEGRAM_CHAT_ID}" \
             -d "text=${MESSAGE}" \
             -d "parse_mode=HTML"
-      
-      - name: 🧪 Trigger test pipeline
-        if: success()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            await github.rest.actions.createWorkflowDispatch({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: 'test-pipeline.yml',
-              ref: 'test'
-            });
-            console.log('✅ Test pipeline disparado');
       
       - name: 📱 Notificar error en merge
         if: failure()

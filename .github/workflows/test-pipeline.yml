@@ -129,6 +129,9 @@ jobs:
     needs: [run-tests]
     runs-on: ubuntu-latest
     if: success()
+    permissions:
+      contents: write
+      actions: write
     
     env:
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}

@@ -74,6 +74,13 @@ class VulnerabilityScanner:
         Returns: (is_vulnerable, confidence, probabilities)
         """
         features = self.vectorizer.transform([code])
+        
+        # Ajustar features a 1001 (padding si es necesario)
+        if features.shape[1] == 1000:
+            import scipy.sparse as sp
+            padding = sp.csr_matrix((features.shape[0], 1))
+            features = sp.hstack([features, padding])
+        
         is_vulnerable = self.detector.predict(features)[0]
         probabilities = self.detector.predict_proba(features)[0]
         
@@ -92,6 +99,13 @@ class VulnerabilityScanner:
         Returns: (cwe_type, confidence)
         """
         features_cwe = self.vectorizer_cwe.transform([code])
+        
+        # Ajustar features a 1001 (padding si es necesario)
+        if features_cwe.shape[1] == 1000:
+            import scipy.sparse as sp
+            padding = sp.csr_matrix((features_cwe.shape[0], 1))
+            features_cwe = sp.hstack([features_cwe, padding])
+        
         cwe_type_idx = self.cwe_classifier.predict(features_cwe)[0]
         cwe_type = self.cwe_encoder.inverse_transform([cwe_type_idx])[0]
         cwe_confidence = self.cwe_classifier.predict_proba(features_cwe)[0][cwe_type_idx]

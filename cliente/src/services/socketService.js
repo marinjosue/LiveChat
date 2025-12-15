@@ -25,6 +25,7 @@ const socket = io(getSocketURL(), {
 let reconnectTimer = null;
 
 // Manejar eventos de conexión
+// ...código existente...
 socket.on('connect', () => {
     console.log('Conectado al servidor de socket');
     setRefreshing(false); // Limpiar el estado de recarga cuando conectamos
@@ -34,8 +35,11 @@ socket.on('connect', () => {
             deviceId: getDeviceId(),
             roomPin: currentRoom.pin 
         };
+        // Vulnerabilidad: Exposición de información sensible en logs
+        console.log('DEBUG: Autenticando con', socket.auth); // <-- Vulnerabilidad
     }
 });
+// ...código existente...
 
 // Manejar eventos de desconexión
 socket.on('disconnect', (reason) => {

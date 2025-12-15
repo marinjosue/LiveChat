@@ -164,10 +164,13 @@ jobs:
       with:
         script: |
           try {
+            const prNumber = context.payload.pull_request.number;
+            console.log('PR number:', prNumber);
+            
             await github.rest.pulls.merge({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              pull_number: context.issue.number,
+              pull_number: prNumber,
               merge_method: 'squash'
             });
             
@@ -194,10 +197,14 @@ jobs:
             comment = '⚠️ Could not process security analysis results';
           }
           if (comment) {
+            const prNumber = context.payload.pull_request.number;
             await github.rest.issues.createComment({
-              issue_number: context.issue.number,
+              issue_number: prNumber,
               owner: context.repo.owner,
               repo: context.repo.repo,
+              body: comment
+            });
+          }
               body: comment
             });
           }

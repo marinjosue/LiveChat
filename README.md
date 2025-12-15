@@ -4,6 +4,8 @@ Sistema de chat en tiempo real con salas seguras, autenticación de administrado
 
 Este proyecto fomenta el aprendizaje en programación concurrente, WebSockets para tiempo real, arquitectura cliente-servidor y desarrollo seguro, con énfasis en la detección de amenazas como la esteganografía.
 
+**CI/CD Pipeline**: Análisis ML de vulnerabilidades + Tests automáticos + Deploy a producción
+
 ## Características Principales
 
 ### Seguridad

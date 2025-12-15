@@ -256,25 +256,23 @@ const corsConfig = {
       'http://localhost:3000',
       'http://localhost'
     ].filter(Boolean);
-    
-    // Permitir solicitudes sin origen (como Postman) solo en desarrollo
-    if (!origin && process.env.NODE_ENV === 'development') {
+
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
-    
-    if (allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      console.warn(`[SECURITY] Blocked CORS request from: ${origin}`);
-      callback(new Error('Not allowed by CORS'));
-    }
+
+    console.warn(`[SECURITY] Blocked CORS request from: ${origin}`);
+    return callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token'],
   exposedHeaders: ['Content-Range', 'X-Content-Range'],
-  maxAge: 86400 // 24 horas
+  maxAge: 86400
 };
+
 
 module.exports = {
   helmetConfig,

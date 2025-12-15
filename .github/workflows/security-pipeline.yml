@@ -479,6 +479,19 @@ jobs:
             -d "text=${MESSAGE}" \
             -d "parse_mode=HTML"
       
+      - name: 🧪 Trigger test pipeline
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'test-pipeline.yml',
+              ref: 'test'
+            });
+            console.log('✅ Test pipeline disparado');
+      
       - name: 📱 Notificar error en merge
         if: failure()
         run: |

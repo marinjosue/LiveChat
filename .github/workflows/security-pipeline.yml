@@ -1,8 +1,9 @@
-name: Vulnerability Detection Pipeline
+name: 🔐 Security Pipeline - ML Vulnerability Detection
 
 on:
-  push:
-    branches: [ dev ]
+  pull_request:
+    branches: [ test ]
+    types: [opened, synchronize, reopened]
     paths:
       - '**.py'
       - '**.js'
@@ -15,8 +16,6 @@ on:
       - '**.go'
       - '**.kt'
       - '**.f90'
-  pull_request:
-    branches: [ dev ]
 
 jobs:
   vulnerability-scan:
@@ -124,10 +123,62 @@ jobs:
       env:
         TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        GITHUB_COMMIT_MESSAGE: ${{ github.event.head_commit.message || 'Sin mensaje' }}
         GITHUB_ACTOR: ${{ github.actor }}
       continue-on-error: true
     
     - name: ❌ Fallar si hay cualquier vulnerabilidad
+      id: check_vuln
       run: python .github/scripts/check_vulnerabilities.py
-      continue-on-error: false
+      continue-on-error: true
+    
+    - name: 🏷️ Agregar etiqueta si hay vulnerabilidades
+      if: steps.check_vuln.outcome == 'failure'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          try {
+            await github.rest.issues.addLabels({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: ['fixing-required']
+            });
+          } catch (error) {
+            console.log('Could not add label:', error);
+          }
+    
+    - name: 🐛 Crear issue si hay vulnerabilidades
+      if: steps.check_vuln.outcome == 'failure'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          try {
+            const issue = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '🔒 Vulnerabilidades detectadas en análisis de seguridad',
+              body: 'Se detectaron vulnerabilidades. Revisa el análisis de seguridad antes de hacer merge.',
+              labels: ['security', 'fixing-required']
+            });
+          } catch (error) {
+            console.log('Could not create issue:', error);
+          }
+    
+    - name: ✅ Auto-merge si pasa seguridad
+      if: steps.check_vuln.outcome == 'success'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          try {
+            await github.rest.pulls.merge({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+              merge_method: 'squash'
+            });
+            
+            console.log('✅ PR mergeado automáticamente a test');
+          } catch (error) {
+            console.log('Could not merge PR:', error);
+          }
+

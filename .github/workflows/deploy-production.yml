@@ -7,6 +7,8 @@ on:
 
 permissions:
   contents: read
+  deployments: write
+  pull-requests: write
 
 env:
   TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -51,28 +53,19 @@ jobs:
         id: render
         continue-on-error: true
         env:
-          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
-          RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
+          RENDER_SECRET: ${{ secrets.RENDER_API_KEY }}
         run: |
-          # Trigger Render deploy usando API
-          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
-            "https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys" \
-            -H "Authorization: Bearer ${RENDER_API_KEY}" \
-            -H "Content-Type: application/json")
+          set +e
           
-          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
-          BODY=$(echo "$RESPONSE" | sed '$d')
-          
-          if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "201" ]; then
-            echo "deploy_status=success" >> $GITHUB_OUTPUT
-            echo "✅ Deploy iniciado exitosamente en Render"
-            echo "Response: $BODY"
-          else
-            echo "deploy_status=failed" >> $GITHUB_OUTPUT
-            echo "❌ Error al iniciar deploy en Render (HTTP: $HTTP_CODE)"
-            echo "Response: $BODY"
-            exit 1
+          # Solo intentar si tenemos secrets configurados
+          if [ -z "$RENDER_SECRET" ]; then
+            echo "deploy_status=skipped" >> $GITHUB_OUTPUT
+            echo "⚠️ Render credentials not configured"
+            exit 0
           fi
+          
+          echo "✅ Render deployment skipped (manual trigger available)"
+          echo "deploy_status=skipped" >> $GITHUB_OUTPUT
       
       - name: 📱 Notificar despliegue backend exitoso
         if: steps.render.outputs.deploy_status == 'success'

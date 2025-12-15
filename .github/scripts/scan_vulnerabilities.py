@@ -214,20 +214,36 @@ class VulnerabilityScanner:
 
 def main():
     """Función principal"""
-    if len(sys.argv) < 2:
-        print("❌ Uso: python scan_vulnerabilities.py <directorio>")
-        print("   Ejemplo: python scan_vulnerabilities.py ../cliente/src")
-        sys.exit(1)
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Escanear vulnerabilidades con ML')
+    parser.add_argument('--files', nargs='+', help='Lista de archivos específicos a analizar')
+    parser.add_argument('directory', nargs='?', help='Directorio a escanear (si no se especifican archivos)')
+    args = parser.parse_args()
     
     # Configurar paths
     script_dir = Path(__file__).parent
     project_root = script_dir.parent.parent
     models_dir = project_root / 'ml-security' / 'models'
-    target_dir = Path(sys.argv[1])
     
-    # Verificar que exista el directorio
-    if not target_dir.exists():
-        print(f"❌ Error: Directorio no encontrado: {target_dir}")
+    # Modo 1: Archivos específicos
+    if args.files:
+        target_files = [Path(f) for f in args.files if Path(f).exists()]
+        if not target_files:
+            print("❌ Error: Ninguno de los archivos especificados existe")
+            sys.exit(1)
+        print(f"📋 Analizando {len(target_files)} archivos específicos")
+    # Modo 2: Directorio
+    elif args.directory:
+        target_dir = Path(args.directory)
+        if not target_dir.exists():
+            print(f"❌ Error: Directorio no encontrado: {target_dir}")
+            sys.exit(1)
+        target_files = None
+    else:
+        print("❌ Uso:")
+        print("   Modo 1 (archivos): python scan_vulnerabilities.py --files archivo1.js archivo2.py")
+        print("   Modo 2 (directorio): python scan_vulnerabilities.py ../cliente/src")
         sys.exit(1)
     
     # Verificar que existan los modelos
@@ -238,8 +254,19 @@ def main():
     # Inicializar scanner
     scanner = VulnerabilityScanner(models_dir)
     
-    # Escanear
-    results = scanner.scan_directory(target_dir)
+    # Escanear archivos
+    if target_files:
+        # Modo archivos específicos
+        results = []
+        print(f"\n🔍 Analizando {len(target_files)} archivos específicos\n")
+        for file_path in target_files:
+            file_path = Path(file_path)
+            if file_path.exists():
+                result = scanner.scan_file(file_path)
+                results.append(result)
+    else:
+        # Modo directorio
+        results = scanner.scan_directory(target_dir)
     
     # Generar resumen
     print("\n" + "="*60)

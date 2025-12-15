@@ -45,14 +45,40 @@ jobs:
           fi
           echo "✅ Todos los modelos están disponibles"
       
+      - name: 🔍 Detectar archivos modificados
+        id: changed-files
+        run: |
+          echo "🔍 Detectando archivos modificados..."
+          git diff --name-only origin/test...HEAD | grep -E '\.(js|jsx|ts|tsx|py|java|cpp|c|cs|php|rb|go|kt)$' > modified_files.txt || true
+          
+          # Si no hay cambios, usar los directorios por defecto
+          if [ ! -s modified_files.txt ]; then
+            echo "📁 Analizando directorios completos (sin cambios específicos)"
+            echo "cliente/src" > modified_files.txt
+            echo "servidor" >> modified_files.txt
+          else
+            echo "📋 Archivos modificados:"
+            cat modified_files.txt
+          fi
+      
       - name: 🔍 Escanear vulnerabilidades con ML
         id: scan
         run: |
           pip install requests numpy==2.0.0 scikit-learn==1.7.2
           chmod +x .github/scripts/scan_vulnerabilities.py
           
-          python .github/scripts/scan_vulnerabilities.py cliente 2>&1 || true
-          python .github/scripts/scan_vulnerabilities.py servidor 2>&1 || true
+          # Obtener lista de archivos
+          FILES=$(cat modified_files.txt | tr '\n' ' ')
+          
+          # Escanear archivos modificados
+          if [[ "$FILES" == *"cliente"* ]] || [[ "$FILES" == *"servidor"* ]]; then
+            # Si contiene directorios, usar modo directorio
+            python .github/scripts/scan_vulnerabilities.py cliente/src 2>&1 || true
+            python .github/scripts/scan_vulnerabilities.py servidor 2>&1 || true
+          else
+            # Si contiene archivos específicos, usar modo archivos
+            python .github/scripts/scan_vulnerabilities.py --files $FILES 2>&1 || true
+          fi
           
           if [ -f "vulnerability_report.json" ]; then
             echo "✅ Reporte generado"

@@ -30,17 +30,12 @@ def send_telegram_notification():
         vulnerabilities = report.get('vulnerabilities', [])
         summary = report.get('summary', {})
         timestamp = report.get('timestamp', '')
+        usuario = report.get('usuario', 'Unknown')
+        commit = report.get('commit', 'Unknown')
+        commit_message = report.get('commit_message', 'No message')
         
-        # Get commit info from GitHub Actions environment
-        commit_message = os.getenv('GITHUB_COMMIT_MESSAGE', 'Unknown')
-        commit_author = os.getenv('GITHUB_ACTOR', 'Unknown')
-        
-        # Parse timestamp to readable format
-        try:
-            dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
-            readable_time = dt.strftime('%d/%m/%Y %H:%M:%S')
-        except:
-            readable_time = timestamp
+        # Readable time format
+        readable_time = timestamp
         
         if vulnerabilities:
             # Message for vulnerabilities found
@@ -68,8 +63,8 @@ def send_telegram_notification():
             if len(vulnerabilities) > 10:
                 message += f"... y {len(vulnerabilities) - 10} más vulnerabilidades\n\n"
             
-            message += f"👤 Usuario: {escape_html(commit_author)}\n"
-            message += f"💬 Commit: {escape_html(commit_message)}\n"
+            message += f"👤 Usuario: {escape_html(usuario)}\n"
+            message += f"💬 Commit: {escape_html(commit)}\n"
             message += f"⏰ Hora: {readable_time}\n"
             message += "🔗 Repo: LiveChat"
         else:
@@ -78,8 +73,8 @@ def send_telegram_notification():
             message += "📊 <b>Análisis completado exitosamente</b>\n\n"
             message += f"Archivos escaneados: {report.get('files_scanned', 0)}\n"
             message += "Vulnerabilidades encontradas: 0\n\n"
-            message += f"👤 Usuario: {escape_html(commit_author)}\n"
-            message += f"💬 Commit: {escape_html(commit_message)}\n"
+            message += f"👤 Usuario: {escape_html(usuario)}\n"
+            message += f"💬 Commit: {escape_html(commit)}\n"
             message += f"⏰ Hora: {readable_time}\n"
             message += "🔗 Repo: LiveChat"
         

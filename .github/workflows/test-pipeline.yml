@@ -145,6 +145,7 @@ jobs:
       
       - name: 🔀 Merge test → main
         id: merge
+        continue-on-error: true
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
@@ -156,22 +157,13 @@ jobs:
           git checkout main
           
           # Merge test into main
-          if git merge origin/test --no-ff -m "🚀 Auto-merge: Tests passed - Ready for production
-
-          ✅ Todas las validaciones pasaron:
-          
-          - Análisis ML de seguridad: APROBADO
-          - Tests automáticos: TODOS PASADOS
-          - Código listo para producción
-          
-          Workflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"; then
+          if git merge origin/test --no-ff -m "🚀 Auto-merge: Tests passed - Ready for production"; then
             echo "merge_status=success" >> $GITHUB_OUTPUT
             git push origin main
             echo "✅ Merge exitoso: test → main"
           else
             echo "merge_status=failed" >> $GITHUB_OUTPUT
             echo "❌ Error: Conflictos de merge detectados"
-            exit 1
           fi
       
       - name: 📱 Notificar merge exitoso
@@ -180,20 +172,35 @@ jobs:
           COMMIT_SHA=$(git rev-parse HEAD)
           COMMIT_SHORT=${COMMIT_SHA:0:7}
           
-          MESSAGE="🎉 <b>DESPLEGADO A PRODUCCIÓN</b>%0A%0A"
-          MESSAGE+="📦 <b>Repositorio:</b> ${{ github.repository }}%0A"
-          MESSAGE+="🔀 <b>Merge:</b> test → main%0A"
-          MESSAGE+="📝 <b>Commit:</b> ${COMMIT_SHORT}%0A%0A"
-          MESSAGE+="✅ <b>Pipeline Completo:</b>%0A"
-          MESSAGE+="  1️⃣ dev → Análisis ML ✅%0A"
-          MESSAGE+="  2️⃣ test → Tests automáticos ✅%0A"
-          MESSAGE+="  3️⃣ main → Merge automático ✅%0A"
-          MESSAGE+="  4️⃣ Render + Vercel → Desplegando...%0A%0A"
-          MESSAGE+="🚀 <b>La aplicación se está desplegando</b>%0A%0A"
-          MESSAGE+="🔗 <a href='${{ github.server_url }}/${{ github.repository }}/commit/${COMMIT_SHA}'>Ver Commit</a>"
+          MESSAGE="🎉 <b>DEPLOYING TO PRODUCTION</b>%0A%0A"
+          MESSAGE+="📦 Repo: <code>${{ github.repository }}</code>%0A"
+          MESSAGE+="🔀 Merge: <b>test → main</b>%0A"
+          MESSAGE+="📝 Commit: <code>${COMMIT_SHORT}</code>%0A%0A"
+          MESSAGE+="✅ <b>Pipeline Complete:</b>%0A"
+          MESSAGE+="  1️⃣ ML Security Analysis ✅%0A"
+          MESSAGE+="  2️⃣ Automated Tests ✅%0A"
+          MESSAGE+="  3️⃣ Auto Merge ✅%0A"
+          MESSAGE+="  4️⃣ Production Deploy (Render/Vercel) 🚀%0A%0A"
+          MESSAGE+="🌐 Deploying now..."
           
           curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
             -d "chat_id=${TELEGRAM_CHAT_ID}" \
+            -d "text=${MESSAGE}" \
+            -d "parse_mode=HTML" || true
+      
+      - name: 📱 Notificar error en merge
+        if: steps.merge.outputs.merge_status == 'failed'
+        run: |
+          MESSAGE="❌ <b>MERGE CONFLICT DETECTED</b>%0A%0A"
+          MESSAGE+="test → main merge failed%0A"
+          MESSAGE+="Manual intervention required%0A%0A"
+          MESSAGE+="🔗 <a href='${{ github.server_url }}/${{ github.repository }}/pulls'>Resolve Conflicts</a>"
+          
+          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d "chat_id=${TELEGRAM_CHAT_ID}" \
+            -d "text=${MESSAGE}" \
+            -d "parse_mode=HTML" || true
+
             -d "text=${MESSAGE}" \
             -d "parse_mode=HTML"
       
@@ -258,3 +265,41 @@ jobs:
             -d "chat_id=${TELEGRAM_CHAT_ID}" \
             -d "text=${MESSAGE}" \
             -d "parse_mode=HTML"
+
+  label-tests-failed:
+    name: 🏷️ Label Test Failures
+    runs-on: ubuntu-latest
+    needs: [run-tests]
+    if: failure()
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+      
+      - name: 🏷️ Add tests-failed label
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Buscar PR abierto desde test
+            const prs = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              head: 'test'
+            });
+            
+            if (prs.data.length > 0) {
+              const pr = prs.data[0];
+              await github.rest.issues.addLabels({
+                issue_number: pr.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                labels: ['tests-failed']
+              });
+            }
+              pull_number: pr_number,
+              merge_method: 'squash'
+            });
+            
+            console.log('✅ Auto-mergeado a main - Deploy iniciado');
+

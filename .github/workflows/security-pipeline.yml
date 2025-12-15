@@ -131,8 +131,9 @@ jobs:
       with:
         script: |
           try {
+            const prNumber = context.payload.pull_request.number;
             await github.rest.issues.addLabels({
-              issue_number: context.issue.number,
+              issue_number: prNumber,
               owner: context.repo.owner,
               repo: context.repo.repo,
               labels: ['fixing-required']

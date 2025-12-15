@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: LiveChatServer
+    runtime: node
+    region: oregon
+    plan: free
+    buildCommand: cd servidor && npm install
+    startCommand: cd servidor && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000

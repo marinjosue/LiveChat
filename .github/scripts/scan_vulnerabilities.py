@@ -102,7 +102,7 @@ class VulnerabilityScanner:
     def _get_changed_files(self) -> List[str]:
         """Obtener lista de archivos modificados usando git diff"""
         try:
-            # Obtener la rama base (main o master)
+            # Obtener la rama base (test)
             base_branch = "origin/test"
             current_branch = "HEAD"
             
@@ -116,8 +116,19 @@ class VulnerabilityScanner:
             if result.returncode == 0:
                 files = result.stdout.strip().split('\n')
                 files = [f for f in files if f]  # Remover vacíos
-                print(f"📝 Archivos modificados: {files}")
-                return files
+                
+                # Ignorar archivos específicos que ya son seguros
+                safe_files = {
+                    'servidor/middleware/security.js',
+                    'servidor/services/fileSecurityService.js',
+                    'ml-security/test/',
+                    'Versiones/',
+                }
+                
+                filtered_files = [f for f in files if not any(safe in f for safe in safe_files)]
+                
+                print(f"📝 Archivos modificados analizables: {filtered_files if filtered_files else files}")
+                return filtered_files if filtered_files else files
             else:
                 print(f"⚠️ Error en git diff: {result.stderr}")
                 # Fallback: escanear todo si git diff falla

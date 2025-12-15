@@ -48,7 +48,6 @@ jobs:
       - name: ✅ Verificar modelos ML
         run: |
           echo "🔍 Verificando modelos entrenados..."
-          ls -lh ml-security/models/
           
           # Verificar que existan los modelos necesarios
           if [ ! -f ml-security/models/vulnerability_detector.pkl ]; then
@@ -62,11 +61,6 @@ jobs:
           fi
           
           echo "✅ Todos los modelos están disponibles"
-          echo "📊 Métricas del Modelo 1 (Detector):"
-          cat ml-security/models/metrics_vulnerability_detector.txt
-          echo ""
-          echo "📊 Métricas del Modelo 2 (Clasificador CWE):"
-          cat ml-security/models/metrics_cwe_classifier.txt
       
       - name: 🔍 Escanear vulnerabilidades con ML
         id: scan
@@ -78,7 +72,7 @@ jobs:
           echo ""
           
           # Instalar dependencias para el script
-          pip install requests numpy scikit-learn
+          pip install requests numpy scikit-learn==1.7.2
           
           # Verificar que existan los modelos
           echo "🔍 Verificando modelos ML..."
@@ -96,16 +90,12 @@ jobs:
           echo "🔍 Escaneando cliente y servidor..."
           
           # Intentar escaneo con el script de Python
-          SCAN_SUCCESS=0
-          python .github/scripts/scan_vulnerabilities.py cliente 2>&1 | tee scan_output_cliente.txt || true
-          python .github/scripts/scan_vulnerabilities.py servidor 2>&1 | tee scan_output_servidor.txt || true
+          python .github/scripts/scan_vulnerabilities.py cliente 2>&1 | tee scan_output.txt || true
+          python .github/scripts/scan_vulnerabilities.py servidor 2>&1 | tee -a scan_output.txt || true
           
           # Verificar que se haya generado el reporte
           if [ -f "vulnerability_report.json" ]; then
             echo "✅ Reporte generado exitosamente"
-            
-            # Copiar a ubicación esperada para notificación
-            cp vulnerability_report.json security_report.json || true
             
             # Mostrar contenido del reporte
             echo "📄 Contenido del reporte:"
@@ -126,7 +116,7 @@ jobs:
             echo "scan_status=failed" >> $GITHUB_OUTPUT
             echo "vulnerable=unknown" >> $GITHUB_OUTPUT
             echo "❌ Error: No se pudo generar el reporte de seguridad"
-            cat scan_output_cliente.txt scan_output_servidor.txt || true
+            cat scan_output.txt || true
             exit 1
           fi
       
@@ -156,10 +146,8 @@ jobs:
             try {
               if (fs.existsSync('vulnerability_report.json')) {
                 report = JSON.parse(fs.readFileSync('vulnerability_report.json', 'utf8'));
-              } else if (fs.existsSync('security_report.json')) {
-                report = JSON.parse(fs.readFileSync('security_report.json', 'utf8'));
               } else {
-                throw new Error('Reporte no encontrado');
+                throw new Error('vulnerability_report.json no encontrado');
               }
             } catch (error) {
               // Si no hay reporte, crear comentario de error
@@ -185,35 +173,32 @@ jobs:
             body += `- Detector Binario de Vulnerabilidades (Accuracy: 79.01%)\n`;
             body += `- Clasificador de CWE (Accuracy: 86.94%)\n\n`;
             body += `📊 **Resultados del Análisis:**\n`;
-            body += `- Total de archivos analizados: ${report.summary.total || 0}\n`;
-            body += `- Archivos seguros: ${report.summary.safe || 0}\n`;
-            body += `- Archivos vulnerables: ${report.summary.vulnerable || 0}\n\n`;
+            body += `- Total de archivos analizados: ${report.summary?.total || 0}\n`;
+            body += `- Archivos seguros: ${report.summary?.safe || 0}\n`;
+            body += `- Vulnerabilidades encontradas: ${report.summary?.vulnerable || 0}\n\n`;
             
             if (!report.is_safe && report.vulnerabilities && report.vulnerabilities.length > 0) {
-              body += `### 🚨 Vulnerabilidades Detectadas por ML:\n\n`;
+              body += `### 🚨 Top 10 Vulnerabilidades Detectadas por ML:\n\n`;
               const vulns = report.vulnerabilities.slice(0, 10);
               vulns.forEach((vuln, idx) => {
-                body += `**${idx + 1}. ${vuln.type || 'Unknown'}**\n`;
-                body += `- Archivo: \`${vuln.file}\`\n`;
-                body += `- Línea: ${vuln.line}\n`;
-                body += `- Confianza: ${(vuln.confidence * 100).toFixed(1)}%\n`;
+                body += `**${idx + 1}. ${vuln.type || 'Unknown'}** (${(vuln.confidence * 100).toFixed(1)}%)\n`;
+                body += `- 📄 \`${vuln.file}:${vuln.line}\`\n`;
                 if (vuln.code) {
-                  body += `- Código: \`${vuln.code.substring(0, 40)}...\`\n`;
+                  body += `- 💻 \`${vuln.code.substring(0, 40)}...\`\n`;
                 }
                 body += `\n`;
               });
               if (report.vulnerabilities.length > 10) {
-                body += `... y ${report.vulnerabilities.length - 10} vulnerabilidades más\n\n`;
+                body += `\n... y ${report.vulnerabilities.length - 10} vulnerabilidades más\n`;
               }
-              body += `⚠️ **Acción requerida:** Corregir las vulnerabilidades detectadas por el modelo ML antes de hacer merge.\n`;
-              body += `💡 Los modelos ML han identificado patrones de código inseguro con alta confianza.\n`;
+              body += `\n⚠️ **Acción requerida:** Corregir las vulnerabilidades detectadas por el modelo ML antes de hacer merge.\n`;
             } else {
               body += `### ✅ Código Seguro Validado por ML\n\n`;
               body += `✨ El análisis con modelos de Machine Learning no detectó vulnerabilidades conocidas.\n\n`;
               body += `🔍 **Verificaciones realizadas:**\n`;
               body += `- Análisis binario de seguridad (Detector de Vulnerabilidades)\n`;
               body += `- Clasificación de patrones CWE (Clasificador de Weaknesses)\n`;
-              body += `- Validación de ${report.summary.total || 0} archivo(s) de código\n\n`;
+              body += `- Validación de ${report.summary?.total || 0} archivo(s) de código\n\n`;
               body += `✅ El código está listo para merge según los criterios de seguridad ML.\n`;
             }
             
@@ -224,118 +209,36 @@ jobs:
               body: body
             });
       
-      - name: 📱 Send Telegram notification - Vulnerable
-        if: steps.scan.outputs.vulnerable == 'true'
-        run: |
-          # Extraer estadísticas del reporte
-          TOTAL=$(jq -r '.summary.total // .total_files // 0' security_report.json)
-          SAFE=$(jq -r '.summary.safe // .secure_files // 0' security_report.json)
-          VULNERABLE=$(jq -r '.summary.vulnerable // .vulnerable_files // 0' security_report.json)
-          
-          # Extraer archivos vulnerables (primeros 3)
-          VULN_FILES=$(jq -r '.vulnerable_list[0:3] | .[] | "  • " + (.file | split("/") | .[-1]) + " (" + (.cwe_type // "Unknown") + ")"' security_report.json | tr '\n' '%0A' || echo "  • Ver detalles en el PR")
-          
-          MESSAGE="🔴 <b>ALERTA DE SEGURIDAD</b>%0A%0A"
-          MESSAGE+="📦 <b>Repositorio:</b> ${{ github.repository }}%0A"
-          MESSAGE+="🔀 <b>PR:</b> #${{ github.event.pull_request.number }}%0A"
-          MESSAGE+="👤 <b>Autor:</b> ${{ github.event.pull_request.user.login }}%0A"
-          MESSAGE+="🌿 <b>Rama:</b> ${{ github.head_ref }} → ${{ github.base_ref }}%0A%0A"
-          MESSAGE+="🤖 <b>Análisis ML Completado:</b>%0A"
-          MESSAGE+="  • Modelo 1: Detector Binario (79% accuracy)%0A"
-          MESSAGE+="  • Modelo 2: Clasificador CWE (87% accuracy)%0A%0A"
-          MESSAGE+="📊 <b>Resultados del Escaneo:</b>%0A"
-          MESSAGE+="  • Total archivos: ${TOTAL}%0A"
-          MESSAGE+="  • Archivos seguros: ${SAFE}%0A"
-          MESSAGE+="  • 🚨 Vulnerabilidades: ${VULNERABLE}%0A%0A"
-          MESSAGE+="🔴 <b>Archivos Vulnerables:</b>%0A"
-          MESSAGE+="${VULN_FILES}%0A%0A"
-          MESSAGE+="⚠️ <b>ACCIÓN REQUERIDA:</b>%0A"
-          MESSAGE+="El código NO puede ser mergeado.%0A"
-          MESSAGE+="Corregir vulnerabilidades antes de continuar.%0A%0A"
-          MESSAGE+="🔗 <a href='${{ github.event.pull_request.html_url }}'>Ver Reporte Completo</a>"
-          
-          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
-            -d "chat_id=${TELEGRAM_CHAT_ID}" \
-            -d "text=${MESSAGE}" \
-            -d "parse_mode=HTML"
-      
-      - name: 📱 Send Telegram notification - Scan Failed
-        if: steps.scan.outputs.scan_status == 'failed'
-        run: |
-          MESSAGE="⚠️ ERROR EN ANÁLISIS DE SEGURIDAD%0A%0A"
-          MESSAGE+="Repositorio: ${{ github.repository }}%0A"
-          MESSAGE+="PR: #${{ github.event.pull_request.number }}%0A"
-          MESSAGE+="Autor: ${{ github.event.pull_request.user.login }}%0A"
-          MESSAGE+="Rama: ${{ github.head_ref }} → ${{ github.base_ref }}%0A%0A"
-          MESSAGE+="❌ El escaneo de seguridad falló%0A"
-          MESSAGE+="No se pudo generar el reporte de seguridad.%0A%0A"
-          MESSAGE+="🔧 Acción requerida:%0A"
-          MESSAGE+="- Revisar logs del workflow%0A"
-          MESSAGE+="- Verificar que los modelos ML estén presentes%0A"
-          MESSAGE+="- Contactar al administrador si persiste%0A%0A"
-          MESSAGE+="Ver logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          
-          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
-            -d "chat_id=${TELEGRAM_CHAT_ID}" \
-            -d "text=${MESSAGE}" \
-            -d "parse_mode=HTML"
-      
-      - name: 📱 Send Telegram notification - Safe
-        if: steps.scan.outputs.vulnerable == 'false'
-        run: |
-          # Extraer estadísticas del reporte
-          TOTAL=$(jq -r '.summary.total // .total_files // 0' security_report.json)
-          SAFE=$(jq -r '.summary.safe // .secure_files // 0' security_report.json)
-          VULNERABLE=$(jq -r '.summary.vulnerable // .vulnerable_files // 0' security_report.json)
-          
-          MESSAGE="✅ <b>CÓDIGO SEGURO</b>%0A%0A"
-          MESSAGE+="📦 <b>Repositorio:</b> ${{ github.repository }}%0A"
-          MESSAGE+="🔀 <b>PR:</b> #${{ github.event.pull_request.number }}%0A"
-          MESSAGE+="👤 <b>Autor:</b> ${{ github.event.pull_request.user.login }}%0A"
-          MESSAGE+="🌿 <b>Rama:</b> ${{ github.head_ref }} → ${{ github.base_ref }}%0A%0A"
-          MESSAGE+="🤖 <b>Análisis ML Completado:</b>%0A"
-          MESSAGE+="  • Modelo 1: Detector Binario (79% accuracy)%0A"
-          MESSAGE+="  • Modelo 2: Clasificador CWE (87% accuracy)%0A%0A"
-          MESSAGE+="📊 <b>Resultados del Escaneo:</b>%0A"
-          MESSAGE+="  • Total archivos: ${TOTAL}%0A"
-          MESSAGE+="  • Archivos seguros: ${SAFE}%0A"
-          MESSAGE+="  • Vulnerabilidades: ${VULNERABLE}%0A%0A"
-          MESSAGE+="✅ <b>Conclusión:</b> No se detectaron vulnerabilidades%0A"
-          MESSAGE+="🚀 El código puede continuar al siguiente stage%0A%0A"
-          MESSAGE+="🔗 <a href='${{ github.event.pull_request.html_url }}'>Ver Pull Request</a>"
-          
-          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
-            -d "chat_id=${TELEGRAM_CHAT_ID}" \
-            -d "text=${MESSAGE}" \
-            -d "parse_mode=HTML"
-      
-      - name: 🚨 Create issue for vulnerabilities
+      - name: � Create issue for vulnerabilities
         if: steps.scan.outputs.vulnerable == 'true'
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
-            const report = JSON.parse(fs.readFileSync('ml-security/security_report.json', 'utf8'));
+            const report = JSON.parse(fs.readFileSync('vulnerability_report.json', 'utf8'));
             
             let body = `## 🔴 Vulnerabilidades Detectadas por ML\n\n`;
             body += `**Pull Request:** #${{ github.event.pull_request.number }}\n`;
             body += `**Autor:** @${{ github.event.pull_request.user.login }}\n`;
             body += `**Rama:** ${{ github.head_ref }} → ${{ github.base_ref }}\n\n`;
             body += `### 📊 Resumen\n`;
-            body += `- Archivos vulnerables: ${report.vulnerable_files}\n`;
-            body += `- Total de archivos: ${report.total_files}\n\n`;
-            body += `### 🚨 Archivos Afectados\n\n`;
+            body += `- Vulnerabilidades detectadas: ${report.vulnerabilities?.length || 0}\n`;
+            body += `- Total de archivos: ${report.summary?.total || 0}\n\n`;
+            body += `### 🚨 Detalles\n\n`;
             
-            report.vulnerable_list.forEach((vuln, idx) => {
-              body += `${idx + 1}. **${vuln.file}**\n`;
-              body += `   - Confianza: ${(vuln.confidence * 100).toFixed(1)}%\n`;
-              if (vuln.issues) {
-                vuln.issues.forEach(issue => {
-                  body += `   - ${issue}\n`;
-                });
+            const vulns = report.vulnerabilities || [];
+            vulns.slice(0, 10).forEach((vuln, idx) => {
+              body += `${idx + 1}. **${vuln.type}** (${(vuln.confidence * 100).toFixed(1)}%)\n`;
+              body += `   📄 \`${vuln.file}:${vuln.line}\`\n`;
+              if (vuln.code) {
+                body += `   💻 \`${vuln.code.substring(0, 50)}...\`\n`;
               }
               body += `\n`;
             });
+            
+            if (vulns.length > 10) {
+              body += `... y ${vulns.length - 10} vulnerabilidades más\n\n`;
+            }
             
             body += `### ⚠️ Acción Requerida\n`;
             body += `1. Revisar y corregir las vulnerabilidades detectadas\n`;

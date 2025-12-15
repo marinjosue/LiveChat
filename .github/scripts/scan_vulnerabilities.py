@@ -98,19 +98,23 @@ class VulnerabilityScanner:
         Clasificar tipo de vulnerabilidad CWE (Modelo 2)
         Returns: (cwe_type, confidence)
         """
-        features_cwe = self.vectorizer_cwe.transform([code])
-        
-        # Ajustar features a 1001 (padding si es necesario)
-        if features_cwe.shape[1] == 1000:
-            import scipy.sparse as sp
-            padding = sp.csr_matrix((features_cwe.shape[0], 1))
-            features_cwe = sp.hstack([features_cwe, padding])
-        
-        cwe_type_idx = self.cwe_classifier.predict(features_cwe)[0]
-        cwe_type = self.cwe_encoder.inverse_transform([cwe_type_idx])[0]
-        cwe_confidence = self.cwe_classifier.predict_proba(features_cwe)[0][cwe_type_idx]
-        
-        return str(cwe_type), float(cwe_confidence)
+        try:
+            features_cwe = self.vectorizer_cwe.transform([code])
+            
+            # Ajustar features a 1001 (padding si es necesario)
+            if features_cwe.shape[1] == 1000:
+                import scipy.sparse as sp
+                padding = sp.csr_matrix((features_cwe.shape[0], 1))
+                features_cwe = sp.hstack([features_cwe, padding])
+            
+            cwe_type_idx = self.cwe_classifier.predict(features_cwe)[0]
+            cwe_type = self.cwe_encoder.inverse_transform([cwe_type_idx])[0]
+            cwe_confidence = self.cwe_classifier.predict_proba(features_cwe)[0][cwe_type_idx]
+            
+            return str(cwe_type), float(cwe_confidence)
+        except (IndexError, ValueError) as e:
+            # Si hay error en clasificación, retornar tipo desconocido
+            return "Unknown", 0.0
     
     def scan_file(self, file_path: Path) -> Dict:
         """Escanear un archivo individual"""
@@ -347,7 +351,7 @@ def main():
         'usuario': usuario,
         'commit': commit,
         'commit_message': commit_msg,
-        'directory': str(target_dir),
+        'directory': str(target_dir) if target_files is None else 'multiple_files',
         'summary': {
             'total': total,
             'safe': safe,

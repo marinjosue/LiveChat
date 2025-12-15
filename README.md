@@ -6,6 +6,8 @@ Este proyecto fomenta el aprendizaje en programación concurrente, WebSockets pa
 
 **CI/CD Pipeline**: Análisis ML de vulnerabilidades + Tests automáticos + Deploy a producción
 
+**Estado del Pipeline**: ✅ Completamente automatizado (dev → test → main → deploy)
+
 ## Características Principales
 
 ### Seguridad
@@ -931,7 +933,10 @@ Este proyecto está desarrollado por **Autepim**.
 ---
 
 **Desarrollado con ❤️ por Autepim**
- 
-  
- t i m e s t a m p :   1 2 / 1 4 / 2 0 2 5   2 1 : 3 1 : 2 9  
+
+ 
+ 
+ 
+ t i m e s t a m p :   1 2 / 1 4 / 2 0 2 5   2 1 : 3 1 : 2 9 
+ 
  

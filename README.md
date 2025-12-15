@@ -579,4 +579,4 @@ Este proyecto está desarrollado por **Autepim**.
 
 ---
 
-**Desarrollado con ❤️ por Autepim**
+**Desarrollado con ❤️ por Autepim con mucho amor**

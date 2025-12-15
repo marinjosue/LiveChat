@@ -205,8 +205,5 @@ jobs:
               body: comment
             });
           }
-              body: comment
-            });
-          }
 
 

@@ -104,6 +104,7 @@ class VulnerabilityScanner:
             # Leer contenido
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                 code = f.read()
+                lines = code.split('\n')
             
             # Ignorar archivos muy pequeños o vacíos
             if len(code.strip()) < 10:
@@ -133,6 +134,30 @@ class VulnerabilityScanner:
                 cwe_type, cwe_conf = self.classify_cwe(code)
                 result['cwe_type'] = cwe_type
                 result['cwe_confidence'] = cwe_conf
+                result['type'] = cwe_type  # Para notificación
+                result['confidence'] = confidence  # Normalizar para notificación
+                
+                # Extraer línea de código relevante
+                code_snippet = code[:100].replace('\n', ' ').strip()
+                if len(code_snippet) > 50:
+                    code_snippet = code_snippet[:50] + '...'
+                result['code'] = code_snippet
+                
+                # Estimar línea (usar primera línea con contenido relevante)
+                result['line'] = 1
+                for i, line in enumerate(lines[:20], 1):
+                    if line.strip() and not line.strip().startswith('import') and not line.strip().startswith('const'):
+                        result['line'] = i
+                        break
+                
+                # Severity based on confidence
+                if confidence > 0.85:
+                    result['severity'] = 'critical'
+                elif confidence > 0.70:
+                    result['severity'] = 'high'
+                else:
+                    result['severity'] = 'medium'
+                
                 result['status'] = 'VULNERABLE'
                 
                 print(f"🚨 {file_path.name}: VULNERABLE ({cwe_type}, {confidence:.1%})")
@@ -232,19 +257,70 @@ def main():
             print(f"   Confianza detección: {vuln['detection_confidence']:.1%}")
             print(f"   Confianza CWE: {vuln.get('cwe_confidence', 0):.1%}")
     
+    # Obtener datos del contexto de GitHub
+    from datetime import datetime
+    import subprocess
+    
+    timestamp = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+    usuario = os.getenv('GITHUB_ACTOR', 'unknown')
+    commit = os.getenv('GITHUB_SHA', 'unknown')[:7]
+    commit_msg = os.getenv('GITHUB_COMMIT_MESSAGE', 'No message')
+    
+    # Obtener información del commit completo
+    try:
+        commit_full = subprocess.check_output(['git', 'rev-parse', 'HEAD'], 
+                                             cwd=project_root, 
+                                             text=True).strip()[:7]
+        commit = commit_full
+    except:
+        pass
+    
+    # Procesar vulnerabilidades detectadas para el formato de notificación
+    vuln_files = [r for r in results if r.get('vulnerable', False)]
+    
+    # Calcular resumen por severidad
+    severity_counts = {
+        'critical': sum(1 for r in vuln_files if r.get('severity') == 'critical'),
+        'high': sum(1 for r in vuln_files if r.get('severity') == 'high'),
+        'medium': sum(1 for r in vuln_files if r.get('severity') == 'medium')
+    }
+    
+    # Ordenar vulnerabilidades por confianza (mayor primero) y tomar primeras 10
+    sorted_vulns = sorted(vuln_files, key=lambda x: x.get('confidence', 0), reverse=True)[:10]
+    
+    # Formatear para notificación (hacer compatible con notify_telegram.py)
+    vulnerabilities_for_notification = []
+    for vuln in sorted_vulns:
+        vulnerabilities_for_notification.append({
+            'file': vuln.get('file', 'unknown'),
+            'line': vuln.get('line', 1),
+            'type': vuln.get('type', vuln.get('cwe_type', 'Unknown')),
+            'confidence': vuln.get('confidence', 0),
+            'code': vuln.get('code', ''),
+            'severity': vuln.get('severity', 'medium')
+        })
+    
     # Guardar reporte JSON
     report = {
-        'timestamp': str(Path.cwd()),
+        'timestamp': timestamp,
+        'usuario': usuario,
+        'commit': commit,
+        'commit_message': commit_msg,
         'directory': str(target_dir),
         'summary': {
             'total': total,
             'safe': safe,
             'vulnerable': vulnerable,
             'errors': errors,
-            'skipped': skipped
+            'skipped': skipped,
+            'critical': severity_counts['critical'],
+            'high': severity_counts['high'],
+            'medium': severity_counts['medium']
         },
         'is_safe': vulnerable == 0,
-        'results': results
+        'files_scanned': total,
+        'vulnerabilities': vulnerabilities_for_notification,
+        'results': results  # Mantener para referencia detallada
     }
     
     report_file = project_root / 'vulnerability_report.json'

@@ -95,41 +95,24 @@ jobs:
           # Escanear directorios específicos
           echo "🔍 Escaneando cliente y servidor..."
           
-          # Crear reporte manual simple si falla el script
-          cat > security_report.json << 'EOF'
-          {
-            "timestamp": "$(date -Iseconds)",
-            "total_files": 0,
-            "secure_files": 0,
-            "vulnerable_files": 0,
-            "is_safe": true,
-            "vulnerable_list": [],
-            "results": []
-          }
-          EOF
-          
           # Intentar escaneo con el script de Python
-          if python .github/scripts/scan_vulnerabilities.py cliente 2>&1 | tee scan_output.txt; then
-            SCAN_SUCCESS=1
-          fi
-          
-          if python .github/scripts/scan_vulnerabilities.py servidor 2>&1 | tee -a scan_output.txt; then
-            SCAN_SUCCESS=1
-          fi
+          SCAN_SUCCESS=0
+          python .github/scripts/scan_vulnerabilities.py cliente 2>&1 | tee scan_output_cliente.txt || true
+          python .github/scripts/scan_vulnerabilities.py servidor 2>&1 | tee scan_output_servidor.txt || true
           
           # Verificar que se haya generado el reporte
-          if [ -f "security_report.json" ]; then
+          if [ -f "vulnerability_report.json" ]; then
             echo "✅ Reporte generado exitosamente"
             
-            # Copiar a ubicación esperada
-            cp security_report.json ml-security/security_report.json || true
+            # Copiar a ubicación esperada para notificación
+            cp vulnerability_report.json security_report.json || true
             
             # Mostrar contenido del reporte
             echo "📄 Contenido del reporte:"
-            cat security_report.json
+            cat vulnerability_report.json
             
             # Verificar vulnerabilidades
-            if grep -q '"is_safe": false' security_report.json; then
+            if grep -q '"is_safe": false' vulnerability_report.json; then
               echo "vulnerable=true" >> $GITHUB_OUTPUT
               echo "scan_status=completed" >> $GITHUB_OUTPUT
               echo "❌ Se detectaron vulnerabilidades"
@@ -143,7 +126,7 @@ jobs:
             echo "scan_status=failed" >> $GITHUB_OUTPUT
             echo "vulnerable=unknown" >> $GITHUB_OUTPUT
             echo "❌ Error: No se pudo generar el reporte de seguridad"
-            cat scan_output.txt || true
+            cat scan_output_cliente.txt scan_output_servidor.txt || true
             exit 1
           fi
       
@@ -159,7 +142,7 @@ jobs:
         if: always()
         run: |
           pip install requests
-          python .github/scripts/telegram_notify.py vulnerability_scan security_report.json || echo "⚠️  Error enviando notificación"
+          python .github/scripts/notify_telegram.py || echo "⚠️  Error enviando notificación"
       
       - name: 📊 Comment PR with results
         if: always() && steps.scan.outputs.scan_status == 'completed'
@@ -171,10 +154,10 @@ jobs:
             // Intentar leer el reporte
             let report;
             try {
-              if (fs.existsSync('security_report.json')) {
+              if (fs.existsSync('vulnerability_report.json')) {
+                report = JSON.parse(fs.readFileSync('vulnerability_report.json', 'utf8'));
+              } else if (fs.existsSync('security_report.json')) {
                 report = JSON.parse(fs.readFileSync('security_report.json', 'utf8'));
-              } else if (fs.existsSync('ml-security/security_report.json')) {
-                report = JSON.parse(fs.readFileSync('ml-security/security_report.json', 'utf8'));
               } else {
                 throw new Error('Reporte no encontrado');
               }
@@ -202,35 +185,35 @@ jobs:
             body += `- Detector Binario de Vulnerabilidades (Accuracy: 79.01%)\n`;
             body += `- Clasificador de CWE (Accuracy: 86.94%)\n\n`;
             body += `📊 **Resultados del Análisis:**\n`;
-            body += `- Total de archivos analizados: ${report.total_files}\n`;
-            body += `- Archivos seguros: ${report.secure_files}\n`;
-            body += `- Archivos vulnerables: ${report.vulnerable_files}\n\n`;
+            body += `- Total de archivos analizados: ${report.summary.total || 0}\n`;
+            body += `- Archivos seguros: ${report.summary.safe || 0}\n`;
+            body += `- Archivos vulnerables: ${report.summary.vulnerable || 0}\n\n`;
             
-            if (!report.is_safe) {
+            if (!report.is_safe && report.vulnerabilities && report.vulnerabilities.length > 0) {
               body += `### 🚨 Vulnerabilidades Detectadas por ML:\n\n`;
-              report.vulnerable_list.forEach(vuln => {
-                body += `#### 📄 \`${vuln.file}\`\n`;
-                body += `- **Nivel de confianza del modelo:** ${(vuln.confidence * 100).toFixed(1)}%\n`;
-                if (vuln.cwe) {
-                  body += `- **Clasificación CWE:** ${vuln.cwe}\n`;
-                }
-                if (vuln.issues) {
-                  body += `- **Problemas detectados:**\n`;
-                  vuln.issues.forEach(issue => {
-                    body += `  - ${issue}\n`;
-                  });
+              const vulns = report.vulnerabilities.slice(0, 10);
+              vulns.forEach((vuln, idx) => {
+                body += `**${idx + 1}. ${vuln.type || 'Unknown'}**\n`;
+                body += `- Archivo: \`${vuln.file}\`\n`;
+                body += `- Línea: ${vuln.line}\n`;
+                body += `- Confianza: ${(vuln.confidence * 100).toFixed(1)}%\n`;
+                if (vuln.code) {
+                  body += `- Código: \`${vuln.code.substring(0, 40)}...\`\n`;
                 }
                 body += `\n`;
               });
-              body += `\n⚠️ **Acción requerida:** Corregir las vulnerabilidades detectadas por el modelo ML antes de hacer merge.\n`;
-              body += `\n💡 Los modelos ML han identificado patrones de código inseguro con alta confianza.\n`;
+              if (report.vulnerabilities.length > 10) {
+                body += `... y ${report.vulnerabilities.length - 10} vulnerabilidades más\n\n`;
+              }
+              body += `⚠️ **Acción requerida:** Corregir las vulnerabilidades detectadas por el modelo ML antes de hacer merge.\n`;
+              body += `💡 Los modelos ML han identificado patrones de código inseguro con alta confianza.\n`;
             } else {
               body += `### ✅ Código Seguro Validado por ML\n\n`;
               body += `✨ El análisis con modelos de Machine Learning no detectó vulnerabilidades conocidas.\n\n`;
               body += `🔍 **Verificaciones realizadas:**\n`;
               body += `- Análisis binario de seguridad (Detector de Vulnerabilidades)\n`;
               body += `- Clasificación de patrones CWE (Clasificador de Weaknesses)\n`;
-              body += `- Validación de ${report.total_files} archivo(s) de código\n\n`;
+              body += `- Validación de ${report.summary.total || 0} archivo(s) de código\n\n`;
               body += `✅ El código está listo para merge según los criterios de seguridad ML.\n`;
             }
             

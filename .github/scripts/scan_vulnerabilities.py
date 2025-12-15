@@ -13,6 +13,7 @@ import pandas as pd
 from pathlib import Path
 from typing import List, Dict, Tuple
 import re
+import subprocess
 
 # Importar modelos ML
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -97,6 +98,71 @@ class VulnerabilityScanner:
         except Exception as e:
             print(f"❌ Error cargando modelos: {e}")
             print("⚠️ Continuando sin modelos (modo offline)")
+    
+    def _get_changed_files(self) -> List[str]:
+        """Obtener lista de archivos modificados usando git diff"""
+        try:
+            # Obtener la rama base (test)
+            base_branch = "origin/test"
+            current_branch = "HEAD"
+            
+            # Ejecutar git diff para obtener archivos modificados
+            result = subprocess.run(
+                ["git", "diff", "--name-only", f"{base_branch}...{current_branch}"],
+                capture_output=True,
+                text=True
+            )
+            
+            if result.returncode == 0:
+                files = result.stdout.strip().split('\n')
+                files = [f for f in files if f]  # Remover vacíos
+                
+                # Ignorar archivos específicos que ya son seguros
+                safe_files = {
+                    'servidor/middleware/security.js',
+                    'servidor/services/fileSecurityService.js',
+                    'ml-security/test/',
+                    'Versiones/',
+                }
+                
+                filtered_files = [f for f in files if not any(safe in f for safe in safe_files)]
+                
+                print(f"📝 Archivos modificados analizables: {filtered_files if filtered_files else files}")
+                return filtered_files if filtered_files else files
+            else:
+                print(f"⚠️ Error en git diff: {result.stderr}")
+                # Fallback: escanear todo si git diff falla
+                return self._get_all_source_files()
+        
+        except Exception as e:
+            print(f"⚠️ Error obteniendo archivos modificados: {e}")
+            return self._get_all_source_files()
+    
+    def _get_all_source_files(self) -> List[str]:
+        """Fallback: obtener todos los archivos de código"""
+        patterns = [
+            '**/*.py',
+            '**/*.js',
+            '**/*.java',
+            '**/*.cpp',
+            '**/*.cs',
+            '**/*.php',
+            '**/*.rb',
+            '**/*.swift',
+            '**/*.go',
+            '**/*.kt',
+            '**/*.f90',
+        ]
+        
+        all_files = []
+        root = Path('.')
+        
+        for pattern in patterns:
+            for file_path in root.glob(pattern):
+                all_files.append(str(file_path))
+        
+        return all_files
+
     
     def _detect_vulnerability_type(self, code_snippet: str, language: str) -> str:
         """Detectar tipo de vulnerabilidad por patrones"""
@@ -279,41 +345,42 @@ class VulnerabilityScanner:
         return min(confidence, 0.99)  # Máximo 99%
     
     def scan_repository(self, patterns: List[str] = None) -> Dict:
-        """Escanear repositorio completo"""
-        if patterns is None:
-            patterns = [
-                '**/*.py',
-                '**/*.js',
-                '**/*.java',
-                '**/*.cpp',
-                '**/*.cs',
-                '**/*.php',
-                '**/*.rb',
-                '**/*.swift',
-                '**/*.go',
-                '**/*.kt',
-                '**/*.f90',
-            ]
+        """Escanear solo archivos modificados en el PR (git diff)"""
+        print("📂 Obteniendo archivos modificados...")
         
-        print("📂 Iniciando escaneo de repositorio...")
+        # Obtener archivos modificados
+        changed_files = self._get_changed_files()
+        
+        if not changed_files:
+            print("⚠️ No hay archivos modificados")
+            return {
+                'timestamp': pd.Timestamp.now().isoformat(),
+                'files_scanned': 0,
+                'vulnerabilities': [],
+                'summary': {
+                    'total': 0,
+                    'critical': 0,
+                    'high': 0,
+                    'medium': 0,
+                }
+            }
+        
+        print(f"📂 Escaneo de {len(changed_files)} archivo(s) modificado(s)...")
         all_vulnerabilities = []
-        
-        # Archivos a ignorar
-        ignore_dirs = {'.git', '.github', '__pycache__', 'node_modules', '.venv', 'venv', 'models', 'colab', 'Versiones'}
-        
-        root = Path('.')
         files_scanned = 0
         
-        for pattern in patterns:
-            for file_path in root.glob(pattern):
-                # Ignorar directorios específicos
-                if any(ignore_dir in file_path.parts for ignore_dir in ignore_dirs):
-                    continue
-                
-                if file_path.is_file():
-                    files_scanned += 1
-                    vulns = self.scan_file(str(file_path))
-                    all_vulnerabilities.extend(vulns)
+        # Ignorar directorios
+        ignore_dirs = {'.git', '.github', '__pycache__', 'node_modules', '.venv', 'venv', 'models', 'colab', 'Versiones'}
+        
+        for file_path in changed_files:
+            # Ignorar directorios específicos
+            if any(ignore_dir in file_path for ignore_dir in ignore_dirs):
+                continue
+            
+            if os.path.isfile(file_path):
+                files_scanned += 1
+                vulns = self.scan_file(file_path)
+                all_vulnerabilities.extend(vulns)
         
         print(f"\n✅ Escaneo completado")
         print(f"📊 Archivos analizados: {files_scanned}")

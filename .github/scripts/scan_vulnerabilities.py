@@ -139,21 +139,25 @@ class VulnerabilityScanner:
             # Análisis Modelo 1: Detección
             is_vulnerable, confidence, probs = self.detect_vulnerability(code)
             
+            # Ajustar umbral: marcar como vulnerable si la probabilidad es > 40%
+            # en lugar de depender del predictor directo (que tiende a ser conservador)
+            adjusted_vulnerable = probs.get('vulnerable', 0) > 0.40
+            
             result = {
                 'file': str(file_path),
                 'language': language,
-                'vulnerable': is_vulnerable,
-                'detection_confidence': confidence,
+                'vulnerable': adjusted_vulnerable,
+                'detection_confidence': probs.get('vulnerable', 0),
                 'probabilities': probs
             }
             
             # Si es vulnerable, clasificar tipo CWE (Modelo 2)
-            if is_vulnerable:
+            if adjusted_vulnerable:
                 cwe_type, cwe_conf = self.classify_cwe(code)
                 result['cwe_type'] = cwe_type
                 result['cwe_confidence'] = cwe_conf
                 result['type'] = cwe_type  # Para notificación
-                result['confidence'] = confidence  # Normalizar para notificación
+                result['confidence'] = probs.get('vulnerable', 0)  # Usar probabilidad ajustada
                 
                 # Extraer línea de código relevante
                 code_snippet = code[:100].replace('\n', ' ').strip()
@@ -169,19 +173,21 @@ class VulnerabilityScanner:
                         break
                 
                 # Severity based on confidence
-                if confidence > 0.85:
+                if probs.get('vulnerable', 0) > 0.85:
                     result['severity'] = 'critical'
-                elif confidence > 0.70:
+                elif probs.get('vulnerable', 0) > 0.70:
                     result['severity'] = 'high'
-                else:
+                elif probs.get('vulnerable', 0) > 0.55:
                     result['severity'] = 'medium'
+                else:
+                    result['severity'] = 'low'
                 
                 result['status'] = 'VULNERABLE'
                 
-                print(f"🚨 {file_path.name}: VULNERABLE ({cwe_type}, {confidence:.1%})")
+                print(f"🚨 {file_path.name}: VULNERABLE ({cwe_type}, {probs.get('vulnerable', 0):.1%})")
             else:
                 result['status'] = 'SAFE'
-                print(f"✅ {file_path.name}: SAFE ({confidence:.1%})")
+                print(f"✅ {file_path.name}: SAFE ({probs.get('vulnerable', 0):.1%})")
             
             return result
             

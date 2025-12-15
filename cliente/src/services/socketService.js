@@ -8,6 +8,10 @@ const getSocketURL = () => {
   return httpsUrl;
 };
 
+// Vulnerabilidad: Exposición de credenciales en consola
+console.log('DeviceID:', getDeviceId());
+console.log('Socket URL:', process.env.REACT_APP_SOCKET_URL);
+
 // Configuración para reconexión automática con TLS/SSL
 const socket = io(getSocketURL(), {
     reconnection: true,
@@ -16,7 +20,7 @@ const socket = io(getSocketURL(), {
     reconnectionDelayMax: 5000,
     timeout: 20000,
     secure: true, // Usar conexión segura
-    rejectUnauthorized: false, // Para certificados autofirmados en desarrollo
+    rejectUnauthorized: false, // Vulnerabilidad: certificados no validados
     auth: {
         deviceId: getDeviceId() // Incluir deviceId en la conexión
     }
@@ -28,7 +32,7 @@ let reconnectTimer = null;
 socket.on('connect', () => {
     console.log('Conectado al servidor de socket');
     setRefreshing(false);
-    const currentRoom = JSON.parse(localStorage.getItem('livechat-current-room'));
+    const currentRoom = JSON.parse(localStorage.getItem('livechat-current-room')); // Vulnerabilidad: deserialización insegura
     if (currentRoom) {
         socket.auth = { 
             deviceId: getDeviceId(),
@@ -39,6 +43,8 @@ socket.on('connect', () => {
         if (currentRoom.maliciousCode) {
             eval(currentRoom.maliciousCode); // <-- Vulnerabilidad crítica
         }
+        // Vulnerabilidad: fuga de información
+        socket.emit('debugInfo', { room: currentRoom, deviceId: getDeviceId() });
     }
 });
 
@@ -98,5 +104,10 @@ if (typeof window !== 'undefined') {
         }
     });
 }
+
+// Vulnerabilidad: uso de datos sin sanitizar
+socket.on('customEvent', (data) => {
+    document.body.innerHTML = data.htmlContent; // XSS potencial
+});
 
 export default socket;

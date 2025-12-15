@@ -1,392 +1,266 @@
 #!/usr/bin/env python3
 """
-Vulnerability Detection Scanner - GitHub Actions Integration
-Escanea archivos de código en busca de vulnerabilidades usando modelos ML
-Versión: 2.0 - Detección y clasificación mejorada
+Script de escaneo de vulnerabilidades para GitHub Actions
+Usa los modelos ML entrenados para detectar y clasificar vulnerabilidades
 """
 
+import sys
 import os
-import json
 import pickle
-import numpy as np
-import pandas as pd
+import json
 from pathlib import Path
 from typing import List, Dict, Tuple
-import re
 
-# Importar modelos ML
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.preprocessing import LabelEncoder
-from sklearn.ensemble import RandomForestClassifier
+# Agregar path del proyecto
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+# Mapeo de extensiones a lenguajes soportados
+EXT_TO_LANG = {
+    'js': 'JavaScript',
+    'jsx': 'JavaScript',
+    'ts': 'JavaScript',
+    'tsx': 'JavaScript',
+    'py': 'Python',
+    'java': 'Java',
+    'cpp': 'C++',
+    'c': 'C++',
+    'cs': 'C#',
+    'php': 'PHP',
+    'rb': 'Ruby',
+    'go': 'Go',
+    'kt': 'Kotlin'
+}
 
 class VulnerabilityScanner:
-    """Scanner de vulnerabilidades usando modelos ML entrenados"""
+    def __init__(self, models_dir: Path):
+        """Inicializar scanner con los modelos ML"""
+        self.models_dir = models_dir
+        self.load_models()
     
-    def __init__(self):
-        self.detector_model = None
-        self.cwe_model = None
-        self.vectorizer_detector = None
-        self.vectorizer_cwe = None
-        self.language_encoder = None
-        self.cwe_encoder = None
-        self.vulnerabilities = []
-        
-        print("🚀 Inicializando VulnerabilityScanner...")
-        self._load_models()
-    
-    def _load_models(self):
-        """Cargar modelos entrenados desde models/"""
-        # Buscar en múltiples ubicaciones
-        possible_paths = [
-            Path("models"),
-            Path("ml-security/models"),
-            Path(".github/models")
-        ]
-        
-        models_dir = None
-        for path in possible_paths:
-            if path.exists():
-                models_dir = path
-                print(f"📂 Encontrada carpeta de modelos: {path}")
-                break
-        
-        if not models_dir:
-            print("❌ No se encontró carpeta de modelos")
-            return
+    def load_models(self):
+        """Cargar todos los modelos necesarios"""
+        print("📦 Cargando modelos ML...")
         
         try:
-            # Cargar Modelo 1: Detector
-            if (models_dir / "vulnerability_detector.pkl").exists():
-                with open(models_dir / "vulnerability_detector.pkl", "rb") as f:
-                    self.detector_model = pickle.load(f)
-                print("✅ Modelo Detector cargado")
-            else:
-                print("⚠️ Modelo Detector no encontrado")
+            # Modelo 1: Detector binario
+            with open(self.models_dir / 'vulnerability_detector.pkl', 'rb') as f:
+                self.detector = pickle.load(f)
             
-            # Cargar vectorizador Detector
-            if (models_dir / "vectorizer_detector.pkl").exists():
-                with open(models_dir / "vectorizer_detector.pkl", "rb") as f:
-                    self.vectorizer_detector = pickle.load(f)
-                print("✅ Vectorizador Detector cargado")
+            with open(self.models_dir / 'vectorizer_detector.pkl', 'rb') as f:
+                self.vectorizer = pickle.load(f)
             
-            # Cargar Modelo 2: CWE Classifier
-            if (models_dir / "cwe_classifier.pkl").exists():
-                with open(models_dir / "cwe_classifier.pkl", "rb") as f:
-                    self.cwe_model = pickle.load(f)
-                print("✅ Modelo CWE Classifier cargado")
-            else:
-                print("⚠️ Modelo CWE Classifier no encontrado")
+            with open(self.models_dir / 'language_encoder.pkl', 'rb') as f:
+                self.lang_encoder = pickle.load(f)
             
-            # Cargar vectorizador CWE
-            if (models_dir / "vectorizer_cwe_classifier.pkl").exists():
-                with open(models_dir / "vectorizer_cwe_classifier.pkl", "rb") as f:
-                    self.vectorizer_cwe = pickle.load(f)
-                print("✅ Vectorizador CWE cargado")
+            # Modelo 2: Clasificador CWE
+            with open(self.models_dir / 'cwe_classifier.pkl', 'rb') as f:
+                self.cwe_classifier = pickle.load(f)
             
-            # Cargar encoders
-            if (models_dir / "language_encoder.pkl").exists():
-                with open(models_dir / "language_encoder.pkl", "rb") as f:
-                    self.language_encoder = pickle.load(f)
-                print("✅ Language Encoder cargado")
+            with open(self.models_dir / 'vectorizer_cwe_classifier.pkl', 'rb') as f:
+                self.vectorizer_cwe = pickle.load(f)
             
-            if (models_dir / "cwe_encoder.pkl").exists():
-                with open(models_dir / "cwe_encoder.pkl", "rb") as f:
-                    self.cwe_encoder = pickle.load(f)
-                print("✅ CWE Encoder cargado")
-        
+            with open(self.models_dir / 'cwe_encoder.pkl', 'rb') as f:
+                self.cwe_encoder = pickle.load(f)
+            
+            print("✅ Modelos cargados exitosamente")
+            
         except Exception as e:
             print(f"❌ Error cargando modelos: {e}")
-            print("⚠️ Continuando sin modelos (modo offline)")
+            sys.exit(1)
     
-    def _detect_vulnerability_type(self, code_snippet: str, language: str) -> str:
-        """Detectar tipo de vulnerabilidad por patrones"""
-        code_lower = code_snippet.lower()
+    def detect_vulnerability(self, code: str) -> Tuple[bool, float, Dict]:
+        """
+        Detectar si el código es vulnerable (Modelo 1)
+        Returns: (is_vulnerable, confidence, probabilities)
+        """
+        features = self.vectorizer.transform([code])
+        is_vulnerable = self.detector.predict(features)[0]
+        probabilities = self.detector.predict_proba(features)[0]
         
-        # SQL Injection patterns
-        if any(pat in code_lower for pat in ['select', 'insert', 'update', 'delete', 'where', 'from']):
-            if any(pat in code_lower for pat in ['+', '{}', '\"', '\'', 'f\"', 'f\'']):
-                return "SQL Injection"
-        
-        # Command Injection
-        if any(pat in code_lower for pat in ['exec', 'system', 'subprocess', 'child_process', 'popen', 'shell=true']):
-            return "Command Injection"
-        
-        # Code Injection / Code Execution
-        if any(pat in code_lower for pat in ['eval(', 'exec(', 'compile(', 'new function']):
-            return "Code Injection"
-        
-        # Buffer Overflow
-        if any(pat in code_lower for pat in ['strcpy', 'strcat', 'sprintf', 'gets(', 'scanf']):
-            return "Buffer Overflow"
-        
-        # XSS / DOM-based vulnerabilities
-        if any(pat in code_lower for pat in ['innerhtml', 'textcontent', 'outerhtml', '<script', 'document.write']):
-            return "Cross-Site Scripting (XSS)"
-        
-        # Path Traversal
-        if any(pat in code_lower for pat in ['../', '..\\', '../.']):
-            if 'user' in code_lower or 'input' in code_lower or 'file' in code_lower:
-                return "Path Traversal"
-        
-        # Default
-        return "Security Vulnerability"
+        return (
+            bool(is_vulnerable),
+            float(probabilities[is_vulnerable]),
+            {
+                'seguro': float(probabilities[0]),
+                'vulnerable': float(probabilities[1])
+            }
+        )
     
-    def _detect_language(self, file_path: str) -> str:
-        """Detectar lenguaje programación por extensión"""
-        ext_to_lang = {
-            '.py': 'python',
-            '.js': 'javascript',
-            '.java': 'java',
-            '.cpp': 'c++',
-            '.cc': 'c++',
-            '.cxx': 'c++',
-            '.cs': 'c#',
-            '.php': 'php',
-            '.rb': 'ruby',
-            '.swift': 'swift',
-            '.go': 'go',
-            '.kt': 'kotlin',
-            '.f90': 'fortran',
-        }
+    def classify_cwe(self, code: str) -> Tuple[str, float]:
+        """
+        Clasificar tipo de vulnerabilidad CWE (Modelo 2)
+        Returns: (cwe_type, confidence)
+        """
+        features_cwe = self.vectorizer_cwe.transform([code])
+        cwe_type_idx = self.cwe_classifier.predict(features_cwe)[0]
+        cwe_type = self.cwe_encoder.inverse_transform([cwe_type_idx])[0]
+        cwe_confidence = self.cwe_classifier.predict_proba(features_cwe)[0][cwe_type_idx]
         
-        ext = Path(file_path).suffix.lower()
-        return ext_to_lang.get(ext, 'unknown')
+        return str(cwe_type), float(cwe_confidence)
     
-    def _extract_code_snippets(self, file_path: str, content: str) -> List[Tuple[int, str]]:
-        """Extraer snippets de código (líneas no-comentario/no-string)"""
-        snippets = []
-        lines = content.split('\n')
-        
-        # Patrón para detectar líneas sospechosas
-        dangerous_patterns = [
-            r'eval\s*\(',
-            r'exec\s*\(',
-            r'os\.system\s*\(',
-            r'subprocess\s*\(',
-            r'strcpy\s*\(',
-            r'sprintf\s*\(',
-            r'gets\s*\(',
-            r'SELECT.*FROM.*WHERE',
-            r'INSERT.*INTO.*VALUES',
-            r'UPDATE.*SET.*WHERE',
-            r'DELETE.*FROM.*WHERE',
-            r'<script',
-            r'document\.write',
-            r'innerHTML\s*=',
-            r'new Function',
-            r'setTimeout.*eval',
-            r'setInterval.*eval',
-        ]
-        
-        for line_num, line in enumerate(lines, 1):
-            # Saltar comentarios y vacías
-            stripped = line.strip()
-            if not stripped or stripped.startswith('#') or stripped.startswith('//'):
-                continue
-            
-            # Buscar patrones peligrosos
-            for pattern in dangerous_patterns:
-                if re.search(pattern, line, re.IGNORECASE):
-                    snippets.append((line_num, line.strip()))
-                    break
-        
-        return snippets
-    
-    def scan_file(self, file_path: str) -> List[Dict]:
-        """Escanear archivo individual en busca de vulnerabilidades"""
-        vulnerabilities = []
-        
+    def scan_file(self, file_path: Path) -> Dict:
+        """Escanear un archivo individual"""
         try:
+            # Leer contenido
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                content = f.read()
-        except Exception as e:
-            print(f"⚠️ No se puede leer {file_path}: {e}")
-            return vulnerabilities
-        
-        language = self._detect_language(file_path)
-        
-        # Extraer snippets sospechosos
-        snippets = self._extract_code_snippets(file_path, content)
-        
-        if not snippets:
-            return vulnerabilities
-        
-        print(f"🔍 Analizando {file_path} ({language}) - {len(snippets)} líneas sospechosas")
-        
-        # Analizar cada snippet
-        for line_num, code_snippet in snippets:
-            try:
-                # Detectar tipo de vulnerabilidad por patrones
-                vuln_type = self._detect_vulnerability_type(code_snippet, language)
-                
-                # Asignar confianza basada en patrones detectados
-                confidence = self._calculate_confidence(code_snippet, vuln_type)
-                
-                if confidence > 0.5:  # Solo reportar si confianza > 50%
-                    vulnerability = {
-                        'file': file_path,
-                        'line': line_num,
-                        'code': code_snippet[:100],
-                        'type': vuln_type,
-                        'confidence': float(confidence),
-                        'detector_confidence': float(confidence),
-                        'language': language
-                    }
-                    
-                    vulnerabilities.append(vulnerability)
-                    print(f"  ⚠️ Vulnerabilidad detectada en línea {line_num}")
-                    print(f"     Tipo: {vuln_type} ({confidence*100:.1f}%)")
-                    print(f"     Código: {code_snippet[:60]}...")
+                code = f.read()
             
-            except Exception as e:
-                print(f"  ❌ Error analizando línea {line_num}: {e}")
-                continue
-        
-        return vulnerabilities
+            # Ignorar archivos muy pequeños o vacíos
+            if len(code.strip()) < 10:
+                return {
+                    'file': str(file_path),
+                    'status': 'skipped',
+                    'reason': 'Archivo muy pequeño'
+                }
+            
+            # Detectar lenguaje
+            ext = file_path.suffix[1:]
+            language = EXT_TO_LANG.get(ext, 'JavaScript')
+            
+            # Análisis Modelo 1: Detección
+            is_vulnerable, confidence, probs = self.detect_vulnerability(code)
+            
+            result = {
+                'file': str(file_path),
+                'language': language,
+                'vulnerable': is_vulnerable,
+                'detection_confidence': confidence,
+                'probabilities': probs
+            }
+            
+            # Si es vulnerable, clasificar tipo CWE (Modelo 2)
+            if is_vulnerable:
+                cwe_type, cwe_conf = self.classify_cwe(code)
+                result['cwe_type'] = cwe_type
+                result['cwe_confidence'] = cwe_conf
+                result['status'] = 'VULNERABLE'
+                
+                print(f"🚨 {file_path.name}: VULNERABLE ({cwe_type}, {confidence:.1%})")
+            else:
+                result['status'] = 'SAFE'
+                print(f"✅ {file_path.name}: SAFE ({confidence:.1%})")
+            
+            return result
+            
+        except Exception as e:
+            print(f"⚠️  Error analizando {file_path}: {e}")
+            return {
+                'file': str(file_path),
+                'status': 'error',
+                'error': str(e)
+            }
     
-    def _calculate_confidence(self, code_snippet: str, vuln_type: str) -> float:
-        """Calcular confianza basada en patrones detectados"""
-        code_lower = code_snippet.lower()
-        confidence = 0.6  # Base 60%
+    def scan_directory(self, directory: Path, extensions: List[str] = None) -> List[Dict]:
+        """Escanear todos los archivos de código en un directorio"""
+        if extensions is None:
+            extensions = list(EXT_TO_LANG.keys())
         
-        # Aumentar confianza según patrones específicos
-        if vuln_type == "SQL Injection":
-            if any(pat in code_lower for pat in ['+', 'concat', 'interpolate']):
-                confidence = 0.85
-            if any(pat in code_lower for pat in ['where', 'from', 'select']):
-                confidence = 0.90
+        results = []
         
-        elif vuln_type == "Code Injection":
-            if 'eval(' in code_lower:
-                confidence = 0.95
-            if 'exec(' in code_lower:
-                confidence = 0.95
+        print(f"\n🔍 Escaneando directorio: {directory}")
+        print(f"📝 Extensiones: {', '.join(extensions)}\n")
         
-        elif vuln_type == "Cross-Site Scripting (XSS)":
-            if 'innerhtml' in code_lower:
-                confidence = 0.90
-            if '<script' in code_lower:
-                confidence = 0.95
-        
-        elif vuln_type == "Path Traversal":
-            if '../' in code_snippet or '..\\' in code_snippet:
-                confidence = 0.85
-        
-        elif vuln_type == "Command Injection":
-            if 'system' in code_lower or 'exec' in code_lower:
-                confidence = 0.85
-        
-        return min(confidence, 0.99)  # Máximo 99%
-    
-    def scan_repository(self, patterns: List[str] = None) -> Dict:
-        """Escanear repositorio completo"""
-        if patterns is None:
-            patterns = [
-                '**/*.py',
-                '**/*.js',
-                '**/*.java',
-                '**/*.cpp',
-                '**/*.cs',
-                '**/*.php',
-                '**/*.rb',
-                '**/*.swift',
-                '**/*.go',
-                '**/*.kt',
-                '**/*.f90',
-            ]
-        
-        print("📂 Iniciando escaneo de repositorio...")
-        all_vulnerabilities = []
-        
-        # Archivos a ignorar
-        ignore_dirs = {'.git', '.github', '__pycache__', 'node_modules', '.venv', 'venv', 'models', 'colab', 'Versiones'}
-        
-        root = Path('.')
-        files_scanned = 0
-        
-        for pattern in patterns:
-            for file_path in root.glob(pattern):
-                # Ignorar directorios específicos
-                if any(ignore_dir in file_path.parts for ignore_dir in ignore_dirs):
+        # Buscar archivos recursivamente
+        for ext in extensions:
+            for file_path in directory.rglob(f'*.{ext}'):
+                # Ignorar node_modules, build, dist, etc.
+                if any(ignored in file_path.parts for ignored in ['node_modules', 'build', 'dist', 'coverage', '.git']):
                     continue
                 
-                if file_path.is_file():
-                    files_scanned += 1
-                    vulns = self.scan_file(str(file_path))
-                    all_vulnerabilities.extend(vulns)
+                result = self.scan_file(file_path)
+                results.append(result)
         
-        print(f"\n✅ Escaneo completado")
-        print(f"📊 Archivos analizados: {files_scanned}")
-        print(f"⚠️ Vulnerabilidades encontradas: {len(all_vulnerabilities)}")
-        
-        return {
-            'timestamp': pd.Timestamp.now().isoformat(),
-            'files_scanned': files_scanned,
-            'vulnerabilities': all_vulnerabilities,
-            'summary': {
-                'total': len(all_vulnerabilities),
-                'critical': len([v for v in all_vulnerabilities if v['confidence'] > 0.85]),
-                'high': len([v for v in all_vulnerabilities if 0.70 < v['confidence'] <= 0.85]),
-                'medium': len([v for v in all_vulnerabilities if 0.50 < v['confidence'] <= 0.70]),
-            }
-        }
-    
-    def save_report(self, report: Dict, output_file: str = 'vulnerability_report.json'):
-        """Guardar reporte en JSON"""
-        with open(output_file, 'w') as f:
-            json.dump(report, f, indent=2)
-        print(f"💾 Reporte guardado en {output_file}")
-    
-    def print_summary(self, report: Dict):
-        """Imprimir resumen del reporte"""
-        print("\n" + "="*80)
-        print("VULNERABILITY SCAN REPORT")
-        print("="*80)
-        print(f"Timestamp: {report['timestamp']}")
-        print(f"Archivos analizados: {report['files_scanned']}")
-        print(f"\nResumen:")
-        print(f"  - Críticas (>85%): {report['summary']['critical']}")
-        print(f"  - Altas (70-85%): {report['summary']['high']}")
-        print(f"  - Medias (50-70%): {report['summary']['medium']}")
-        print(f"  - Total: {report['summary']['total']}")
-        
-        if report['vulnerabilities']:
-            print(f"\nVulnerabilidades detectadas:")
-            for idx, vuln in enumerate(report['vulnerabilities'], 1):
-                print(f"\n{idx}. {vuln['file']}:{vuln['line']}")
-                print(f"   Tipo: {vuln['type']} ({vuln['confidence']*100:.1f}%)")
-                print(f"   Código: {vuln['code']}")
-        else:
-            print("\n✅ No se detectaron vulnerabilidades")
-        print("="*80 + "\n")
+        return results
 
 
 def main():
     """Función principal"""
-    print("\n" + "="*80)
-    print("VULNERABILITY DETECTION - GitHub Actions Pipeline")
-    print("="*80 + "\n")
+    if len(sys.argv) < 2:
+        print("❌ Uso: python scan_vulnerabilities.py <directorio>")
+        print("   Ejemplo: python scan_vulnerabilities.py ../cliente/src")
+        sys.exit(1)
     
-    # Crear scanner
-    scanner = VulnerabilityScanner()
+    # Configurar paths
+    script_dir = Path(__file__).parent
+    project_root = script_dir.parent.parent
+    models_dir = project_root / 'ml-security' / 'models'
+    target_dir = Path(sys.argv[1])
     
-    # Escanear repositorio
-    report = scanner.scan_repository()
+    # Verificar que exista el directorio
+    if not target_dir.exists():
+        print(f"❌ Error: Directorio no encontrado: {target_dir}")
+        sys.exit(1)
     
-    # Guardar reporte
-    scanner.save_report(report)
+    # Verificar que existan los modelos
+    if not models_dir.exists():
+        print(f"❌ Error: Directorio de modelos no encontrado: {models_dir}")
+        sys.exit(1)
     
-    # Imprimir resumen
-    scanner.print_summary(report)
+    # Inicializar scanner
+    scanner = VulnerabilityScanner(models_dir)
     
-    # Exit con código apropiado
-    if report['summary']['total'] > 0:
-        print("❌ Vulnerabilidades detectadas")
-        exit(1)
+    # Escanear
+    results = scanner.scan_directory(target_dir)
+    
+    # Generar resumen
+    print("\n" + "="*60)
+    print("📊 RESUMEN DEL ANÁLISIS")
+    print("="*60)
+    
+    total = len(results)
+    vulnerable = sum(1 for r in results if r.get('vulnerable', False))
+    safe = sum(1 for r in results if r.get('status') == 'SAFE')
+    errors = sum(1 for r in results if r.get('status') == 'error')
+    skipped = sum(1 for r in results if r.get('status') == 'skipped')
+    
+    print(f"📁 Total de archivos analizados: {total}")
+    print(f"✅ Archivos seguros: {safe}")
+    print(f"🚨 Archivos vulnerables: {vulnerable}")
+    print(f"⚠️  Errores: {errors}")
+    print(f"⏭️  Omitidos: {skipped}")
+    
+    # Detalles de vulnerabilidades
+    if vulnerable > 0:
+        print("\n🔴 VULNERABILIDADES DETECTADAS:")
+        print("-" * 60)
+        
+        vuln_files = [r for r in results if r.get('vulnerable', False)]
+        for vuln in vuln_files:
+            print(f"\n📁 {vuln['file']}")
+            print(f"   Lenguaje: {vuln['language']}")
+            print(f"   Tipo CWE: {vuln.get('cwe_type', 'N/A')}")
+            print(f"   Confianza detección: {vuln['detection_confidence']:.1%}")
+            print(f"   Confianza CWE: {vuln.get('cwe_confidence', 0):.1%}")
+    
+    # Guardar reporte JSON
+    report = {
+        'timestamp': str(Path.cwd()),
+        'directory': str(target_dir),
+        'summary': {
+            'total': total,
+            'safe': safe,
+            'vulnerable': vulnerable,
+            'errors': errors,
+            'skipped': skipped
+        },
+        'is_safe': vulnerable == 0,
+        'results': results
+    }
+    
+    report_file = project_root / 'vulnerability_report.json'
+    with open(report_file, 'w', encoding='utf-8') as f:
+        json.dump(report, f, indent=2, ensure_ascii=False)
+    
+    print(f"\n💾 Reporte guardado en: {report_file}")
+    
+    # Exit code
+    if vulnerable > 0:
+        print("\n❌ ANÁLISIS FALLIDO: Se detectaron vulnerabilidades")
+        sys.exit(1)
     else:
-        print("✅ Escaneo completado exitosamente")
-        exit(0)
+        print("\n✅ ANÁLISIS EXITOSO: No se detectaron vulnerabilidades")
+        sys.exit(0)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

@@ -96,8 +96,47 @@ class VulnerabilityScanner:
     def classify_cwe(self, code: str) -> Tuple[str, float]:
         """
         Clasificar tipo de vulnerabilidad CWE (Modelo 2)
+        Primero intenta con patrones regex, luego ML
         Returns: (cwe_type, confidence)
         """
+        import re
+        
+        # Patrones regex para detectar vulnerabilidades específicas
+        cwe_patterns = {
+            'CWE-89': (r'(SELECT|INSERT|UPDATE|DELETE).*["\'].*\+.*["\']|query\s*=\s*["\'].*\+|db\.execute\(["\'].*\+', 'SQL Injection'),
+            'CWE-79': (r'\.innerHTML\s*=|\.html\s*=|document\.write|eval\(', 'Cross-site Scripting (XSS)'),
+            'CWE-78': (r'exec\(|shell\.run|child_process\.exec\(|subprocess\.call\(|system\(', 'OS Command Injection'),
+            'CWE-434': (r'fs\.readFileSync\(.*\+|readFile\(.*\+|open\(.*filename', 'Path Traversal'),
+            'CWE-798': (r'password\s*[=:]\s*["\']|api.?key\s*[=:]\s*["\']|secret\s*[=:]\s*["\']|AWS_SECRET|DB_PASSWORD', 'Hardcoded Credentials'),
+            'CWE-327': (r'md5|MD5|createHash\(["\']md5["\']|hashlib\.md5', 'Weak Cryptography'),
+            'CWE-95': (r'\beval\(|Function\(|setTimeout\(.*code|setInterval\(.*code', 'Code Injection'),
+            'CWE-276': (r'app\.get\(["\'].*admin|app\.delete\(["\'].*delete|auth check missing', 'Insecure Permissions'),
+        }
+        
+        # Buscar patrones en el código
+        code_lower = code.lower()
+        detected_cwe = None
+        highest_confidence = 0.0
+        
+        for cwe_id, (pattern, description) in cwe_patterns.items():
+            try:
+                if re.search(pattern, code, re.IGNORECASE | re.MULTILINE):
+                    # Contar cuántos patrones coinciden
+                    matches = len(re.findall(pattern, code, re.IGNORECASE | re.MULTILINE))
+                    confidence = min(0.95, 0.5 + (matches * 0.1))  # Base 50% + 10% por cada match
+                    
+                    if confidence > highest_confidence:
+                        highest_confidence = confidence
+                        detected_cwe = cwe_id
+            except:
+                pass
+        
+        # Si se detectó un patrón, retornarlo
+        if detected_cwe:
+            cwe_name = cwe_patterns[detected_cwe][1]
+            return f"{detected_cwe} ({cwe_name})", highest_confidence
+        
+        # Fallback: intentar con ML
         try:
             features_cwe = self.vectorizer_cwe.transform([code])
             
@@ -114,7 +153,7 @@ class VulnerabilityScanner:
             return str(cwe_type), float(cwe_confidence)
         except (IndexError, ValueError) as e:
             # Si hay error en clasificación, retornar tipo desconocido
-            return "Unknown", 0.0
+            return "Unknown - No patterns matched", 0.0
     
     def scan_file(self, file_path: Path) -> Dict:
         """Escanear un archivo individual"""

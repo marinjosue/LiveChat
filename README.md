@@ -75,25 +75,6 @@ Este proyecto fomenta el aprendizaje en programación concurrente, WebSockets pa
 
 ---
 
-## Características
-
-### Funcionalidades del Chat
-- Sistema de salas con PIN único de 6 dígitos
-- Límite de participantes configurable (2-10 personas)
-- Mensajería instantánea con Socket.IO
-- Control de dispositivo único por sala
-- Lista de participantes en tiempo real
-- Notificaciones de entrada/salida
-- Interfaz intuitiva y responsive
-
-### Características Técnicas
-- **Seguridad** - Headers HTTP seguros, CORS configurado
-- **Persistencia** - Datos guardados en MongoDB
-- **Logs** - Sistema de logging estructurado
-- **Concurrencia** - Worker threads para procesamiento paralelo
-
----
-
 ## Stack Tecnológico
 
 ### Frontend
@@ -161,261 +142,6 @@ npm install
 npm start
 
 # 9. Acceder a http://localhost:3000
-```
-
----
-
-## Diagramas de Secuencia
-
-### 1. Flujo de Autenticación de Admin con 2FA
-
-```mermaid
-sequenceDiagram
-    participant C as Cliente (Admin)
-    participant S as Servidor
-    participant DB as MongoDB
-    participant WP as Worker Pool
-    participant AL as Audit Logger
-
-    C->>S: POST /api/auth/login (username, password)
-    S->>WP: Enviar tarea de verificación bcrypt
-    activate WP
-    WP->>WP: Verificar password en worker thread
-    WP-->>S: Password válido
-    deactivate WP
-    
-    S->>DB: Buscar admin por username
-    DB-->>S: Datos del admin
-    
-    alt 2FA Habilitado
-        S-->>C: {requires2FA: true, tempToken}
-        C->>S: POST /api/auth/verify-2fa (tempToken, code)
-        S->>S: Verificar TOTP code
-        S->>S: Generar JWT token
-        S->>AL: Log LOGIN_SUCCESS
-        AL->>WP: Hash SHA-256 del log
-        WP-->>AL: Hash generado
-        AL->>DB: Guardar audit log con hash
-        S-->>C: {token, admin}
-    else 2FA No Habilitado
-        S->>S: Generar JWT token
-        S->>AL: Log LOGIN_SUCCESS
-        AL->>WP: Hash SHA-256 del log
-        WP-->>AL: Hash generado
-        AL->>DB: Guardar audit log con hash
-        S-->>C: {token, admin}
-    end
-```
-
-### 2. Flujo de Creación de Sala Segura
-
-```mermaid
-sequenceDiagram
-    participant A as Admin
-    participant S as Servidor
-    participant WP as Worker Pool
-    participant DB as MongoDB
-    participant AL as Audit Logger
-
-    A->>S: POST /api/rooms/create (name, type, maxParticipants)
-    S->>S: Validar JWT token
-    S->>S: Generar PIN (6 dígitos)
-    S->>S: Generar ID único (16 hex)
-    
-    S->>WP: Hash SHA-256 del PIN
-    activate WP
-    WP->>WP: Procesar hash en worker thread
-    WP-->>S: PIN hasheado
-    deactivate WP
-    
-    S->>DB: Crear documento de sala
-    DB-->>S: Sala creada
-    
-    S->>AL: Log ROOM_CREATED
-    AL->>WP: Hash SHA-256 del log
-    WP-->>AL: Hash generado
-    AL->>DB: Guardar audit log
-    
-    S-->>A: {sala, pin_original}
-    Note over A: PIN se muestra UNA VEZ
-```
-
-### 3. Flujo de Envío de Mensaje con Cifrado End-to-End
-
-```mermaid
-sequenceDiagram
-    participant C as Cliente
-    participant S as Servidor (Socket.IO)
-    participant ES as Encryption Service
-    participant DB as MongoDB
-    participant R as Receptores
-
-    C->>S: socket.emit('sendMessage', {pin, text})
-    S->>S: Validar sesión del dispositivo
-    S->>S: Verificar PIN hasheado
-    
-    alt Mensaje de Texto
-        S->>ES: encryptMessage(text, {pin, sender})
-        activate ES
-        ES->>ES: Generar salt (64 bytes)
-        ES->>ES: Derivar clave con PBKDF2 (100k iteraciones)
-        ES->>ES: Generar IV (16 bytes)
-        ES->>ES: Cifrar con AES-256-GCM
-        ES->>ES: Generar Auth Tag
-        ES-->>S: {ciphertext, iv, salt, authTag}
-        deactivate ES
-        
-        S->>DB: Guardar mensaje cifrado
-        DB-->>S: Mensaje guardado
-        
-        S->>R: socket.emit('message', mensaje_sin_descifrar)
-        Note over R: Cliente descifra localmente
-    end
-```
-
-### 4. Flujo de Detección de Esteganografía en Archivos
-
-```mermaid
-sequenceDiagram
-    participant C as Cliente
-    participant S as Servidor
-    participant FSS as File Security Service
-    participant WP as Worker Pool (Steganography)
-    participant CL as Cloudinary
-    participant DB as MongoDB
-
-    C->>S: socket.emit('uploadFile', {file, pin})
-    S->>S: Validar tamaño (max 15MB)
-    S->>S: Validar tipo MIME
-    
-    S->>FSS: analyzeFile(buffer, filename, mimetype)
-    activate FSS
-    
-    FSS->>WP: Enviar archivo a worker thread
-    activate WP
-    
-    par Análisis Paralelo
-        WP->>WP: 1. Análisis de Entropía (threshold 7.8)
-        WP->>WP: 2. LSB Analysis (patrones sospechosos)
-        WP->>WP: 3. Detección de Firmas (Steghide, OpenStego)
-        WP->>WP: 4. Chi-cuadrado (distribución de bytes)
-        WP->>WP: 5. Análisis de Metadatos (EXIF excesivo)
-    end
-    
-    WP->>WP: Calcular confianza total
-    WP-->>FSS: {confidence, threats, safe}
-    deactivate WP
-    
-    alt Archivo Sospechoso (confidence > 0.7)
-        FSS-->>S: {safe: false, threats}
-        S-->>C: error('Archivo rechazado: esteganografía detectada')
-    else Archivo Seguro
-        FSS-->>S: {safe: true}
-        deactivate FSS
-        
-        S->>CL: Upload archivo
-        CL-->>S: {url, public_id}
-        
-        S->>DB: Guardar mensaje multimedia
-        DB-->>S: Mensaje guardado
-        
-        S->>C: success('Archivo enviado')
-    end
-```
-
-### 5. Flujo de Gestión de Worker Thread Pool
-
-```mermaid
-sequenceDiagram
-    participant A as App
-    participant TPM as Thread Pool Manager
-    participant WP as Worker Pool
-    participant WT as Worker Thread
-
-    A->>TPM: enqueueTask(task, priority='high')
-    
-    alt Pool tiene workers disponibles
-        TPM->>WP: Asignar a worker disponible
-        WP->>WT: Ejecutar tarea
-        activate WT
-        WT->>WT: Procesar (hash/verify/analyze)
-        WT-->>WP: Resultado
-        deactivate WT
-        WP-->>TPM: Resultado
-        TPM-->>A: Resultado
-    else Pool lleno
-        TPM->>TPM: Agregar a cola (ordenada por prioridad)
-        Note over TPM: Cola: [high, high, normal, low]
-        
-        loop Monitoreo Auto-Scaling
-            TPM->>TPM: Verificar métricas
-            alt Cola grande & workers < max (8)
-                TPM->>WP: Crear nuevo worker
-                WP->>WT: Iniciar worker thread
-            else Cola vacía & workers > min (2)
-                TPM->>WP: Terminar worker ocioso
-                WP->>WT: worker.terminate()
-            end
-        end
-        
-        TPM-->>WT: Asignar siguiente tarea de cola
-        WT->>WT: Procesar
-        WT-->>TPM: Resultado
-        TPM-->>A: Resultado
-    end
-```
-
-### 6. Flujo de Conexión de Usuario a Sala
-
-```mermaid
-sequenceDiagram
-    participant C as Cliente
-    participant S as Servidor (Socket.IO)
-    participant DC as Device Controller
-    participant WP as Worker Pool
-    participant DB as MongoDB
-    participant ES as Encryption Service
-
-    C->>S: socket.emit('joinRoom', {pin, username})
-    
-    S->>WP: Verificar PIN hasheado
-    activate WP
-    WP->>WP: Comparar hash en worker thread
-    WP-->>S: PIN válido
-    deactivate WP
-    
-    S->>DB: Buscar sala por PIN hash
-    DB-->>S: Datos de sala
-    
-    S->>DC: validateDeviceSession(pin, ip, deviceId)
-    activate DC
-    DC->>DB: Buscar sesión existente
-    alt Dispositivo ya conectado desde otra IP
-        DC-->>S: {valid: false, error: 'Dispositivo ya en uso'}
-        S-->>C: error('Solo un dispositivo por sala')
-    else Nueva sesión
-        DC->>DB: Crear/actualizar sesión
-        DC-->>S: {valid: true}
-        deactivate DC
-        
-        S->>DB: Agregar usuario a RoomMembership
-        S->>S: socket.join(roomId)
-        
-        S->>DB: Cargar historial de mensajes
-        DB-->>S: Mensajes cifrados
-        
-        loop Por cada mensaje cifrado
-            S->>ES: decryptMessage(ciphertext)
-            ES->>ES: Extraer IV, salt, authTag
-            ES->>ES: Derivar clave con PBKDF2
-            ES->>ES: Descifrar con AES-256-GCM
-            ES->>ES: Verificar Auth Tag
-            ES-->>S: Texto plano
-        end
-        
-        S-->>C: Mensajes descifrados
-        S->>C: broadcast('userJoined', username)
-    end
 ```
 
 ---
@@ -511,7 +237,6 @@ net start MongoDB
 
 ---
 
-
 ## Estructura del Proyecto
 
 ```
@@ -577,159 +302,6 @@ LiveChat/
 
 ---
 
-## Flujo de Trabajo de Desarrollo
-
-### Desarrollo Diario
-
-```bash
-# 1. Iniciar MongoDB
-mongod
-
-# 2. Terminal 1 - Backend
-cd server
-npm run dev
-
-# 3. Terminal 2 - Frontend
-cd client
-npm start
-
-# Editas código → Nodemon reinicia automáticamente
-```
-
-### Agregar Nueva Característica
-
-```bash
-# 1. Crear rama
-git checkout -b feature/nueva-caracteristica
-
-# 2. Desarrollar y probar
-
-# 3. Commit con mensaje descriptivo
-git add .
-git commit -m "feat: descripción de la característica"
-
-# 4. Push a repositorio
-git push origin feature/nueva-caracteristica
-```
-
----
-
-## Panel de Administración
-
-### Acceso
-Para acceder al panel de administración, integra `AdminApp.js` en tu enrutador principal:
-
-```jsx
-import React from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import App from './App'; // Tu app normal de chat
-import AdminApp from './AdminApp'; // Panel de admin
-
-function Root() {
-  return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<App />} />
-        <Route path="/admin" element={<AdminApp />} />
-      </Routes>
-    </BrowserRouter>
-  );
-}
-
-export default Root;
-```
-
-### Funcionalidades del Panel
-
-#### Overview
-- Métricas del servidor (uptime, memoria, CPU)
-- Estado de los Worker Thread pools
-- Utilización de workers globales, auth y file security
-- Rendimiento (tiempo de espera, ejecución, pico de cola)
-
-#### Logs de Auditoría
-- Últimos 10 logs con actualización automática cada 10s
-- Filtrado por admin, acción, estado, fecha
-- Información detallada: IP, User-Agent, timestamp
-
-#### Estado de Seguridad
-- Verificación de funcionalidades activas
-- Información de configuración de seguridad
-- Alertas de configuraciones pendientes
-
-### Autenticación 2FA
-
-1. **Login inicial**: Usuario + contraseña
-2. **Habilitar 2FA** (opcional):
-   ```bash
-   POST /api/auth/enable-2fa
-   Authorization: Bearer <token>
-   ```
-   Retorna un QR code para Google Authenticator
-3. **Login con 2FA**: Ingresa código de 6 dígitos
-
----
-
-## API de Administración
-
-### Endpoints de Autenticación
-
-```bash
-# Registrar nuevo admin
-POST /api/auth/register
-Content-Type: application/json
-{
-  "username": "admin",
-  "email": "admin@example.com",
-  "password": "StrongPass123!",
-  "role": "superadmin"
-}
-
-# Login
-POST /api/auth/login
-{
-  "username": "admin",
-  "password": "StrongPass123!"
-}
-# Retorna: { requires2FA: true, tempToken: "..." } O { token: "..." }
-
-# Verificar código 2FA
-POST /api/auth/verify-2fa
-{
-  "tempToken": "...",
-  "code": "123456"
-}
-
-# Habilitar 2FA
-POST /api/auth/enable-2fa
-Authorization: Bearer <token>
-# Retorna: { qrCode: "data:image/png;base64,...", secret: "..." }
-```
-
-### Endpoints de Administración
-
-```bash
-# Obtener logs de auditoría (paginado)
-GET /api/admin/logs?page=1&limit=20&action=LOGIN_SUCCESS&status=success
-Authorization: Bearer <token>
-
-# Verificar integridad de logs
-POST /api/admin/logs/verify-integrity
-Authorization: Bearer <token>
-{
-  "logIds": ["log_id_1", "log_id_2"]
-}
-
-# Obtener estadísticas del sistema
-GET /api/admin/stats
-Authorization: Bearer <token>
-
-# Health check con stats de thread pools
-GET /health
-```
-
----
-
 ## Seguridad en Detalle
 
 ### 1. Encriptación de Mensajes (AES-256-GCM)
@@ -786,67 +358,9 @@ const decrypted = messages.map(msg => {
 cd server
 node scripts/checkEncryptionStatus.js
 
-# Salida esperada:
-# 📊 ESTADÍSTICAS DE MENSAJES:
-# ──────────────────────────────────────────────────
-#    Total de mensajes:           150
-#    Mensajes de texto:           120
-#    Mensajes cifrados:           120 ✅
-#    Mensajes sin cifrar:         0 ⚠️
-#    Porcentaje de cifrado:       100.00%
-
 # Cifrar mensajes existentes (migración)
 node scripts/encryptExistingMessages.js
-
-# Salida:
-# 🔐 Iniciando cifrado de mensajes existentes...
-# ✅ Conectado a MongoDB
-# 📊 Mensajes encontrados sin cifrar: 45
-# ✓ Mensaje cifrado: 691b301a396d3f9a87b819c6...
-# ...
-# 📊 Resumen:
-#    ✅ Mensajes cifrados exitosamente: 45
-#    ❌ Mensajes con error: 0
 ```
-
-#### Seguridad en Tránsito vs Reposo:
-
-| Capa | Tecnología | Protege Contra |
-|------|-----------|----------------|
-| **Tránsito** | Socket.IO + TLS/SSL | Interceptación de red, MITM |
-| **Reposo** | AES-256-GCM | Acceso no autorizado a BD, backups comprometidos |
-| **Aplicación** | PBKDF2 + Salt | Rainbow tables, ataques de fuerza bruta |
-
-#### Configuración de Clave Maestra:
-
-```bash
-# Generar clave de 256 bits (OBLIGATORIO en producción)
-cd server
-node scripts/generateEncryptionKey.js
-
-# Copiar la salida a .env
-# ENCRYPTION_MASTER_KEY=a1b2c3d4e5f6...
-
-# ⚠️ IMPORTANTE: Guardar esta clave en un gestor de secretos seguro
-# (AWS Secrets Manager, Azure Key Vault, HashiCorp Vault, etc.)
-```
-
-#### Ejemplo de Mensaje en MongoDB:
-
-```javascript
-// Texto plano original: "Hola mundo"
-{
-  "_id": ObjectId("691b301a396d3f9a87b819c6"),
-  "pin": "214652",
-  "sender": "Usuario",
-  "text": "gKqWpJ4n2L8x...encrypted_base64...k9xF2Q==",  // Cifrado
-  "encrypted": true,
-  "messageType": "text",
-  "timestamp": ISODate("2025-11-17T14:24:26.472Z")
-}
-```
-
-Los mensajes se envían en **texto plano** a través de Socket.IO (ya protegido por TLS/SSL en producción), pero se **guardan cifrados** en la base de datos para protección en reposo.
 
 ### 2. Detección de Esteganografía
 
@@ -878,16 +392,132 @@ const result = await threadPool.enqueueTask(
 
 ### 4. Logs de Auditoría
 
-Todas las acciones administrativas se registran:
+Todas las acciones administrativas se registran con hash SHA-256 para integridad.
 
-```javascript
-const auditService = require('./services/auditService');
+---
 
-// Registrar acción
-await auditService.logLoginSuccess(adminId, ipAddress, userAgent);
+## Flujo de Trabajo de Desarrollo
 
-// Verificar integridad
-const isValid = await auditLog.verifyIntegrity();
+### Desarrollo Diario
+
+```bash
+# 1. Iniciar MongoDB
+mongod
+
+# 2. Terminal 1 - Backend
+cd server
+npm run dev
+
+# 3. Terminal 2 - Frontend
+cd client
+npm start
+
+# Editas código → Nodemon reinicia automáticamente
+```
+
+### Agregar Nueva Característica
+
+```bash
+# 1. Crear rama
+git checkout -b feature/nueva-caracteristica
+
+# 2. Desarrollar y probar
+
+# 3. Commit con mensaje descriptivo
+git add .
+git commit -m "feat: descripción de la característica"
+
+# 4. Push a repositorio
+git push origin feature/nueva-caracteristica
+```
+
+---
+
+## Panel de Administración
+
+### Acceso
+Para acceder al panel de administración, integra `AdminApp.js` en tu enrutador principal.
+
+### Funcionalidades del Panel
+
+#### Overview
+- Métricas del servidor (uptime, memoria, CPU)
+- Estado de los Worker Thread pools
+- Utilización de workers globales, auth y file security
+- Rendimiento (tiempo de espera, ejecución, pico de cola)
+
+#### Logs de Auditoría
+- Últimos 10 logs con actualización automática
+- Filtrado por admin, acción, estado, fecha
+- Información detallada: IP, User-Agent, timestamp
+
+#### Estado de Seguridad
+- Verificación de funcionalidades activas
+- Información de configuración de seguridad
+- Alertas de configuraciones pendientes
+
+### Autenticación 2FA
+
+1. **Login inicial**: Usuario + contraseña
+2. **Habilitar 2FA** (opcional)
+3. **Login con 2FA**: Ingresa código de 6 dígitos
+
+---
+
+## API de Administración
+
+### Endpoints de Autenticación
+
+```bash
+# Registrar nuevo admin
+POST /api/auth/register
+Content-Type: application/json
+{
+  "username": "admin",
+  "email": "admin@example.com",
+  "password": "StrongPass123!",
+  "role": "superadmin"
+}
+
+# Login
+POST /api/auth/login
+{
+  "username": "admin",
+  "password": "StrongPass123!"
+}
+
+# Verificar código 2FA
+POST /api/auth/verify-2fa
+{
+  "tempToken": "...",
+  "code": "123456"
+}
+
+# Habilitar 2FA
+POST /api/auth/enable-2fa
+Authorization: Bearer <token>
+```
+
+### Endpoints de Administración
+
+```bash
+# Obtener logs de auditoría (paginado)
+GET /api/admin/logs?page=1&limit=20&action=LOGIN_SUCCESS&status=success
+Authorization: Bearer <token>
+
+# Verificar integridad de logs
+POST /api/admin/logs/verify-integrity
+Authorization: Bearer <token>
+{
+  "logIds": ["log_id_1", "log_id_2"]
+}
+
+# Obtener estadísticas del sistema
+GET /api/admin/stats
+Authorization: Bearer <token>
+
+# Health check
+GET /health
 ```
 
 ---
@@ -907,14 +537,6 @@ const isValid = await auditLog.verifyIntegrity();
 
 ---
 
-## Documentación Adicional
-
-- **[SECURITY_IMPLEMENTATION.md](./SECURITY_IMPLEMENTATION.md)** - Guía detallada de implementación de seguridad
-- **Logs de Auditoría**: Ver `server/logs/` para archivos de log
-- **Ejemplos de API**: Importar colección de Postman (crear según necesidad)
-
----
-
 ## Tips Importantes
 
 1. **Seguridad**: Nunca commitees archivos `.env` al repositorio
@@ -926,6 +548,31 @@ const isValid = await auditLog.verifyIntegrity();
 
 ---
 
+## CI/CD Pipeline
+
+### Flujo Automatizado
+
+```
+dev → test → main → production
+  ↓     ↓      ↓       ↓
+  │     │      │       Deploy a Render/Vercel
+  │     │      Auto-merge si pasan tests
+  │     ML Security Scan + Tests
+  Pull Request + ML Vulnerability Analysis
+```
+
+### Características del Pipeline
+
+- **ML Security Scanning**: Análisis de archivos modificados con modelos scikit-learn
+  - vulnerability_detector.pkl: 79% accuracy, 90.12% recall
+  - cwe_classifier.pkl: 86.94% accuracy
+- **Escaneo Incremental**: Solo analiza archivos modificados (no todo el directorio)
+- **Auto-Merge**: Fusiona automáticamente cuando pasan security + tests
+- **Telegram Notifications**: Alertas en tiempo real de vulnerabilidades
+- **Production Deploy**: Despliegue automático a Render + Vercel
+
+---
+
 ## Licencia
 
 Este proyecto está desarrollado por **Autepim**.
@@ -933,10 +580,3 @@ Este proyecto está desarrollado por **Autepim**.
 ---
 
 **Desarrollado con ❤️ por Autepim**
-
- 
- 
- 
- t i m e s t a m p :   1 2 / 1 4 / 2 0 2 5   2 1 : 3 1 : 2 9 
- 
- 

@@ -113,28 +113,31 @@ class VulnerabilityScanner:
             'CWE-276': (r'app\.get\(["\'].*admin|app\.delete\(["\'].*delete|auth check missing', 'Insecure Permissions'),
         }
         
-        # Buscar patrones en el código
-        code_lower = code.lower()
+        lines = code.split('\n')
         detected_cwe = None
         highest_confidence = 0.0
+        line_number = 1
         
+        # Buscar patrones en el código línea por línea
         for cwe_id, (pattern, description) in cwe_patterns.items():
             try:
-                if re.search(pattern, code, re.IGNORECASE | re.MULTILINE):
-                    # Contar cuántos patrones coinciden
-                    matches = len(re.findall(pattern, code, re.IGNORECASE | re.MULTILINE))
-                    confidence = min(0.95, 0.5 + (matches * 0.1))  # Base 50% + 10% por cada match
-                    
-                    if confidence > highest_confidence:
-                        highest_confidence = confidence
-                        detected_cwe = cwe_id
+                # Buscar en cada línea
+                for i, line in enumerate(lines, 1):
+                    if re.search(pattern, line, re.IGNORECASE):
+                        matches = len(re.findall(pattern, line, re.IGNORECASE))
+                        confidence = min(0.95, 0.5 + (matches * 0.1))
+                        
+                        if confidence > highest_confidence:
+                            highest_confidence = confidence
+                            detected_cwe = cwe_id
+                            line_number = i
             except:
                 pass
         
-        # Si se detectó un patrón, retornarlo
+        # Si se detectó un patrón, retornarlo con línea exacta
         if detected_cwe:
             cwe_name = cwe_patterns[detected_cwe][1]
-            return f"{detected_cwe} ({cwe_name})", highest_confidence
+            return f"{detected_cwe} ({cwe_name})", highest_confidence, line_number
         
         # Fallback: intentar con ML
         try:
@@ -150,10 +153,10 @@ class VulnerabilityScanner:
             cwe_type = self.cwe_encoder.inverse_transform([cwe_type_idx])[0]
             cwe_confidence = self.cwe_classifier.predict_proba(features_cwe)[0][cwe_type_idx]
             
-            return str(cwe_type), float(cwe_confidence)
+            return str(cwe_type), float(cwe_confidence), 1
         except (IndexError, ValueError) as e:
             # Si hay error en clasificación, retornar tipo desconocido
-            return "Unknown - No patterns matched", 0.0
+            return "Unknown - No patterns matched", 0.0, 1
     
     def scan_file(self, file_path: Path) -> Dict:
         """Escanear un archivo individual"""
@@ -192,7 +195,15 @@ class VulnerabilityScanner:
             
             # Si es vulnerable, clasificar tipo CWE (Modelo 2)
             if adjusted_vulnerable:
-                cwe_type, cwe_conf = self.classify_cwe(code)
+                cwe_result = self.classify_cwe(code)
+                
+                # Manejar ambos formatos (con y sin línea)
+                if len(cwe_result) == 3:
+                    cwe_type, cwe_conf, cwe_line = cwe_result
+                else:
+                    cwe_type, cwe_conf = cwe_result
+                    cwe_line = 1
+                
                 result['cwe_type'] = cwe_type
                 result['cwe_confidence'] = cwe_conf
                 result['type'] = cwe_type  # Para notificación
@@ -204,12 +215,8 @@ class VulnerabilityScanner:
                     code_snippet = code_snippet[:50] + '...'
                 result['code'] = code_snippet
                 
-                # Estimar línea (usar primera línea con contenido relevante)
-                result['line'] = 1
-                for i, line in enumerate(lines[:20], 1):
-                    if line.strip() and not line.strip().startswith('import') and not line.strip().startswith('const'):
-                        result['line'] = i
-                        break
+                # Usar línea detectada por regex, si no usar heurística
+                result['line'] = cwe_line
                 
                 # Severity based on confidence
                 if probs.get('vulnerable', 0) > 0.85:
@@ -223,7 +230,7 @@ class VulnerabilityScanner:
                 
                 result['status'] = 'VULNERABLE'
                 
-                print(f"🚨 {file_path.name}: VULNERABLE ({cwe_type}, {probs.get('vulnerable', 0):.1%})")
+                print(f"🚨 {file_path.name}: VULNERABLE ({cwe_type}, {probs.get('vulnerable', 0):.1%}) [Línea {cwe_line}]")
             else:
                 result['status'] = 'SAFE'
                 print(f"✅ {file_path.name}: SAFE ({probs.get('vulnerable', 0):.1%})")

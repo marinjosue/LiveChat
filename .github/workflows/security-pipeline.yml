@@ -1,22 +1,9 @@
 name: Vulnerability Detection Pipeline
 
 on:
-  push:
-    branches: [ dev ]
-    paths:
-      - '**.py'
-      - '**.js'
-      - '**.java'
-      - '**.cpp'
-      - '**.cs'
-      - '**.php'
-      - '**.rb'
-      - '**.swift'
-      - '**.go'
-      - '**.kt'
-      - '**.f90'
   pull_request:
-    branches: [ dev ]
+    branches: [ test ]
+    types: [opened, synchronize, reopened]
 
 jobs:
   vulnerability-scan:
@@ -124,10 +111,90 @@ jobs:
       env:
         TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        GITHUB_COMMIT_MESSAGE: ${{ github.event.head_commit.message || 'Sin mensaje' }}
+        GITHUB_COMMIT_MESSAGE: ${{ github.event.pull_request.title || 'Sin mensaje' }}
         GITHUB_ACTOR: ${{ github.actor }}
       continue-on-error: true
     
     - name: ❌ Fallar si hay cualquier vulnerabilidad
+      id: check_vuln
       run: python .github/scripts/check_vulnerabilities.py
-      continue-on-error: false
+      continue-on-error: true
+    
+    - name: 🏷️ Agregar etiqueta si hay vulnerabilidades
+      if: steps.check_vuln.outcome == 'failure'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          try {
+            await github.rest.issues.addLabels({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: ['fixing-required']
+            });
+          } catch (error) {
+            console.log('Could not add label:', error);
+          }
+    
+    - name: 🐛 Crear issue si hay vulnerabilidades
+      if: steps.check_vuln.outcome == 'failure'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          try {
+            const issue = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '🔒 Vulnerabilidades detectadas - Acción requerida',
+              body: 'Se detectaron vulnerabilidades en el análisis de seguridad. Por favor, revisa el PR y corrige los problemas encontrados.',
+              labels: ['security', 'fixing-required']
+            });
+          } catch (error) {
+            console.log('Could not create issue:', error);
+          }
+    
+    - name: ✅ Auto-merge si pasa seguridad
+      if: steps.check_vuln.outcome == 'success'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          try {
+            await github.rest.pulls.merge({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+              merge_method: 'squash'
+            });
+            
+            console.log('✅ PR mergeado automáticamente a test');
+          } catch (error) {
+            console.log('Could not merge PR:', error);
+          }
+    
+    - name: 💬 Comentar resultado en PR
+      if: always()
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          let comment = '';
+          try {
+            const report = JSON.parse(fs.readFileSync('vulnerability_report.json', 'utf8'));
+            if (report.vulnerabilities.length === 0) {
+              comment = '## ✅ Security Analysis Passed\n\nNo vulnerabilities detected.';
+            } else {
+              comment = '## 🚨 Security Analysis Failed\n\n**Vulnerabilities Detected:** ' + report.vulnerabilities.length;
+            }
+          } catch (error) {
+            comment = '⚠️ Could not process security analysis results';
+          }
+          if (comment) {
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+          }
+
+

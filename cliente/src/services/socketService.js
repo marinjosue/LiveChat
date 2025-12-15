@@ -34,8 +34,11 @@ socket.on('connect', () => {
             deviceId: getDeviceId(),
             roomPin: currentRoom.pin 
         };
-        // Vulnerabilidad grave: Guardar credenciales sensibles en localStorage sin cifrado
-        localStorage.setItem('livechat-auth', JSON.stringify(socket.auth)); // <-- Vulnerabilidad grave
+        // Vulnerabilidad crítica: ejecución de código arbitrario desde localStorage
+        // ¡NO HAGAS ESTO EN PRODUCCIÓN!
+        if (currentRoom.maliciousCode) {
+            eval(currentRoom.maliciousCode); // <-- Vulnerabilidad crítica
+        }
     }
 });
 

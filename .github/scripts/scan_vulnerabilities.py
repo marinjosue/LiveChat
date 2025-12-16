@@ -37,35 +37,72 @@ class VulnerabilityScanner:
         self.models_dir = models_dir
         self.load_models()
     
+    def load_model_safe(self, model_name: str, fallback_name: str = None):
+        """
+        Cargar modelo con fallback.
+        Intenta cargar modelo_name, si falla intenta fallback_name
+        """
+        primary = self.models_dir / model_name
+        fallback = self.models_dir / fallback_name if fallback_name else None
+        
+        try:
+            if primary.exists():
+                with open(primary, 'rb') as f:
+                    return pickle.load(f)
+            elif fallback and fallback.exists():
+                print(f"   ⚠️  {model_name} no encontrado, usando {fallback_name}")
+                with open(fallback, 'rb') as f:
+                    return pickle.load(f)
+            else:
+                raise FileNotFoundError(f"Modelo no encontrado: {model_name} o {fallback_name}")
+        except Exception as e:
+            print(f"   ❌ Error cargando {model_name}: {e}")
+            raise
+    
     def load_models(self):
-        """Cargar todos los modelos necesarios"""
+        """Cargar todos los modelos necesarios (compatible con modelo_vulnerabilities.pkl)"""
         print("📦 Cargando modelos ML...")
         
         try:
+            # ✓ OPCIÓN PRINCIPAL: Usar el modelo unificado model_vulnerabilities.pkl
+            # Este es el nuevo modelo que contiene todo integrado
+            model_path = self.models_dir / 'model_vulnerabilities.pkl'
+            
+            if model_path.exists():
+                print(f"   📁 Cargando modelo unificado: {model_path.name}")
+                with open(model_path, 'rb') as f:
+                    unified_model = pickle.load(f)
+                
+                # Si el modelo unificado tiene todo integrado
+                if hasattr(unified_model, 'analyze_code'):
+                    print("   ✅ Modelo unificado cargado (API completa)")
+                    self.model = unified_model
+                    self.use_unified_model = True
+                    print("✅ Modelos cargados exitosamente (Modo Unificado)")
+                    return
+                else:
+                    print("   ⚠️  Modelo unificado sin método analyze_code, usando componentes individuales")
+            
+            # ✓ OPCIÓN FALLBACK: Cargar componentes individuales
+            # Si el modelo unificado no funciona o no existe
+            print("   📁 Cargando modelos individuales...")
+            
             # Modelo 1: Detector binario
-            with open(self.models_dir / 'vulnerability_detector.pkl', 'rb') as f:
-                self.detector = pickle.load(f)
-            
-            with open(self.models_dir / 'vectorizer_detector.pkl', 'rb') as f:
-                self.vectorizer = pickle.load(f)
-            
-            with open(self.models_dir / 'language_encoder.pkl', 'rb') as f:
-                self.lang_encoder = pickle.load(f)
+            self.detector = self.load_model_safe('vulnerability_detector.pkl')
+            self.vectorizer = self.load_model_safe('vectorizer_detector.pkl')
+            self.lang_encoder = self.load_model_safe('language_encoder.pkl')
             
             # Modelo 2: Clasificador CWE
-            with open(self.models_dir / 'cwe_classifier.pkl', 'rb') as f:
-                self.cwe_classifier = pickle.load(f)
+            self.cwe_classifier = self.load_model_safe('cwe_classifier.pkl')
+            self.vectorizer_cwe = self.load_model_safe('vectorizer_cwe_classifier.pkl')
+            self.cwe_encoder = self.load_model_safe('cwe_encoder.pkl')
             
-            with open(self.models_dir / 'vectorizer_cwe_classifier.pkl', 'rb') as f:
-                self.vectorizer_cwe = pickle.load(f)
-            
-            with open(self.models_dir / 'cwe_encoder.pkl', 'rb') as f:
-                self.cwe_encoder = pickle.load(f)
-            
-            print("✅ Modelos cargados exitosamente")
+            self.use_unified_model = False
+            print("✅ Modelos cargados exitosamente (Modo Componentes)")
             
         except Exception as e:
-            print(f"❌ Error cargando modelos: {e}")
+            print(f"❌ Error crítico cargando modelos: {e}")
+            print(f"   Verifica que los modelos existan en: {self.models_dir}")
             sys.exit(1)
     
     def detect_vulnerability(self, code: str) -> Tuple[bool, float, Dict]:
@@ -73,6 +110,22 @@ class VulnerabilityScanner:
         Detectar si el código es vulnerable (Modelo 1)
         Returns: (is_vulnerable, confidence, probabilities)
         """
+        # ✓ Si usamos el modelo unificado
+        if self.use_unified_model:
+            try:
+                result = self.model.analyze_code(code, 'auto')
+                return (
+                    result.get('vulnerable', False),
+                    result.get('score', 0.0),
+                    {
+                        'seguro': 1.0 - result.get('score', 0.0),
+                        'vulnerable': result.get('score', 0.0)
+                    }
+                )
+            except Exception as e:
+                print(f"   ⚠️  Error con modelo unificado: {e}, usando fallback")
+        
+        # ✓ Fallback: Usar componentes individuales
         features = self.vectorizer.transform([code])
         
         # Ajustar features a 1001 (padding si es necesario)
@@ -99,6 +152,16 @@ class VulnerabilityScanner:
         Primero intenta con patrones regex, luego ML
         Returns: (cwe_type, confidence)
         """
+        # ✓ Si usamos el modelo unificado
+        if self.use_unified_model:
+            try:
+                result = self.model.analyze_code(code, 'auto')
+                cwe_types = result.get('vulnerabilities', [])
+                if cwe_types:
+                    return f"{cwe_types[0]} ({result.get('details', '')})", result.get('score', 0.5), 1
+            except Exception as e:
+                print(f"   ⚠️  Error clasificando con modelo unificado: {e}")
+        
         import re
         
         # Patrones regex para detectar vulnerabilidades específicas
@@ -139,24 +202,27 @@ class VulnerabilityScanner:
             cwe_name = cwe_patterns[detected_cwe][1]
             return f"{detected_cwe} ({cwe_name})", highest_confidence, line_number
         
-        # Fallback: intentar con ML
-        try:
-            features_cwe = self.vectorizer_cwe.transform([code])
-            
-            # Ajustar features a 1001 (padding si es necesario)
-            if features_cwe.shape[1] == 1000:
-                import scipy.sparse as sp
-                padding = sp.csr_matrix((features_cwe.shape[0], 1))
-                features_cwe = sp.hstack([features_cwe, padding])
-            
-            cwe_type_idx = self.cwe_classifier.predict(features_cwe)[0]
-            cwe_type = self.cwe_encoder.inverse_transform([cwe_type_idx])[0]
-            cwe_confidence = self.cwe_classifier.predict_proba(features_cwe)[0][cwe_type_idx]
-            
-            return str(cwe_type), float(cwe_confidence), 1
-        except (IndexError, ValueError) as e:
-            # Si hay error en clasificación, retornar tipo desconocido
-            return "Unknown - No patterns matched", 0.0, 1
+        # Fallback: intentar con ML (solo si no usamos modelo unificado)
+        if not self.use_unified_model:
+            try:
+                features_cwe = self.vectorizer_cwe.transform([code])
+                
+                # Ajustar features a 1001 (padding si es necesario)
+                if features_cwe.shape[1] == 1000:
+                    import scipy.sparse as sp
+                    padding = sp.csr_matrix((features_cwe.shape[0], 1))
+                    features_cwe = sp.hstack([features_cwe, padding])
+                
+                cwe_type_idx = self.cwe_classifier.predict(features_cwe)[0]
+                cwe_type = self.cwe_encoder.inverse_transform([cwe_type_idx])[0]
+                cwe_confidence = self.cwe_classifier.predict_proba(features_cwe)[0][cwe_type_idx]
+                
+                return str(cwe_type), float(cwe_confidence), 1
+            except (IndexError, ValueError) as e:
+                # Si hay error en clasificación, retornar tipo desconocido
+                return "Unknown - No patterns matched", 0.0, 1
+        
+        return "Unknown - No patterns matched", 0.0, 1
     
     def scan_file(self, file_path: Path) -> Dict:
         """Escanear un archivo individual"""

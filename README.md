@@ -15,7 +15,7 @@ Este proyecto fomenta el aprendizaje en programación concurrente, WebSockets pa
 - **ID Único Encriptado**: Cada sala tiene un identificador único de 16 caracteres hexadecimales
 - **Cifrado de Mensajes AES-256-GCM**: Mensajes encriptados en reposo con PBKDF2 key derivation
 - **Cifrado en Tránsito**: Socket.IO con soporte TLS/SSL para comunicación segura
-- **Autenticación JWT**: Tokens seguros con expiración de 24 horas
+- **Autenticación JWT**: :Tokens seguros con expiración de 24 horas
 - **2FA Opcional**: Autenticación de dos factores con TOTP (Google Authenticator)
 - **Detección de Esteganografía**: 5 técnicas de análisis para archivos multimedia
 - **Rate Limiting**: Protección contra ataques DDoS

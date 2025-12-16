@@ -32,6 +32,15 @@ jobs:
         with:
           python-version: '3.11'
       
+      - name: 💾 Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}-ml-deps
+          restore-keys: |
+            ${{ runner.os }}-pip-ml-deps
+            ${{ runner.os }}-pip-
+      
       - name: ✅ Verificar modelos ML
         run: |
           echo "🔍 Verificando modelos entrenados..."

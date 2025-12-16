@@ -73,5 +73,6 @@ class AuthenticationProxy:
         return eval(cred_rule, {'creds': original_creds})
 
 if __name__ == '__main__':
+    
     proxy = APIProxy()
 

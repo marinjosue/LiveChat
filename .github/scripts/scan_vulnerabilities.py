@@ -53,7 +53,7 @@ class VulnerabilityScanner:
             sys.exit(1)
     
     def scan_file(self, file_path: Path) -> Dict:
-        """Escanear un archivo individual"""
+        """Escanear un archivo individual - ANÁLISIS COMPLETO DEL ARCHIVO"""
         try:
             # Leer contenido
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
@@ -71,8 +71,8 @@ class VulnerabilityScanner:
             ext = file_path.suffix[1:].lower()
             language = EXT_TO_LANG.get(ext, 'python')
             
-            # ✓ USAR MODELO: Analizar código
-            print(f"🔍 Analizando: {file_path.name} ({language})")
+            # ✓ USAR MODELO: Analizar código COMPLETO (no línea por línea)
+            print(f"🔍 Analizando COMPLETO: {file_path.name} ({language}) - {len(code)} caracteres")
             analysis = self.model.analyze_code(code, language)
             
             result = {
@@ -80,11 +80,11 @@ class VulnerabilityScanner:
                 'language': language,
                 'vulnerable': analysis.get('vulnerable', False),
                 'max_risk_score': analysis.get('max_risk_score', 0.0),
-                'total_vulnerabilities': analysis.get('summary', {}).get('total_vulnerabilities', 0),
+                'total_vulnerabilities': len(analysis.get('vulnerabilities', [])),
                 'status': 'VULNERABLE' if analysis.get('vulnerable') else 'SAFE'
             }
             
-            # Si es vulnerable, agregar detalles
+            # Si es vulnerable, agregar TODAS las vulnerabilidades
             if analysis.get('vulnerable'):
                 vulnerabilities = analysis.get('vulnerabilities', [])
                 
@@ -92,30 +92,15 @@ class VulnerabilityScanner:
                 sorted_vulns = sorted(vulnerabilities, key=lambda x: x.get('risk_score', 0), reverse=True)
                 
                 result['vulnerabilities'] = sorted_vulns
-                result['vulnerability_types'] = analysis.get('summary', {}).get('vulnerability_types', [])
+                result['vulnerability_types'] = [v.get('type', 'Unknown') for v in sorted_vulns]
+                result['vulnerability_count'] = len(sorted_vulns)
                 
-                # Tomar la primera vulnerabilidad como principal
-                if sorted_vulns:
-                    main_vuln = sorted_vulns[0]
-                    result['type'] = main_vuln.get('type', 'Unknown')
-                    result['line'] = main_vuln.get('line_number', 1)
-                    result['confidence'] = main_vuln.get('risk_score', 0.0)
-                    result['code'] = main_vuln.get('line_content', '')
-                    
-                    # Determinar severidad basada en risk score
-                    risk_score = main_vuln.get('risk_score', 0.0)
-                    if risk_score > 0.85:
-                        result['severity'] = 'critical'
-                    elif risk_score > 0.75:
-                        result['severity'] = 'high'
-                    elif risk_score > 0.65:
-                        result['severity'] = 'medium'
-                    else:
-                        result['severity'] = 'low'
-                
-                print(f"   🚨 VULNERABLE: {result.get('type')} (Risk: {result.get('confidence', 0):.1%}) [Línea {result.get('line', 1)}]")
+                # Imprimir TODOS los hallazgos
+                print(f"   🚨 VULNERABILIDADES ENCONTRADAS: {len(sorted_vulns)}")
+                for i, vuln in enumerate(sorted_vulns[:10], 1):  # Mostrar top 10
+                    print(f"      {i}. {vuln.get('type', 'Unknown')} - Línea {vuln.get('line_number', '?')} (Risk: {vuln.get('risk_score', 0):.1%})")
             else:
-                print(f"   ✅ SAFE")
+                print(f"   ✅ SAFE - Sin vulnerabilidades detectadas")
             
             return result
             

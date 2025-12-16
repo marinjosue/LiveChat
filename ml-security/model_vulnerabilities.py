@@ -42,6 +42,25 @@ MODELS_DIR.mkdir(exist_ok=True)
 # ============================================================================
 # TIPOS Y ESTRUCTURAS DE DATOS
 # ============================================================================
+class VariableType(Enum):
+    """Tipos de variables detectadas"""
+    USER_INPUT = "user_input"
+    DATABASE = "database"
+    EXTERNAL = "external"
+    TRUSTED = "trusted"
+    UNKNOWN = "unknown"
+
+
+@dataclass
+class DataFlowNode:
+    """Nodo en el grafo de flujo de datos"""
+    line_number: int
+    var_name: str
+    node_type: str  # 'source', 'sink', 'transform'
+    content: str
+    dependencies: List[str] = field(default_factory=list)
+
+
 @dataclass
 class DataFlow:
     """Representa un flujo de datos desde fuente a sumidero"""
@@ -49,9 +68,20 @@ class DataFlow:
     sink_line: int
     source_var: str
     sink_var: str
-    path: List[int]
+    path: List[DataFlowNode]
     is_sanitized: bool
     sanitizer_type: Optional[str] = None
+
+
+@dataclass
+class Vulnerability:
+    """Vulnerabilidad detectada"""
+    line_number: int
+    type: str
+    severity: str
+    confidence: float
+    detection_methods: List[str]
+    cwe_ids: List[str] = None
 
 
 # ============================================================================

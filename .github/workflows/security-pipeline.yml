@@ -35,12 +35,12 @@ jobs:
       - name: ✅ Verificar modelos ML
         run: |
           echo "🔍 Verificando modelos entrenados..."
-          if [ ! -f ml-security/models/vulnerability_detector.pkl ]; then
-            echo "❌ Error: Modelo de detección no encontrado"
+          if [ ! -f ml-security/models/model_vulnerabilities.pkl ]; then
+            echo "❌ Error: Modelo principal no encontrado"
             exit 1
           fi
-          if [ ! -f ml-security/models/cwe_classifier.pkl ]; then
-            echo "❌ Error: Modelo de clasificación CWE no encontrado"
+          if [ ! -f ml-security/model_vulnerabilities.py ]; then
+            echo "❌ Error: Definición del modelo no encontrada"
             exit 1
           fi
           echo "✅ Todos los modelos están disponibles"
@@ -58,7 +58,7 @@ jobs:
       - name: 🔍 Escanear vulnerabilidades con ML
         id: scan
         run: |
-          pip install requests numpy==2.0.0 scikit-learn==1.7.2
+          pip install requests numpy scikit-learn torch transformers cloudpickle
           chmod +x .github/scripts/scan_vulnerabilities.py
           
           FILES=$(cat modified_files.txt | tr '\n' ' ')

@@ -210,19 +210,21 @@ def main():
     }
     
     # Preparar vulnerabilidades para notificación
-    vuln_files = [r for r in results if r.get('vulnerable', False)]
-    sorted_vulns = sorted(vuln_files, key=lambda x: x.get('confidence', 0), reverse=True)[:10]
+    all_vulnerabilities = []
+    for result in results:
+        if result.get('vulnerable') and result.get('vulnerabilities'):
+            for vuln in result.get('vulnerabilities', []):
+                all_vulnerabilities.append({
+                    'file': result.get('file', 'unknown'),
+                    'line': vuln.get('line_number', 1),
+                    'type': vuln.get('type', 'Unknown'),
+                    'confidence': vuln.get('risk_score', 0),
+                    'code': vuln.get('line_content', ''),
+                    'severity': vuln.get('severity', 'medium')
+                })
     
-    vulnerabilities_for_notification = []
-    for vuln in sorted_vulns:
-        vulnerabilities_for_notification.append({
-            'file': vuln.get('file', 'unknown'),
-            'line': vuln.get('line', 1),
-            'type': vuln.get('type', 'Unknown'),
-            'confidence': vuln.get('confidence', 0),
-            'code': vuln.get('code', ''),
-            'severity': vuln.get('severity', 'medium')
-        })
+    # Ordenar por confianza y tomar top 10
+    sorted_vulns = sorted(all_vulnerabilities, key=lambda x: x.get('confidence', 0), reverse=True)[:10]
     
     # Guardar reporte JSON
     report = {
@@ -243,7 +245,7 @@ def main():
         },
         'is_safe': vulnerable == 0,
         'files_scanned': total,
-        'vulnerabilities': vulnerabilities_for_notification,
+        'vulnerabilities': sorted_vulns,
         'results': results
     }
     

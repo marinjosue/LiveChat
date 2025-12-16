@@ -171,21 +171,6 @@ def main():
     print(f"⚠️  Errores: {errors}")
     print(f"⏭️  Omitidos: {skipped}")
     
-    # Detalles de vulnerabilidades
-    if vulnerable > 0:
-        print("\n🔴 VULNERABILIDADES DETECTADAS:")
-        print("-" * 60)
-        
-        vuln_files = [r for r in results if r.get('vulnerable', False)]
-        for vuln in vuln_files[:10]:  # Primeras 10
-            print(f"\n📁 {vuln['file']}")
-            print(f"   Tipo: {vuln.get('type', 'Unknown')}")
-            print(f"   Riesgo: {vuln.get('confidence', 0):.1%}")
-            print(f"   Severidad: {vuln.get('severity', 'unknown')}")
-            print(f"   Línea: {vuln.get('line', 1)}")
-            if vuln.get('code'):
-                print(f"   Código: {vuln['code'][:60]}")
-    
     # Contexto de GitHub
     from datetime import datetime
     import subprocess
@@ -225,6 +210,20 @@ def main():
     
     # Ordenar por confianza y tomar top 10
     sorted_vulns = sorted(all_vulnerabilities, key=lambda x: x.get('confidence', 0), reverse=True)[:10]
+    
+    # Detalles de vulnerabilidades
+    if vulnerable > 0:
+        print("\n🔴 VULNERABILIDADES DETECTADAS:")
+        print("-" * 60)
+        
+        for vuln in sorted_vulns:  # Usar sorted_vulns (datos correctos)
+            print(f"\n📁 {vuln['file']}")
+            print(f"   Tipo: {vuln.get('type', 'Unknown')}")
+            print(f"   Riesgo: {vuln.get('confidence', 0):.1%}")
+            print(f"   Severidad: {vuln.get('severity', 'unknown')}")
+            print(f"   Línea: {vuln.get('line', 1)}")
+            if vuln.get('code'):
+                print(f"   Código: {vuln['code'][:60]}")
     
     # Guardar reporte JSON
     report = {

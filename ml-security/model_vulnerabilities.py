@@ -40,6 +40,21 @@ MODELS_DIR.mkdir(exist_ok=True)
 
 
 # ============================================================================
+# TIPOS Y ESTRUCTURAS DE DATOS
+# ============================================================================
+@dataclass
+class DataFlow:
+    """Representa un flujo de datos desde fuente a sumidero"""
+    source_line: int
+    sink_line: int
+    source_var: str
+    sink_var: str
+    path: List[int]
+    is_sanitized: bool
+    sanitizer_type: Optional[str] = None
+
+
+# ============================================================================
 # FASE 1: DATA FLOW ANALYZER - Rastreo multi-línea de entrada a salida
 # ============================================================================
 class DataFlowAnalyzer:

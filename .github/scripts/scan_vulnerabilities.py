@@ -176,15 +176,33 @@ def main():
         print("\n🔴 VULNERABILIDADES DETECTADAS:")
         print("-" * 60)
         
-        vuln_files = [r for r in results if r.get('vulnerable', False)]
-        for vuln in vuln_files[:10]:  # Primeras 10
-            print(f"\n📁 {vuln['file']}")
-            print(f"   Tipo: {vuln.get('type', 'Unknown')}")
-            print(f"   Riesgo: {vuln.get('confidence', 0):.1%}")
-            print(f"   Severidad: {vuln.get('severity', 'unknown')}")
-            print(f"   Línea: {vuln.get('line', 1)}")
-            if vuln.get('code'):
-                print(f"   Código: {vuln['code'][:60]}")
+        # Extraer TODAS las vulnerabilidades de los archivos analizados
+        all_vulnerabilities = []
+        for r in results:
+            if r.get('vulnerable', False) and r.get('vulnerabilities'):
+                for vuln in r.get('vulnerabilities', []):
+                    all_vulnerabilities.append({
+                        'file': r['file'],
+                        'type': vuln.get('type', 'Unknown'),
+                        'line_number': vuln.get('line_number', 1),
+                        'risk_score': vuln.get('risk_score', 0),
+                        'line_content': vuln.get('line_content', ''),
+                        'severity': vuln.get('severity', 'medium'),
+                        'confidence': vuln.get('confidence', 0)
+                    })
+        
+        # Ordenar por risk_score descendente y tomar top 10
+        all_vulnerabilities.sort(key=lambda x: x['risk_score'], reverse=True)
+        top_10 = all_vulnerabilities[:10]
+        
+        for i, vuln in enumerate(top_10, 1):
+            print(f"\n{i}. 📁 {vuln['file']}")
+            print(f"   Tipo: {vuln['type']}")
+            print(f"   Riesgo: {vuln['risk_score']:.1%}")
+            print(f"   Severidad: {vuln['severity']}")
+            print(f"   Línea: {vuln['line_number']}")
+            if vuln.get('line_content'):
+                print(f"   Código: {vuln['line_content'][:60]}")
     
     # Contexto de GitHub
     from datetime import datetime
@@ -201,28 +219,35 @@ def main():
     
     commit_msg = os.getenv('GITHUB_COMMIT_MESSAGE', 'No message')
     
-    # Calcular resumen por severidad
+    # Calcular resumen por severidad y extraer vulnerabilidades
     severity_counts = {
-        'critical': sum(1 for r in results if r.get('severity') == 'critical'),
-        'high': sum(1 for r in results if r.get('severity') == 'high'),
-        'medium': sum(1 for r in results if r.get('severity') == 'medium'),
-        'low': sum(1 for r in results if r.get('severity') == 'low')
+        'critical': 0,
+        'high': 0,
+        'medium': 0,
+        'low': 0
     }
     
-    # Preparar vulnerabilidades para notificación
-    vuln_files = [r for r in results if r.get('vulnerable', False)]
-    sorted_vulns = sorted(vuln_files, key=lambda x: x.get('confidence', 0), reverse=True)[:10]
+    # Extraer TODAS las vulnerabilidades del análisis
+    all_vulnerabilities = []
+    for r in results:
+        if r.get('vulnerable', False) and r.get('vulnerabilities'):
+            for vuln in r.get('vulnerabilities', []):
+                severity = vuln.get('severity', 'medium')
+                severity_counts[severity] = severity_counts.get(severity, 0) + 1
+                
+                all_vulnerabilities.append({
+                    'file': r['file'],
+                    'type': vuln.get('type', 'Unknown'),
+                    'line_number': vuln.get('line_number', 1),
+                    'risk_score': vuln.get('risk_score', 0),
+                    'line_content': vuln.get('line_content', ''),
+                    'severity': severity,
+                    'confidence': vuln.get('confidence', 0)
+                })
     
-    vulnerabilities_for_notification = []
-    for vuln in sorted_vulns:
-        vulnerabilities_for_notification.append({
-            'file': vuln.get('file', 'unknown'),
-            'line': vuln.get('line', 1),
-            'type': vuln.get('type', 'Unknown'),
-            'confidence': vuln.get('confidence', 0),
-            'code': vuln.get('code', ''),
-            'severity': vuln.get('severity', 'medium')
-        })
+    # Ordenar por risk_score y tomar top 10
+    all_vulnerabilities.sort(key=lambda x: x['risk_score'], reverse=True)
+    vulnerabilities_for_notification = all_vulnerabilities[:10]
     
     # Guardar reporte JSON
     report = {

@@ -41,32 +41,37 @@ def send_telegram_notification():
             # Message for vulnerabilities found
             message = "🚨 <b>VULNERABILIDADES DETECTADAS</b> 🚨\n\n"
             message += "📊 <b>Resumen:</b>\n"
-            message += f"• Total: {len(vulnerabilities)} vulnerabilidades\n"
-            message += f"• Críticas (>85%): {summary.get('critical', 0)}\n"
-            message += f"• Altas (70-85%): {summary.get('high', 0)}\n"
-            message += f"• Medias (50-70%): {summary.get('medium', 0)}\n\n"
-            message += "🔍 <b>PRIMERAS 10 VULNERABILIDADES:</b>\n\n"
+            message += f"• Total archivos: {report.get('files_scanned', 0)}\n"
+            message += f"• Archivos vulnerables: {summary.get('vulnerable', 0)}\n"
+            message += f"• Total vulnerabilidades: {summary.get('total', 0)}\n"
+            message += f"• Críticas: {summary.get('critical', 0)}\n"
+            message += f"• Altas: {summary.get('high', 0)}\n"
+            message += f"• Medias: {summary.get('medium', 0)}\n"
+            message += f"• Bajas: {summary.get('low', 0)}\n\n"
+            message += "🔍 <b>TOP 10 VULNERABILIDADES:</b>\n\n"
             
             for i, vuln in enumerate(vulnerabilities[:10], 1):  # Solo primeras 10
                 file_path = vuln.get('file', 'unknown')
-                line = vuln.get('line', '?')
+                line = vuln.get('line_number', '?')
                 vuln_type = vuln.get('type', 'Unknown')
-                confidence = vuln.get('confidence', 0)
-                code = escape_html(vuln.get('code', '')[:50])
+                risk_score = vuln.get('risk_score', 0)
+                severity = vuln.get('severity', 'medium').upper()
+                line_content = escape_html(vuln.get('line_content', '')[:50])
                 
-                message += f"<b>{i}. {escape_html(vuln_type)}</b>\n"
-                message += f"Archivo: {escape_html(file_path)}\n"
-                message += f"Línea: {line}\n"
-                message += f"Confianza: {confidence*100:.1f}%\n"
-                message += f"Código: <code>{code}</code>\n\n"
+                message += f"<b>{i}. {escape_html(vuln_type)}</b> [{severity}]\n"
+                message += f"📁 {escape_html(file_path)}\n"
+                message += f"📍 Línea: {line}\n"
+                message += f"⚠️ Riesgo: {risk_score*100:.1f}%\n"
+                if line_content:
+                    message += f"💻 <code>{line_content}</code>\n"
+                message += "\n"
             
             if len(vulnerabilities) > 10:
-                message += f"... y {len(vulnerabilities) - 10} más vulnerabilidades\n\n"
+                message += f"<i>... y {len(vulnerabilities) - 10} vulnerabilidades más</i>\n\n"
             
             message += f"👤 Usuario: {escape_html(usuario)}\n"
-            message += f"💬 Commit: {escape_html(commit)}\n"
+            message += f"🔗 Commit: <code>{escape_html(commit)}</code>\n"
             message += f"⏰ Hora: {readable_time}\n"
-            message += "🔗 Repo: LiveChat"
         else:
             # Message when no vulnerabilities found
             message = "✅ <b>SIN VULNERABILIDADES DETECTADAS</b> ✅\n\n"

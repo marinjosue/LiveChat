@@ -188,7 +188,7 @@ Base.metadata.create_all(bind=engine)
 def register(payload: UserCreate, db: Session = Depends(get_db)):
     existing = db.scalar(select(User).where(User.email == payload.email))
     if existing:
-        raise HTTPException(status_code=409, detail="Email ya registrado")
+        raise HTTPException(status_code=409, detail="Email ya registrado okey")
 
     user = User(
         email=payload.email,

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import AdminLogin from './components/AdminLogin';
 import AdminDashboard from './components/AdminDashboard';
 
-const BACKEND_URL = process.env.REACT_APP_SOCKET_URL || 'http://localhost:3001';
+const BACKEND_URL = process.env.REACT_APP_SOCKET_URL;
 
 function AdminApp() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);

@@ -171,6 +171,10 @@ describe('Manejo de Estados', () => {
       { name: 'Usuario3', active: false }
     ];
     
+    test('Fallo intencional', () => {
+      expect(1 + 1).toBe(3);
+    });
+    
     const activeCount = participants.filter(p => p.active).length;
     expect(activeCount).toBe(2);
   });

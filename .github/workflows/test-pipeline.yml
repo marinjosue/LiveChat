@@ -74,16 +74,16 @@ jobs:
           cd ${{ matrix.component }}
           npm test -- --coverage --passWithNoTests --watchAll=false 2>&1 | tee test-output.log || true
           
-          # Verificar si hay tests reales
-          if grep -q "No tests found" test-output.log; then
-            echo "⚠️ No se encontraron tests en ${{ matrix.component }}"
-            echo "test_result=0" >> $GITHUB_OUTPUT
-          elif grep -q "PASS" test-output.log || grep -q "Tests:" test-output.log; then
-            echo "✅ Tests ejecutados exitosamente"
-            echo "test_result=0" >> $GITHUB_OUTPUT
-          else
+          # Verificar si hay tests que fallaron
+          if grep -q "FAIL" test-output.log; then
             echo "❌ Tests fallaron"
             echo "test_result=1" >> $GITHUB_OUTPUT
+          elif grep -q "No tests found" test-output.log; then
+            echo "⚠️ No se encontraron tests en ${{ matrix.component }}"
+            echo "test_result=0" >> $GITHUB_OUTPUT
+          else
+            echo "✅ Tests ejecutados exitosamente"
+            echo "test_result=0" >> $GITHUB_OUTPUT
           fi
       
       - name: 📊 Upload coverage

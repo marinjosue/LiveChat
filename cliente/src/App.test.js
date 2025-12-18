@@ -175,7 +175,7 @@ describe('Manejo de Estados', () => {
   });
 });
 
-// Test de fallo intencional (fuera de cualquier describe/test)
-test('Fallo intencional', () => {
-  expect(1 + 1).toBe(3);
-});
+// // Test de fallo intencional (fuera de cualquier describe/test)
+// test('Fallo intencional', () => {
+//   expect(1 + 1).toBe(3);
+// });

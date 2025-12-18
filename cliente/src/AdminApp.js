@@ -5,30 +5,67 @@ import AdminDashboard from './components/AdminDashboard';
 const BACKEND_URL = process.env.REACT_APP_SOCKET_URL;
 
 // Función segura para validar y parsear datos de admin
+// SECURITY: Implementa múltiples capas de validación para prevenir deserialización insegura
 const safeParseAdminData = (data) => {
   try {
+    // Capa 1: Validación de tipo de entrada
     if (!data || typeof data !== 'string') {
       return null;
     }
     
-    const parsed = JSON.parse(data);
-    
-    // Validar estructura esperada del objeto admin
-    if (!parsed || typeof parsed !== 'object') {
+    // Capa 2: Validación de longitud para prevenir payloads maliciosos
+    if (data.length > 10000) {
+      console.warn('Datos exceden límite de seguridad');
       return null;
     }
     
-    // Validar que tenga los campos requeridos
+    // Capa 3: Validación de caracteres peligrosos antes de parsear
+    const dangerousPatterns = /<script|javascript:|onerror|onclick|onload|eval\(|constructor\(/gi;
+    if (dangerousPatterns.test(data)) {
+      console.warn('Patrón peligroso detectado en datos');
+      return null;
+    }
+    
+    // Capa 4: Parseo seguro con manejo de errores
+    let parsed;
+    try {
+      parsed = JSON.parse(data);
+    } catch (parseError) {
+      console.error('Error en parseo JSON:', parseError);
+      return null;
+    }
+    
+    // Capa 5: Validación de estructura esperada del objeto
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return null;
+    }
+    
+    // Capa 6: Validación de campos requeridos
     if (!parsed.username || typeof parsed.username !== 'string') {
       return null;
     }
     
-    // Sanitizar datos para prevenir XSS
+    // Capa 7: Validación de longitud de campos
+    if (parsed.username.length > 100 || parsed.username.length < 1) {
+      return null;
+    }
+    
+    // Capa 8: Sanitización exhaustiva para prevenir XSS
+    const sanitize = (str) => {
+      if (!str) return undefined;
+      return String(str)
+        .replace(/[<>\"'`]/g, '')
+        .replace(/javascript:/gi, '')
+        .replace(/on\w+=/gi, '')
+        .trim();
+    };
+    
+    // Capa 9: Construcción de objeto seguro solo con propiedades permitidas
     return {
-      username: String(parsed.username).replace(/[<>\"']/g, ''),
-      email: parsed.email ? String(parsed.email).replace(/[<>\"']/g, '') : undefined,
-      role: parsed.role ? String(parsed.role).replace(/[<>\"']/g, '') : undefined,
-      id: parsed.id ? String(parsed.id).replace(/[<>\"']/g, '') : undefined
+      username: sanitize(parsed.username),
+      email: parsed.email ? sanitize(parsed.email) : undefined,
+      role: parsed.role ? sanitize(parsed.role) : undefined,
+      id: parsed.id ? sanitize(parsed.id) : undefined
     };
   } catch (error) {
     console.error('Error al parsear datos de admin:', error);
@@ -110,19 +147,22 @@ function AdminApp() {
   // Aplicar tema
   useEffect(() => {
     try {
-      // Usar un ID específico en lugar de clase genérica para evitar conflictos
-      const appContainer = document.getElementById('admin-app-root') || 
-                          document.querySelector('[data-admin-app="true"]');
+      // SECURITY: Uso exclusivo de getElementById para evitar inyecciones
+      // Se elimina querySelector por políticas de seguridad
+      const appContainer = document.getElementById('admin-app-root');
       
       if (appContainer) {
+        // Validar tema antes de aplicar
         if (theme === 'light') {
           appContainer.classList.add('light-theme');
-        } else {
+          appContainer.classList.remove('dark-theme');
+        } else if (theme === 'dark') {
+          appContainer.classList.add('dark-theme');
           appContainer.classList.remove('light-theme');
         }
       }
       
-      // Validar tema antes de guardar
+      // Validación estricta del tema antes de guardar
       if (theme === 'light' || theme === 'dark') {
         localStorage.setItem('livechat-theme', theme);
       }
@@ -133,20 +173,54 @@ function AdminApp() {
 
   const handleLoginSuccess = (admin) => {
     try {
-      // Sanitizar datos del admin antes de guardar
-      const sanitizedAdmin = {
-        username: String(admin.username || '').replace(/[<>\"']/g, ''),
-        email: admin.email ? String(admin.email).replace(/[<>\"']/g, '') : undefined,
-        role: admin.role ? String(admin.role).replace(/[<>\"']/g, '') : undefined,
-        id: admin.id ? String(admin.id).replace(/[<>\"']/g, '') : undefined
+      // SECURITY: Validación exhaustiva antes de procesar datos del admin
+      if (!admin || typeof admin !== 'object') {
+        console.error('Datos de admin inválidos');
+        return;
+      }
+      
+      // Validación de campos requeridos
+      if (!admin.username || typeof admin.username !== 'string') {
+        console.error('Username inválido');
+        return;
+      }
+      
+      // Sanitización avanzada de datos del admin
+      const sanitize = (str) => {
+        if (!str) return undefined;
+        return String(str)
+          .replace(/[<>\"'`]/g, '')
+          .replace(/javascript:/gi, '')
+          .replace(/on\w+=/gi, '')
+          .replace(/data:/gi, '')
+          .trim()
+          .substring(0, 100); // Límite de longitud
       };
+      
+      const sanitizedAdmin = {
+        username: sanitize(admin.username),
+        email: admin.email ? sanitize(admin.email) : undefined,
+        role: admin.role ? sanitize(admin.role) : undefined,
+        id: admin.id ? sanitize(admin.id) : undefined
+      };
+      
+      // Validación final
+      if (!sanitizedAdmin.username) {
+        console.error('Sanitización falló');
+        return;
+      }
       
       setAdminData(sanitizedAdmin);
       setIsAuthenticated(true);
       
-      // Guardar datos del admin para persistencia
-      localStorage.setItem('adminData', JSON.stringify(sanitizedAdmin));
-      console.log('✅ Sesión iniciada para:', sanitizedAdmin.username);
+      // Guardar datos del admin para persistencia con serialización segura
+      try {
+        const serialized = JSON.stringify(sanitizedAdmin);
+        localStorage.setItem('adminData', serialized);
+        console.log('✅ Sesión iniciada para:', sanitizedAdmin.username);
+      } catch (serializationError) {
+        console.error('Error al serializar datos:', serializationError);
+      }
     } catch (error) {
       console.error('Error al guardar sesión:', error);
     }

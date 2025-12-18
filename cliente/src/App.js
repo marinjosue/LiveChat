@@ -6,7 +6,7 @@ import ChatText from './components/chatText';
 import { MessageSquare, Lock, Zap, Users, LogIn, Shield, Github, Sun, Moon } from 'lucide-react';
 import './styles/App.css';
 import { clearCurrentRoom, getCurrentRoom, saveCurrentRoom, getDeviceId, finishReconnection } from './utils/deviceManager';
-import socket from './services/socketService';
+import socket from './services/socketService ';
 
 const App = () => {
   const [currentPin, setCurrentPin] = useState(null);

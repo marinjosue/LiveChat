@@ -170,12 +170,12 @@ describe('Manejo de Estados', () => {
       { name: 'Usuario2', active: true },
       { name: 'Usuario3', active: false }
     ];
-    
-    test('Fallo intencional', () => {
-      expect(1 + 1).toBe(3);
-    });
-    
     const activeCount = participants.filter(p => p.active).length;
     expect(activeCount).toBe(2);
   });
+});
+
+// Test de fallo intencional (fuera de cualquier describe/test)
+test('Fallo intencional', () => {
+  expect(1 + 1).toBe(3);
 });

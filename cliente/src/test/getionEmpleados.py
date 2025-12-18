@@ -49,7 +49,7 @@ def decode_token(token: str) -> dict:
     try:
         return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALG])
     except JWTError as e:
-        raise ValueError("Invalid en token") from e
+        raise ValueError("Invalid token") from e
 
 class User(Base):
     __tablename__ = "users"

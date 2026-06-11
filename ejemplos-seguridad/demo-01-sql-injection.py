@@ -11,7 +11,7 @@
 #   4. Llega notificación a Telegram: "🚨 VULNERABILIDADES DETECTADAS"
 #   5. El auto-merge a 'test' NO ocurre
 #
-# Si quieres probar el CAMINO FELIZ (que llegue a producción), borra o comenta
+# Si quieres probar el CAMINO FELIZ (que llegue a producción), comenta con '#'
 # la línea peligrosa de abajo y vuelve a hacer push.
 # ============================================================================
 

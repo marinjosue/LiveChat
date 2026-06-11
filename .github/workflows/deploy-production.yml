@@ -1,8 +1,10 @@
 name: 🚀 Deploy to Production
 
+# IMPORTANTE: el deploy a producción NO se dispara con 'push: [main]'.
+# Solo se ejecuta vía 'workflow_dispatch', que es disparado automáticamente por
+# test-pipeline.yml DESPUÉS de pasar: análisis ML (dev→test) + tests (test→main).
+# Así, un push directo a main NO puede desplegar saltándose el flujo dev→test→main.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -109,6 +111,14 @@ jobs:
             -d "text=${MESSAGE}" \
             -d "parse_mode=HTML"
 
+      # Hacemos que el JOB falle si el deploy no fue exitoso. Así 'notify-deploy-complete'
+      # (if: success()) no se ejecuta por error cuando el deploy realmente falló.
+      - name: 🛑 Marcar fallo si el deploy backend no fue exitoso
+        if: steps.render.outputs.deploy_status != 'success'
+        run: |
+          echo "❌ El deploy del backend no fue exitoso"
+          exit 1
+
   deploy-frontend:
     name: 💻 Deploy Frontend to Vercel
     runs-on: ubuntu-latest
@@ -185,6 +195,12 @@ jobs:
             -d "chat_id=${TELEGRAM_CHAT_ID}" \
             -d "text=${MESSAGE}" \
             -d "parse_mode=HTML"
+
+      - name: 🛑 Marcar fallo si el deploy frontend no fue exitoso
+        if: steps.vercel.outputs.deploy_status != 'success'
+        run: |
+          echo "❌ El deploy del frontend no fue exitoso"
+          exit 1
 
   notify-deploy-complete:
     name: 📱 Notify Deployment Complete

@@ -69,21 +69,21 @@ jobs:
         id: test
         continue-on-error: true
         env:
-          CI: false
+          CI: true
         run: |
           cd ${{ matrix.component }}
-          npm test -- --coverage --passWithNoTests --watchAll=false 2>&1 | tee test-output.log || true
-          
-          # Verificar si hay tests que fallaron
-          if grep -q "FAIL" test-output.log; then
-            echo "❌ Tests fallaron"
-            echo "test_result=1" >> $GITHUB_OUTPUT
-          elif grep -q "No tests found" test-output.log; then
-            echo "⚠️ No se encontraron tests en ${{ matrix.component }}"
+          # Ejecutar tests y capturar el EXIT CODE REAL de Jest (no parsear texto).
+          # PIPESTATUS[0] = código de salida de npm/jest aunque el output pase por 'tee'.
+          set -o pipefail
+          npm test -- --coverage --passWithNoTests --watchAll=false 2>&1 | tee test-output.log
+          TEST_EXIT=${PIPESTATUS[0]}
+
+          if [ "$TEST_EXIT" -eq 0 ]; then
+            echo "✅ Tests ejecutados exitosamente (exit=0)"
             echo "test_result=0" >> $GITHUB_OUTPUT
           else
-            echo "✅ Tests ejecutados exitosamente"
-            echo "test_result=0" >> $GITHUB_OUTPUT
+            echo "❌ Tests fallaron o Jest crasheó (exit=$TEST_EXIT)"
+            echo "test_result=1" >> $GITHUB_OUTPUT
           fi
       
       - name: 📊 Upload coverage
@@ -192,19 +192,25 @@ jobs:
         if: steps.merge.outputs.merge_status == 'failed'
         run: |
           MESSAGE="❌ <b>MERGE CONFLICT DETECTED</b>%0A%0A"
-          MESSAGE+="test → main merge failed%0A"
-          MESSAGE+="Manual intervention required%0A%0A"
-          MESSAGE+="🔗 <a href='${{ github.server_url }}/${{ github.repository }}/pulls'>Resolve Conflicts</a>"
-          
+          MESSAGE+="📦 <b>Repositorio:</b> ${{ github.repository }}%0A"
+          MESSAGE+="🔀 <b>Intento:</b> test → main%0A%0A"
+          MESSAGE+="⚠️ No se pudo completar el merge automático%0A"
+          MESSAGE+="🔍 Posibles causas:%0A"
+          MESSAGE+="  • Conflictos de merge%0A"
+          MESSAGE+="  • Cambios divergentes%0A"
+          MESSAGE+="  • Protección de rama%0A%0A"
+          MESSAGE+="📝 <b>Acción requerida:</b> Merge manual%0A%0A"
+          MESSAGE+="🔗 <a href='${{ github.server_url }}/${{ github.repository }}/pulls'>Resolver Conflictos</a>"
+
           curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
             -d "chat_id=${TELEGRAM_CHAT_ID}" \
             -d "text=${MESSAGE}" \
             -d "parse_mode=HTML" || true
 
-            -d "text=${MESSAGE}" \
-            -d "parse_mode=HTML"
-      
-      - name: � Disparar deploy-production
+      # NOTA: el push a main hecho arriba con GITHUB_TOKEN NO dispara el workflow
+      # 'deploy-production.yml' por la regla anti-recursión de GitHub Actions.
+      # Por eso lo disparamos explícitamente aquí con createWorkflowDispatch.
+      - name: 🚀 Disparar deploy-production
         if: steps.merge.outputs.merge_status == 'success'
         uses: actions/github-script@v7
         with:
@@ -216,25 +222,6 @@ jobs:
               ref: 'main'
             });
             console.log('✅ Deploy pipeline disparado');
-      
-      - name: �📱 Notificar error en merge
-        if: failure()
-        run: |
-          MESSAGE="❌ <b>ERROR EN MERGE AUTOMÁTICO</b>%0A%0A"
-          MESSAGE+="📦 <b>Repositorio:</b> ${{ github.repository }}%0A"
-          MESSAGE+="🔀 <b>Intento:</b> test → main%0A%0A"
-          MESSAGE+="⚠️ No se pudo completar el merge automático%0A"
-          MESSAGE+="🔍 Posibles causas:%0A"
-          MESSAGE+="  • Conflictos de merge%0A"
-          MESSAGE+="  • Cambios divergentes%0A"
-          MESSAGE+="  • Protección de rama%0A%0A"
-          MESSAGE+="📝 <b>Acción requerida:</b> Merge manual%0A%0A"
-          MESSAGE+="🔗 <a href='${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'>Ver Logs</a>"
-          
-          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
-            -d "chat_id=${TELEGRAM_CHAT_ID}" \
-            -d "text=${MESSAGE}" \
-            -d "parse_mode=HTML"
   
   notify-failure:
     name: 📱 Notify Test Failure
@@ -296,10 +283,8 @@ jobs:
                 repo: context.repo.repo,
                 labels: ['tests-failed']
               });
+              console.log('🏷️ Etiqueta tests-failed añadida al PR #' + pr.number);
+            } else {
+              console.log('No hay PR abierto desde test para etiquetar');
             }
-              pull_number: pr_number,
-              merge_method: 'squash'
-            });
-            
-            console.log('✅ Auto-mergeado a main - Deploy iniciado');
 

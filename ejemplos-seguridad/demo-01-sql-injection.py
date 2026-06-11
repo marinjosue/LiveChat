@@ -19,32 +19,32 @@ from flask import request
 import sqlite3
 
 
-# def buscar_usuario():
-#     """Endpoint vulnerable: concatena entrada del usuario directo en el SQL."""
-#     conn = sqlite3.connect("livechat.db")
-#     cursor = conn.cursor()
+def buscar_usuario():
+    """Endpoint vulnerable: concatena entrada del usuario directo en el SQL."""
+    conn = sqlite3.connect("livechat.db")
+    cursor = conn.cursor()
 
-#     # 🔴 FUENTE: entrada controlada por el usuario (request.args)
-#     user_id = request.args.get("id")
+    # 🔴 FUENTE: entrada controlada por el usuario (request.args)
+    user_id = request.args.get("id")
 
-#     # 🔴 VULNERABILIDAD (línea activa): concatenación directa en la consulta SQL.
-#     #     El modelo ML detecta: SELECT + concatenación ('+') sin parámetros (?, %s).
-#     query = "SELECT * FROM usuarios WHERE id = '" + user_id + "'"
+    # 🔴 VULNERABILIDAD (línea activa): concatenación directa en la consulta SQL.
+    #     El modelo ML detecta: SELECT + concatenación ('+') sin parámetros (?, %s).
+    query = "SELECT * FROM usuarios WHERE id = '" + user_id + "'"
 
-#     # 🔴 SUMIDERO: la consulta no sanitizada se ejecuta.
-#     cursor.execute(query)
+    # 🔴 SUMIDERO: la consulta no sanitizada se ejecuta.
+    cursor.execute(query)
 
-#     return cursor.fetchall()
+    return cursor.fetchall()
 
 
 # ----------------------------------------------------------------------------
 # ✅ VERSIÓN SEGURA (referencia) — así se corregiría usando parámetros enlazados.
 #    Está comentada con '#', por lo que el scanner la ignora.
 # ----------------------------------------------------------------------------
-def buscar_usuario_seguro():
-    conn = sqlite3.connect("livechat.db")
-    cursor = conn.cursor()
-    user_id = request.args.get("id")
-    query = "SELECT * FROM usuarios WHERE id = ?"   # placeholder parametrizado
-    cursor.execute(query, [user_id])               # entrada enlazada, no concatenada
-    return cursor.fetchall()
+# def buscar_usuario_seguro():
+#     conn = sqlite3.connect("livechat.db")
+#     cursor = conn.cursor()
+#     user_id = request.args.get("id")
+#     query = "SELECT * FROM usuarios WHERE id = ?"   # placeholder parametrizado
+#     cursor.execute(query, [user_id])               # entrada enlazada, no concatenada
+#     return cursor.fetchall()

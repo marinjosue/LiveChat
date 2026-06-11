@@ -1,0 +1,59 @@
+name: 🚫 Block Direct Push to Main
+
+# Este workflow se dispara con CUALQUIER push a 'main'.
+# PERO el merge automático test->main del pipeline usa GITHUB_TOKEN, y los pushes
+# hechos con GITHUB_TOKEN NO disparan workflows (regla anti-recursión de GitHub).
+# => Si este workflow se ejecuta, es porque ALGUIEN hizo un PUSH DIRECTO a main,
+#    saltándose el flujo obligatorio dev -> test -> main.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+  TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+
+jobs:
+  detect-direct-push:
+    name: 🔍 Detectar push directo a main
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 📱 Alertar push directo en Telegram
+        run: |
+          COMMIT_SHA="${{ github.sha }}"
+          COMMIT_SHORT="${COMMIT_SHA:0:7}"
+          COMMIT_MSG=$(git log -1 --pretty=%s | head -c 80)
+
+          MESSAGE="⛔ <b>PUSH DIRECTO A MAIN DETECTADO</b>%0A%0A"
+          MESSAGE+="🚫 <b>Se violó el flujo obligatorio:</b> dev → test → main%0A%0A"
+          MESSAGE+="👤 <b>Autor:</b> ${{ github.actor }}%0A"
+          MESSAGE+="📝 <b>Commit:</b> ${COMMIT_SHORT} — ${COMMIT_MSG}%0A%0A"
+          MESSAGE+="⚠️ Este código <b>NO</b> pasó por:%0A"
+          MESSAGE+="  • 🤖 Análisis ML de seguridad%0A"
+          MESSAGE+="  • 🧪 Tests automáticos%0A%0A"
+          MESSAGE+="📝 <b>Acción correcta:</b>%0A"
+          MESSAGE+="  1️⃣ Revertir este push%0A"
+          MESSAGE+="  2️⃣ Llevar el cambio a 'dev'%0A"
+          MESSAGE+="  3️⃣ Abrir PR dev → test%0A%0A"
+          MESSAGE+="🔒 <b>Sugerencia:</b> activa Branch Protection en main%0A%0A"
+          MESSAGE+="🔗 <a href='${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}'>Ver Commit</a>"
+
+          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d "chat_id=${TELEGRAM_CHAT_ID}" \
+            -d "text=${MESSAGE}" \
+            -d "parse_mode=HTML" || true
+
+      - name: ❌ Marcar el flujo como violado
+        run: |
+          echo "::error::PUSH DIRECTO A MAIN NO PERMITIDO. Usa el flujo dev → test → main."
+          echo "El commit ${{ github.sha }} llegó a main sin pasar por el pipeline."
+          exit 1

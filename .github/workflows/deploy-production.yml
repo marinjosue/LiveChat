@@ -1,8 +1,10 @@
 name: 🚀 Deploy to Production
 
+# IMPORTANTE: el deploy a producción NO se dispara con 'push: [main]'.
+# Solo se ejecuta vía 'workflow_dispatch', que es disparado automáticamente por
+# test-pipeline.yml DESPUÉS de pasar: análisis ML (dev→test) + tests (test→main).
+# Así, un push directo a main NO puede desplegar saltándose el flujo dev→test→main.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:

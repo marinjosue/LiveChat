@@ -48,3 +48,4 @@ def buscar_usuario_seguro():
     query = "SELECT * FROM usuarios WHERE id = ?"   # placeholder parametrizado
     cursor.execute(query, [user_id])               # entrada enlazada, no concatenada
     return cursor.fetchall()
+# cambios de seguridad: se reemplaza concatenación por parámetros enlazados (placeholders '?') y se pasa la entrada como argumento separado. Esto previene la inyección SQL.
